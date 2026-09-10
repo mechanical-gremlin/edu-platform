@@ -1,6 +1,6 @@
 import type { UserRole } from '../types/models'
 
-export type NavKey = 'dashboard' | 'course' | 'gradebook'
+export type NavKey = 'dashboard' | 'courses' | 'gradebook'
 
 export interface NavItem {
   key: NavKey
@@ -10,7 +10,7 @@ export interface NavItem {
 export const getRoleNavigation = (role: UserRole): NavItem[] => {
   const shared: NavItem[] = [
     { key: 'dashboard', label: 'Dashboard' },
-    { key: 'course', label: 'Courses' },
+    { key: 'courses', label: 'Courses' },
   ]
 
   if (role === 'teacher') {
