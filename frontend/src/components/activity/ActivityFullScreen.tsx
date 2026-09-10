@@ -38,7 +38,6 @@ export const ActivityFullScreen = ({
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
 
   const status = activity.statusByUser[currentUser.id] ?? 'not_started'
-  const isSubmitted = status === 'completed' || status === 'in_progress'
   const gradeEntry = gradebookEntries.find(
     (e) => e.activityId === activity.id && e.studentId === currentUser.id,
   )
@@ -103,12 +102,15 @@ export const ActivityFullScreen = ({
                 <span className="text-lg text-amber-500">⏳</span>
                 <span className="text-sm font-medium text-amber-700">Submitted – awaiting grade</span>
               </>
-            ) : isSubmitted ? (
+            ) : status === 'completed' ? (
               <>
                 <span className="text-lg text-indigo-500">✓</span>
-                <span className="text-sm font-medium text-indigo-700">
-                  {status === 'completed' ? 'Completed' : 'In Progress'}
-                </span>
+                <span className="text-sm font-medium text-indigo-700">Completed</span>
+              </>
+            ) : status === 'in_progress' ? (
+              <>
+                <span className="text-lg text-slate-400">✎</span>
+                <span className="text-sm font-medium text-slate-600">In Progress</span>
               </>
             ) : (
               <span className="text-sm text-slate-500">Not yet submitted</span>
