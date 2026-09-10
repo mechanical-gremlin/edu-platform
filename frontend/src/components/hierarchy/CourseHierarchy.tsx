@@ -200,10 +200,14 @@ export const CourseHierarchy = ({
         <div className="space-y-3">
           {course.units.map((unit) => {
             const unitActivities = unit.lessons.flatMap((l) => l.activities)
-            const completedCount = unitActivities.filter(
-              (a) => a.statusByUser[currentUserId] === 'completed',
-            ).length
-            const unitEl = (
+            const completedCount = unitActivities.filter((a) => {
+              const status = a.statusByUser[currentUserId] ?? 'not_started'
+              const entry = gradebookEntries.find((e) => e.activityId === a.id && e.studentId === currentUserId)
+              const isGraded = entry?.pointsEarned !== null && entry?.pointsEarned !== undefined
+              const isSubmitted = !!entry?.submitted && !isGraded
+              return status === 'completed' || isGraded || isSubmitted
+            }).length
+            return (
             <div key={unit.id} className="rounded-xl border border-slate-200">
               <div className="flex items-center justify-between p-3">
                 <button className="flex items-center gap-2 text-left font-medium text-slate-800" onClick={() => toggleUnit(unit.id)}>
@@ -311,7 +315,6 @@ export const CourseHierarchy = ({
               )}
             </div>
             )
-            return unitEl
           })}
         </div>
         {/* Extra units added by teacher */}

@@ -16,7 +16,7 @@ export const ActivityCard = ({ activity, currentUserId, isTeacher = false, grade
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
   const isSubmitted = !!gradeEntry?.submitted && !isGraded
   const isCompleted = !isSubmitted && !isGraded && status === 'completed'
-  const today = new Date().toISOString().slice(0, 10)
+  const today = new Date().toLocaleDateString('en-CA')
   const isOverdue = !isTeacher && activity.dueDate < today && status !== 'completed' && !isSubmitted && !isGraded
 
   let rowClass = 'flex w-full items-center gap-2 text-left text-sm'
