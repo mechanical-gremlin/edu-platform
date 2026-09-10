@@ -134,14 +134,22 @@ const grades = [
 ] as const
 
 async function main() {
-  await prisma.grade.deleteMany()
-  await prisma.submission.deleteMany()
-  await prisma.activity.deleteMany()
-  await prisma.lesson.deleteMany()
-  await prisma.unit.deleteMany()
-  await prisma.enrollment.deleteMany()
-  await prisma.course.deleteMany()
-  await prisma.user.deleteMany()
+  if (process.env.SEED_MODE !== 'if-empty') {
+    await prisma.grade.deleteMany()
+    await prisma.submission.deleteMany()
+    await prisma.activity.deleteMany()
+    await prisma.lesson.deleteMany()
+    await prisma.unit.deleteMany()
+    await prisma.enrollment.deleteMany()
+    await prisma.course.deleteMany()
+    await prisma.user.deleteMany()
+  } else {
+    const existingUsers = await prisma.user.count()
+
+    if (existingUsers > 0) {
+      return
+    }
+  }
 
   await prisma.user.createMany({ data: users as any })
   await prisma.course.createMany({ data: courses as any })
