@@ -12,9 +12,9 @@ export const ActivityCard = ({ activity, currentUserId, gradebookEntries = [], o
   const gradeEntry = gradebookEntries.find(
     (e) => e.activityId === activity.id && e.studentId === currentUserId,
   )
-  const isSubmitted = !!gradeEntry?.submitted
-  const isCompleted = !isSubmitted && status === 'completed'
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
+  const isSubmitted = !!gradeEntry?.submitted && !isGraded
+  const isCompleted = !isSubmitted && !isGraded && status === 'completed'
 
   return (
     <button className="flex w-full items-center gap-2 text-left text-sm text-slate-700" onClick={() => onSelect(activity.id)}>

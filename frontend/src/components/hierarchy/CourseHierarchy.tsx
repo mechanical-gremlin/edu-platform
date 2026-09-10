@@ -168,6 +168,22 @@ export const CourseHierarchy = ({
   // Modal state for creating lesson / unit
   const [lessonModalUnit, setLessonModalUnit] = useState<string | null>(null)
   const [unitModalOpen, setUnitModalOpen] = useState(false)
+  // Locally-added units and lessons (prototype: no backend persistence)
+  const [extraUnits, setExtraUnits] = useState<Array<{ id: string; title: string; description: string }>>([])
+  const [extraLessons, setExtraLessons] = useState<Record<string, Array<{ id: string; title: string; description: string }>>>({})
+
+  const addUnit = (name: string, description: string) => {
+    const id = `u-local-${Date.now()}`
+    setExtraUnits((prev) => [...prev, { id, title: name, description }])
+  }
+
+  const addLesson = (unitId: string, name: string, description: string) => {
+    const id = `l-local-${Date.now()}`
+    setExtraLessons((prev) => ({
+      ...prev,
+      [unitId]: [...(prev[unitId] ?? []), { id, title: name, description }],
+    }))
+  }
 
   const toggleUnit = (unitId: string) => setOpenUnits((prev) => ({ ...prev, [unitId]: !prev[unitId] }))
   const toggleLesson = (lessonId: string) =>
@@ -259,6 +275,17 @@ export const CourseHierarchy = ({
                       )}
                     </div>
                   ))}
+                  {/* Extra lessons added by teacher */}
+                  {(extraLessons[unit.id] ?? []).map((extraLesson) => (
+                    <div key={extraLesson.id} className="rounded-lg border border-indigo-200 bg-indigo-50">
+                      <div className="flex items-center justify-between p-2.5">
+                        <span className="text-sm font-medium text-indigo-700">▸ {extraLesson.title}</span>
+                        {extraLesson.description && (
+                          <span className="ml-2 text-xs text-indigo-500 italic">{extraLesson.description}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                   {isTeacher && (
                     <button
                       className="w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -272,6 +299,17 @@ export const CourseHierarchy = ({
             </div>
           ))}
         </div>
+        {/* Extra units added by teacher */}
+        {extraUnits.map((extraUnit) => (
+          <div key={extraUnit.id} className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50">
+            <div className="flex items-center justify-between p-3">
+              <span className="font-medium text-indigo-700">▸ {extraUnit.title}</span>
+              {extraUnit.description && (
+                <span className="ml-2 text-xs text-indigo-500 italic">{extraUnit.description}</span>
+              )}
+            </div>
+          </div>
+        ))}
         {isTeacher && (
           <button
             className="mt-4 w-full rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
@@ -287,9 +325,8 @@ export const CourseHierarchy = ({
         open={lessonModalUnit !== null}
         title="Add New Lesson"
         onClose={() => setLessonModalUnit(null)}
-        onConfirm={(_name, _description) => {
-          // In a production app this would dispatch to a server/state manager.
-          // For the prototype the lesson is acknowledged; real persistence requires backend integration.
+        onConfirm={(name, description) => {
+          if (lessonModalUnit) addLesson(lessonModalUnit, name, description)
         }}
       />
 
@@ -298,9 +335,7 @@ export const CourseHierarchy = ({
         open={unitModalOpen}
         title="Add New Unit"
         onClose={() => setUnitModalOpen(false)}
-        onConfirm={(_name, _description) => {
-          // Same as above – prototype only.
-        }}
+        onConfirm={(name, description) => addUnit(name, description)}
       />
     </>
   )
