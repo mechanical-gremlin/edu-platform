@@ -1,13 +1,14 @@
 import { getCourseProgress } from '../utils/progress'
-import type { Course, User } from '../types/models'
+import type { Course, GradebookEntry, User } from '../types/models'
 
 interface DashboardPageProps {
   user: User
   courses: Course[]
+  gradebookEntries: GradebookEntry[]
   onCourseOpen: (courseId: string) => void
 }
 
-export const DashboardPage = ({ user, courses, onCourseOpen }: DashboardPageProps) => {
+export const DashboardPage = ({ user, courses, gradebookEntries, onCourseOpen }: DashboardPageProps) => {
   const today = new Date().toISOString().slice(0, 10)
   // Gather all activities across all courses with context
   const allActivities = courses.flatMap((course) =>
@@ -34,6 +35,18 @@ export const DashboardPage = ({ user, courses, onCourseOpen }: DashboardPageProp
     )
     .sort((a, b) => a.activity.dueDate.localeCompare(b.activity.dueDate))
 
+  // Compute grade percentage per course for the current user (student)
+  const getCourseGradePct = (courseId: string): number | null => {
+    if (user.role !== 'student') return null
+    const entries = gradebookEntries.filter(
+      (e) => e.studentId === user.id && e.courseId === courseId && e.pointsEarned !== null,
+    )
+    if (entries.length === 0) return null
+    const earned = entries.reduce((sum, e) => sum + (e.pointsEarned ?? 0), 0)
+    const possible = entries.reduce((sum, e) => sum + e.pointsPossible, 0)
+    return possible > 0 ? Math.round((earned / possible) * 100) : null
+  }
+
   return (
     <section className="space-y-8">
       <div>
@@ -51,14 +64,20 @@ export const DashboardPage = ({ user, courses, onCourseOpen }: DashboardPageProp
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {courses.map((course) => {
             const progress = getCourseProgress(course, user.id)
+            const gradePct = getCourseGradePct(course.id)
             return (
               <button
                 key={course.id}
-                className="w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
+                className="relative w-full rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow"
                 onClick={() => onCourseOpen(course.id)}
               >
+                {gradePct !== null && (
+                  <span className="absolute right-4 top-4 rounded-full bg-indigo-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+                    {gradePct}%
+                  </span>
+                )}
                 <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">{course.code}</p>
-                <h4 className="mt-1 text-base font-semibold text-slate-900">{course.title}</h4>
+                <h4 className="mt-1 text-base font-semibold text-slate-900 pr-14">{course.title}</h4>
                 <p className="mt-1 text-sm text-slate-600">Instructor: {course.teacherName}</p>
                 <div className="mt-4">
                   <div className="mb-1 flex justify-between text-xs text-slate-500">
@@ -123,4 +142,5 @@ export const DashboardPage = ({ user, courses, onCourseOpen }: DashboardPageProp
     </section>
   )
 }
+
 
