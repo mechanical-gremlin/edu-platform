@@ -7,9 +7,8 @@ interface DashboardPageProps {
   onCourseOpen: (courseId: string) => void
 }
 
-const today = new Date().toISOString().slice(0, 10)
-
 export const DashboardPage = ({ user, courses, onCourseOpen }: DashboardPageProps) => {
+  const today = new Date().toISOString().slice(0, 10)
   // Gather all activities across all courses with context
   const allActivities = courses.flatMap((course) =>
     course.units.flatMap((unit) =>

@@ -5,7 +5,6 @@ import type { Course, User } from '../types/models'
 interface CoursePageProps {
   user: User
   course: Course
-  selectedActivityId: string | null
   onActivitySelect: (activityId: string) => void
   modalOpen: boolean
   onModalOpen: () => void

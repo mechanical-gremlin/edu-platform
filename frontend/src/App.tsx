@@ -62,7 +62,6 @@ function App() {
           <CoursePage
             user={currentUser}
             course={selectedCourse}
-            selectedActivityId={selectedActivityId}
             onActivitySelect={setSelectedActivityId}
             modalOpen={modalOpen}
             onModalOpen={() => setModalOpen(true)}

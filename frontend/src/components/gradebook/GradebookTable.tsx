@@ -69,7 +69,7 @@ export const GradebookTable = ({ entries, onStudentClick, onActivityClick }: Gra
                   return (
                     <td key={activityId} className="px-4 py-3 text-slate-700">
                       {entry ? (
-                        entry.pointsEarned === null ? (
+                        entry.pointsEarned === null && entry.submitted ? (
                           // Submitted but not graded
                           <span
                             title="Submitted – awaiting grade"
