@@ -50,9 +50,8 @@ export const GradingPanel = ({ activityId, activityTitle, entries, onClose, onSa
   const canSave = valid && currentGrade.points !== ''
 
   const saveCurrentAndAdvance = (isLast: boolean) => {
-    if (canSave) {
-      onSave(current.studentId, parseFloat(currentGrade.points), currentGrade.comment)
-    }
+    if (!canSave) return
+    onSave(current.studentId, parseFloat(currentGrade.points), currentGrade.comment)
     if (isLast) {
       onClose()
     } else {

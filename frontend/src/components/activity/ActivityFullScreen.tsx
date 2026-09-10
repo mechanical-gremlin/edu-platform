@@ -91,7 +91,9 @@ export const ActivityFullScreen = ({
                 <span className="text-sm font-medium text-emerald-700">Submitted &amp; Graded</span>
                 <span className="ml-2 text-sm text-slate-700">
                   <strong>{gradeEntry.pointsEarned}</strong>/{gradeEntry.pointsPossible} pts
-                  ({Math.round((gradeEntry.pointsEarned / gradeEntry.pointsPossible) * 100)}%)
+                  {gradeEntry.pointsPossible > 0 && (
+                    <span> ({Math.round((gradeEntry.pointsEarned / gradeEntry.pointsPossible) * 100)}%)</span>
+                  )}
                 </span>
                 {gradeEntry.comment && (
                   <span className="ml-4 text-xs italic text-slate-500">"{gradeEntry.comment}"</span>

@@ -12,7 +12,8 @@ export const ActivityCard = ({ activity, currentUserId, gradebookEntries = [], o
   const gradeEntry = gradebookEntries.find(
     (e) => e.activityId === activity.id && e.studentId === currentUserId,
   )
-  const isSubmitted = gradeEntry?.submitted || status === 'completed'
+  const isSubmitted = !!gradeEntry?.submitted
+  const isCompleted = !isSubmitted && status === 'completed'
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
 
   return (
@@ -23,6 +24,9 @@ export const ActivityCard = ({ activity, currentUserId, gradebookEntries = [], o
       <span className="flex-1">{activity.title}</span>
       {isSubmitted && (
         <span className="ml-1 text-emerald-500" title="Submitted">✓</span>
+      )}
+      {isCompleted && (
+        <span className="ml-1 text-indigo-400" title="Completed">●</span>
       )}
       {isGraded && gradeEntry && (
         <span className="ml-1 text-xs font-semibold text-slate-600">
