@@ -75,9 +75,10 @@ interface NameDescModalProps {
   open: boolean
   title: string
   onClose: () => void
+  onConfirm: (name: string, description: string) => void
 }
 
-const NameDescModal = ({ open, title, onClose }: NameDescModalProps) => {
+const NameDescModal = ({ open, title, onClose, onConfirm }: NameDescModalProps) => {
   const [name, setName] = useState('')
   const [desc, setDesc] = useState('')
   if (!open) return null
@@ -118,7 +119,14 @@ const NameDescModal = ({ open, title, onClose }: NameDescModalProps) => {
           <button
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             disabled={!name.trim()}
-            onClick={() => { if (name.trim()) { setName(''); setDesc(''); onClose() } }}
+            onClick={() => {
+              if (name.trim()) {
+                onConfirm(name.trim(), desc.trim())
+                setName('')
+                setDesc('')
+                onClose()
+              }
+            }}
           >
             Create
           </button>
@@ -272,6 +280,10 @@ export const CourseHierarchy = ({
         open={lessonModalUnit !== null}
         title="Add New Lesson"
         onClose={() => setLessonModalUnit(null)}
+        onConfirm={(_name, _description) => {
+          // In a production app this would dispatch to a server/state manager.
+          // For the prototype the lesson is acknowledged; real persistence requires backend integration.
+        }}
       />
 
       {/* Unit creation modal */}
@@ -279,6 +291,9 @@ export const CourseHierarchy = ({
         open={unitModalOpen}
         title="Add New Unit"
         onClose={() => setUnitModalOpen(false)}
+        onConfirm={(_name, _description) => {
+          // Same as above – prototype only.
+        }}
       />
     </>
   )

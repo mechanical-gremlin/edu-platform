@@ -6,9 +6,10 @@ import type { GradebookEntry, User } from '../types/models'
 interface GradebookPageProps {
   entries: GradebookEntry[]
   user: User
+  onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => void
 }
 
-export const GradebookPage = ({ entries, user }: GradebookPageProps) => {
+export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps) => {
   const isTeacher = user.role === 'teacher'
   const [gradingActivityId, setGradingActivityId] = useState<string | null>(null)
 
@@ -117,6 +118,9 @@ export const GradebookPage = ({ entries, user }: GradebookPageProps) => {
           activityTitle={visibleEntries.find((e) => e.activityId === gradingActivityId)?.activityTitle ?? ''}
           entries={visibleEntries}
           onClose={() => setGradingActivityId(null)}
+          onSave={(studentId, points, comment) => {
+            onSaveGrade?.(studentId, gradingActivityId, points, comment)
+          }}
         />
       )}
     </section>

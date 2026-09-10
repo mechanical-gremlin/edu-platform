@@ -12,6 +12,7 @@ interface AppContextValue {
   setCurrentUser: (user: User | null) => void
   setSelectedCourseId: (courseId: string | null) => void
   setSelectedActivityId: (activityId: string | null) => void
+  updateGradebookEntry: (studentId: string, activityId: string, points: number, comment: string) => void
 }
 
 export const AppContext = createContext<AppContextValue | undefined>(undefined)
@@ -20,20 +21,32 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [gradebookEntries, setGradebookEntries] = useState<GradebookEntry[]>(mockGradebookEntries)
+
+  const updateGradebookEntry = (studentId: string, activityId: string, points: number, comment: string) => {
+    setGradebookEntries((prev) =>
+      prev.map((e) =>
+        e.studentId === studentId && e.activityId === activityId
+          ? { ...e, pointsEarned: points, comment, submitted: true }
+          : e,
+      ),
+    )
+  }
 
   const value = useMemo(
     () => ({
       users: mockUsers,
       courses: mockCourses,
-      gradebookEntries: mockGradebookEntries,
+      gradebookEntries,
       currentUser,
       selectedCourseId,
       selectedActivityId,
       setCurrentUser,
       setSelectedCourseId,
       setSelectedActivityId,
+      updateGradebookEntry,
     }),
-    [currentUser, selectedActivityId, selectedCourseId],
+    [currentUser, selectedActivityId, selectedCourseId, gradebookEntries],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>

@@ -20,6 +20,7 @@ function App() {
     setCurrentUser,
     setSelectedCourseId,
     setSelectedActivityId,
+    updateGradebookEntry,
   } = useAppContext()
 
   const [selectedNav, setSelectedNav] = useState<NavKey>('dashboard')
@@ -80,7 +81,11 @@ function App() {
         )}
 
         {selectedNav === 'gradebook' && (
-          <GradebookPage entries={gradebookEntries} user={currentUser} />
+          <GradebookPage
+            entries={gradebookEntries}
+            user={currentUser}
+            onSaveGrade={updateGradebookEntry}
+          />
         )}
       </DashboardLayout>
 
