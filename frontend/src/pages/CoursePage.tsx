@@ -1,10 +1,11 @@
 import { CourseHierarchy } from '../components/hierarchy/CourseHierarchy'
 import { ActivityCreationModal } from '../components/teacher/ActivityCreationModal'
-import type { Course, User } from '../types/models'
+import type { Course, GradebookEntry, User } from '../types/models'
 
 interface CoursePageProps {
   user: User
   course: Course
+  gradebookEntries: GradebookEntry[]
   onActivitySelect: (activityId: string) => void
   modalOpen: boolean
   onModalOpen: () => void
@@ -14,6 +15,7 @@ interface CoursePageProps {
 export const CoursePage = ({
   user,
   course,
+  gradebookEntries,
   onActivitySelect,
   modalOpen,
   onModalOpen,
@@ -25,10 +27,13 @@ export const CoursePage = ({
     <CourseHierarchy
       course={course}
       isTeacher={user.role === 'teacher'}
+      currentUserId={user.id}
+      gradebookEntries={gradebookEntries}
       onActivitySelect={onActivitySelect}
       onCreateActivity={onModalOpen}
     />
     <ActivityCreationModal open={modalOpen && user.role === 'teacher'} onClose={onModalClose} />
   </section>
 )
+
 

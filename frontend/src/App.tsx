@@ -20,6 +20,7 @@ function App() {
     setCurrentUser,
     setSelectedCourseId,
     setSelectedActivityId,
+    updateGradebookEntry,
   } = useAppContext()
 
   const [selectedNav, setSelectedNav] = useState<NavKey>('dashboard')
@@ -30,14 +31,19 @@ function App() {
     [courses, selectedCourseId],
   )
 
-  const selectedActivity = useMemo(() => {
-    if (!selectedActivityId) return null
-    return courses
-      .flatMap((c) => c.units)
-      .flatMap((u) => u.lessons)
-      .flatMap((l) => l.activities)
-      .find((a) => a.id === selectedActivityId) ?? null
-  }, [courses, selectedActivityId])
+  const allActivities = useMemo(
+    () =>
+      courses
+        .flatMap((c) => c.units)
+        .flatMap((u) => u.lessons)
+        .flatMap((l) => l.activities),
+    [courses],
+  )
+
+  const selectedActivity = useMemo(
+    () => allActivities.find((a) => a.id === selectedActivityId) ?? null,
+    [allActivities, selectedActivityId],
+  )
 
   if (!currentUser) {
     return <LoginPage users={users} onLogin={setCurrentUser} />
@@ -55,13 +61,14 @@ function App() {
     <>
       <DashboardLayout user={currentUser} navItems={navItems} selectedNav={selectedNav} onNavSelect={setSelectedNav}>
         {selectedNav === 'dashboard' && (
-          <DashboardPage user={currentUser} courses={courses} onCourseOpen={openCourse} />
+          <DashboardPage user={currentUser} courses={courses} gradebookEntries={gradebookEntries} onCourseOpen={openCourse} />
         )}
 
         {selectedNav === 'courses' && selectedCourse && (
           <CoursePage
             user={currentUser}
             course={selectedCourse}
+            gradebookEntries={gradebookEntries}
             onActivitySelect={setSelectedActivityId}
             modalOpen={modalOpen}
             onModalOpen={() => setModalOpen(true)}
@@ -73,8 +80,12 @@ function App() {
           <CoursesPage user={currentUser} courses={courses} onCourseOpen={openCourse} />
         )}
 
-        {selectedNav === 'gradebook' && currentUser.role === 'teacher' && (
-          <GradebookPage entries={gradebookEntries} />
+        {selectedNav === 'gradebook' && (
+          <GradebookPage
+            entries={gradebookEntries}
+            user={currentUser}
+            onSaveGrade={updateGradebookEntry}
+          />
         )}
       </DashboardLayout>
 
@@ -82,7 +93,11 @@ function App() {
       {selectedActivity && (
         <ActivityFullScreen
           activity={selectedActivity}
+          allActivities={allActivities}
+          currentUser={currentUser}
+          gradebookEntries={gradebookEntries}
           onClose={() => setSelectedActivityId(null)}
+          onNavigate={setSelectedActivityId}
         />
       )}
     </>

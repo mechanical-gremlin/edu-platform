@@ -19,6 +19,7 @@ export interface Activity {
   description: string
   resourceUrl?: string
   statusByUser: Record<string, 'not_started' | 'in_progress' | 'completed'>
+  visible?: boolean
 }
 
 export interface Lesson {
@@ -50,4 +51,5 @@ export interface GradebookEntry {
   pointsEarned: number | null
   pointsPossible: number
   submitted?: boolean
+  comment?: string
 }

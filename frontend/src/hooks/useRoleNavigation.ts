@@ -17,5 +17,5 @@ export const getRoleNavigation = (role: UserRole): NavItem[] => {
     return [...shared, { key: 'gradebook', label: 'Gradebook' }]
   }
 
-  return shared
+  return [...shared, { key: 'gradebook', label: 'My Grades' }]
 }
