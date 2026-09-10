@@ -47,6 +47,7 @@ export interface GradebookEntry {
   courseId: string
   activityId: string
   activityTitle: string
-  pointsEarned: number
+  pointsEarned: number | null
   pointsPossible: number
+  submitted?: boolean
 }

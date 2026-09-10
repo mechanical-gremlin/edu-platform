@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { ActivityCard } from '../activity/ActivityCard'
 import type { Course } from '../../types/models'
 
@@ -7,6 +7,65 @@ interface CourseHierarchyProps {
   isTeacher: boolean
   onActivitySelect: (activityId: string) => void
   onCreateActivity: () => void
+}
+
+interface ActionMenuProps {
+  onAdd?: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+}
+
+const ActionMenu = ({ onAdd, onEdit, onDelete }: ActionMenuProps) => {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v) }}
+        aria-label="Actions"
+      >
+        ⋮
+      </button>
+      {open && (
+        <div className="absolute right-0 z-20 mt-1 min-w-[120px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {onAdd && (
+            <button
+              className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => { setOpen(false); onAdd() }}
+            >
+              + Add
+            </button>
+          )}
+          {onEdit && (
+            <button
+              className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              onClick={() => { setOpen(false); onEdit() }}
+            >
+              ✏ Edit
+            </button>
+          )}
+          {onDelete && (
+            <button
+              className="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+              onClick={() => { setOpen(false); onDelete() }}
+            >
+              🗑 Delete
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export const CourseHierarchy = ({
@@ -33,11 +92,9 @@ export const CourseHierarchy = ({
                 {openUnits[unit.id] ? '▾' : '▸'} {unit.title}
               </button>
               {isTeacher && (
-                <div className="flex gap-2 text-xs">
-                  <button className="rounded bg-slate-100 px-2 py-1">Add</button>
-                  <button className="rounded bg-slate-100 px-2 py-1">Edit</button>
-                  <button className="rounded bg-red-100 px-2 py-1 text-red-700">Delete</button>
-                </div>
+                <ActionMenu
+                  onAdd={onCreateActivity}
+                />
               )}
             </div>
             {openUnits[unit.id] && (
@@ -49,11 +106,9 @@ export const CourseHierarchy = ({
                         {openLessons[lesson.id] ? '▾' : '▸'} {lesson.title}
                       </button>
                       {isTeacher && (
-                        <div className="flex gap-2 text-xs">
-                          <button className="rounded bg-slate-100 px-2 py-1">Add</button>
-                          <button className="rounded bg-slate-100 px-2 py-1">Edit</button>
-                          <button className="rounded bg-red-100 px-2 py-1 text-red-700">Delete</button>
-                        </div>
+                        <ActionMenu
+                          onAdd={onCreateActivity}
+                        />
                       )}
                     </div>
                     {openLessons[lesson.id] && (
@@ -62,16 +117,9 @@ export const CourseHierarchy = ({
                           <div key={activity.id} className="flex items-center justify-between rounded-lg bg-slate-50 p-2.5">
                             <ActivityCard activity={activity} onSelect={onActivitySelect} />
                             {isTeacher && (
-                              <div className="flex gap-2 text-xs">
-                                <button
-                                  className="rounded bg-indigo-100 px-2 py-1 text-indigo-700"
-                                  onClick={onCreateActivity}
-                                >
-                                  Add
-                                </button>
-                                <button className="rounded bg-slate-200 px-2 py-1">Edit</button>
-                                <button className="rounded bg-red-100 px-2 py-1 text-red-700">Delete</button>
-                              </div>
+                              <ActionMenu
+                                onAdd={onCreateActivity}
+                              />
                             )}
                           </div>
                         ))}
@@ -105,3 +153,4 @@ export const CourseHierarchy = ({
     </div>
   )
 }
+

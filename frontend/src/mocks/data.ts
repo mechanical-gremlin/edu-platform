@@ -148,6 +148,17 @@ export const mockGradebookEntries: GradebookEntry[] = [
     activityTitle: 'Variables Video Walkthrough',
     pointsEarned: 10,
     pointsPossible: 10,
+    submitted: true,
+  },
+  {
+    studentId: 's-1',
+    studentName: 'Avery Chen',
+    courseId: 'c-1',
+    activityId: 'a-2',
+    activityTitle: 'Coding Drill: Input and Output',
+    pointsEarned: null,
+    pointsPossible: 20,
+    submitted: true,
   },
   {
     studentId: 's-1',
@@ -157,5 +168,6 @@ export const mockGradebookEntries: GradebookEntry[] = [
     activityTitle: 'Build a Personal Card',
     pointsEarned: 19,
     pointsPossible: 20,
+    submitted: true,
   },
 ]

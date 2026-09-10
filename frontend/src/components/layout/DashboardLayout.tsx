@@ -21,9 +21,9 @@ export const DashboardLayout = ({
 }: DashboardLayoutProps) => (
   <div className="min-h-screen bg-slate-100">
     <TopNav user={user} />
-    <div className="mx-auto flex max-w-7xl flex-col md:flex-row">
+    <div className="flex min-h-[calc(100vh-3.5rem)] flex-col md:flex-row">
       <SidebarNav items={navItems} selected={selectedNav} onSelect={onNavSelect} />
-      <main className="w-full p-4 md:p-6">{children}</main>
+      <main className="flex-1 p-4 md:p-6">{children}</main>
     </div>
   </div>
 )

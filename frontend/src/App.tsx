@@ -3,9 +3,11 @@ import { DashboardLayout } from './components/layout/DashboardLayout'
 import { useAppContext } from './context/useAppContext'
 import { getRoleNavigation, type NavKey } from './hooks/useRoleNavigation'
 import { CoursePage } from './pages/CoursePage'
+import { CoursesPage } from './pages/CoursesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GradebookPage } from './pages/GradebookPage'
 import { LoginPage } from './pages/LoginPage'
+import { ActivityFullScreen } from './components/activity/ActivityFullScreen'
 
 function App() {
   const {
@@ -28,6 +30,15 @@ function App() {
     [courses, selectedCourseId],
   )
 
+  const selectedActivity = useMemo(() => {
+    if (!selectedActivityId) return null
+    return courses
+      .flatMap((c) => c.units)
+      .flatMap((u) => u.lessons)
+      .flatMap((l) => l.activities)
+      .find((a) => a.id === selectedActivityId) ?? null
+  }, [courses, selectedActivityId])
+
   if (!currentUser) {
     return <LoginPage users={users} onLogin={setCurrentUser} />
   }
@@ -36,39 +47,47 @@ function App() {
 
   const openCourse = (courseId: string) => {
     setSelectedCourseId(courseId)
-    setSelectedNav('course')
+    setSelectedNav('courses')
     setSelectedActivityId(null)
   }
 
   return (
-    <DashboardLayout user={currentUser} navItems={navItems} selectedNav={selectedNav} onNavSelect={setSelectedNav}>
-      {selectedNav === 'dashboard' && (
-        <DashboardPage user={currentUser} courses={courses} onCourseOpen={openCourse} />
-      )}
+    <>
+      <DashboardLayout user={currentUser} navItems={navItems} selectedNav={selectedNav} onNavSelect={setSelectedNav}>
+        {selectedNav === 'dashboard' && (
+          <DashboardPage user={currentUser} courses={courses} onCourseOpen={openCourse} />
+        )}
 
-      {selectedNav === 'course' && selectedCourse && (
-        <CoursePage
-          user={currentUser}
-          course={selectedCourse}
-          selectedActivityId={selectedActivityId}
-          onActivitySelect={setSelectedActivityId}
-          modalOpen={modalOpen}
-          onModalOpen={() => setModalOpen(true)}
-          onModalClose={() => setModalOpen(false)}
+        {selectedNav === 'courses' && selectedCourse && (
+          <CoursePage
+            user={currentUser}
+            course={selectedCourse}
+            onActivitySelect={setSelectedActivityId}
+            modalOpen={modalOpen}
+            onModalOpen={() => setModalOpen(true)}
+            onModalClose={() => setModalOpen(false)}
+          />
+        )}
+
+        {selectedNav === 'courses' && !selectedCourse && (
+          <CoursesPage user={currentUser} courses={courses} onCourseOpen={openCourse} />
+        )}
+
+        {selectedNav === 'gradebook' && currentUser.role === 'teacher' && (
+          <GradebookPage entries={gradebookEntries} />
+        )}
+      </DashboardLayout>
+
+      {/* Full-screen activity overlay */}
+      {selectedActivity && (
+        <ActivityFullScreen
+          activity={selectedActivity}
+          onClose={() => setSelectedActivityId(null)}
         />
       )}
-
-      {selectedNav === 'course' && !selectedCourse && (
-        <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-sm text-slate-600">
-          Choose a course from the dashboard first.
-        </div>
-      )}
-
-      {selectedNav === 'gradebook' && currentUser.role === 'teacher' && (
-        <GradebookPage entries={gradebookEntries} />
-      )}
-    </DashboardLayout>
+    </>
   )
 }
 
 export default App
+
