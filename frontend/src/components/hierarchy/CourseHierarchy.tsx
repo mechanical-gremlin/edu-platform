@@ -175,6 +175,7 @@ export const CourseHierarchy = ({
   const addUnit = (name: string, description: string) => {
     const id = `u-local-${Date.now()}`
     setExtraUnits((prev) => [...prev, { id, title: name, description }])
+    setOpenUnits((prev) => ({ ...prev, [id]: true }))
   }
 
   const addLesson = (unitId: string, name: string, description: string) => {
@@ -183,6 +184,7 @@ export const CourseHierarchy = ({
       ...prev,
       [unitId]: [...(prev[unitId] ?? []), { id, title: name, description }],
     }))
+    setOpenLessons((prev) => ({ ...prev, [id]: true }))
   }
 
   const toggleUnit = (unitId: string) => setOpenUnits((prev) => ({ ...prev, [unitId]: !prev[unitId] }))
@@ -196,11 +198,25 @@ export const CourseHierarchy = ({
       <div className="rounded-2xl border border-slate-200 bg-white p-4">
         <h3 className="mb-4 text-lg font-semibold text-slate-900">{course.title} • Units & Lessons</h3>
         <div className="space-y-3">
-          {course.units.map((unit) => (
+          {course.units.map((unit) => {
+            const unitActivities = unit.lessons.flatMap((l) => l.activities)
+            const completedCount = unitActivities.filter((a) => {
+              const status = a.statusByUser[currentUserId] ?? 'not_started'
+              const entry = gradebookEntries.find((e) => e.activityId === a.id && e.studentId === currentUserId)
+              const isGraded = entry?.pointsEarned !== null && entry?.pointsEarned !== undefined
+              const isSubmitted = !!entry?.submitted && !isGraded
+              return status === 'completed' || isGraded || isSubmitted
+            }).length
+            return (
             <div key={unit.id} className="rounded-xl border border-slate-200">
               <div className="flex items-center justify-between p-3">
-                <button className="text-left font-medium text-slate-800" onClick={() => toggleUnit(unit.id)}>
+                <button className="flex items-center gap-2 text-left font-medium text-slate-800" onClick={() => toggleUnit(unit.id)}>
                   {openUnits[unit.id] ? '▾' : '▸'} {unit.title}
+                  {!isTeacher && unitActivities.length > 0 && (
+                    <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                      {completedCount}/{unitActivities.length}
+                    </span>
+                  )}
                 </button>
                 {isTeacher && (
                   <ActionMenu
@@ -242,6 +258,7 @@ export const CourseHierarchy = ({
                                     <ActivityCard
                                       activity={activity}
                                       currentUserId={currentUserId}
+                                      isTeacher={isTeacher}
                                       gradebookEntries={gradebookEntries}
                                       onSelect={onActivitySelect}
                                     />
@@ -297,7 +314,8 @@ export const CourseHierarchy = ({
                 </div>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
         {/* Extra units added by teacher */}
         {extraUnits.map((extraUnit) => (

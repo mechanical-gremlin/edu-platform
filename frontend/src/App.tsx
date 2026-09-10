@@ -59,7 +59,7 @@ function App() {
 
   return (
     <>
-      <DashboardLayout user={currentUser} navItems={navItems} selectedNav={selectedNav} onNavSelect={setSelectedNav}>
+      <DashboardLayout user={currentUser} navItems={navItems} selectedNav={selectedNav} onNavSelect={setSelectedNav} onLogout={() => setCurrentUser(null)}>
         {selectedNav === 'dashboard' && (
           <DashboardPage user={currentUser} courses={courses} gradebookEntries={gradebookEntries} onCourseOpen={openCourse} />
         )}
@@ -98,6 +98,7 @@ function App() {
           gradebookEntries={gradebookEntries}
           onClose={() => setSelectedActivityId(null)}
           onNavigate={setSelectedActivityId}
+          onSaveGrade={updateGradebookEntry}
         />
       )}
     </>
