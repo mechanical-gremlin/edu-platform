@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { GradingPanel } from '../teacher/GradingPanel'
 import type { Activity, GradebookEntry, User } from '../../types/models'
 
 interface ActivityFullScreenProps {
@@ -7,6 +9,7 @@ interface ActivityFullScreenProps {
   gradebookEntries: GradebookEntry[]
   onClose: () => void
   onNavigate: (activityId: string) => void
+  onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => void
 }
 
 const typeCopy: Record<Activity['type'], string> = {
@@ -32,7 +35,9 @@ export const ActivityFullScreen = ({
   gradebookEntries,
   onClose,
   onNavigate,
+  onSaveGrade,
 }: ActivityFullScreenProps) => {
+  const [gradingOpen, setGradingOpen] = useState(false)
   const currentIndex = allActivities.findIndex((a) => a.id === activity.id)
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
@@ -60,6 +65,14 @@ export const ActivityFullScreen = ({
         <div className="ml-auto flex items-center gap-4 text-sm text-slate-500">
           <span>Due: <strong className="text-slate-700">{activity.dueDate}</strong></span>
           <span>Points: <strong className="text-slate-700">{activity.points}</strong></span>
+          {currentUser.role === 'teacher' && (
+            <button
+              onClick={() => setGradingOpen(true)}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+            >
+              ✎ Grade
+            </button>
+          )}
           {/* Prev/Next navigation */}
           <button
             disabled={!prevActivity}
@@ -140,6 +153,19 @@ export const ActivityFullScreen = ({
           </div>
         </div>
       </div>
+
+      {/* Grading panel for teachers */}
+      {currentUser.role === 'teacher' && gradingOpen && (
+        <GradingPanel
+          activityId={activity.id}
+          activityTitle={activity.title}
+          entries={gradebookEntries}
+          onClose={() => setGradingOpen(false)}
+          onSave={(studentId, points, comment) => {
+            onSaveGrade?.(studentId, activity.id, points, comment)
+          }}
+        />
+      )}
     </div>
   )
 }

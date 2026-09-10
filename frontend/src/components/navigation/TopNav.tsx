@@ -2,9 +2,10 @@ import type { User } from '../../types/models'
 
 interface TopNavProps {
   user: User
+  onLogout: () => void
 }
 
-export const TopNav = ({ user }: TopNavProps) => (
+export const TopNav = ({ user, onLogout }: TopNavProps) => (
   <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur md:px-6">
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">Edu Platform</p>
@@ -18,6 +19,13 @@ export const TopNav = ({ user }: TopNavProps) => (
         <img src={user.avatarUrl} alt={user.name} className="h-7 w-7 rounded-full" />
         <span className="pr-2 text-sm font-medium text-slate-700">{user.name}</span>
       </div>
+      <button
+        onClick={onLogout}
+        className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+        aria-label="Sign out"
+      >
+        Sign Out
+      </button>
     </div>
   </header>
 )
