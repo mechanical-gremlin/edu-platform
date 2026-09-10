@@ -1,8 +1,27 @@
 # edu-platform
 
-Frontend-first educational platform scaffold for teacher/student curriculum workflows.
+Educational platform prototype with a React frontend for teacher/student workflows and a Fastify + Prisma backend backed by PostgreSQL.
 
-## Run locally
+## What is in this repo
+
+- `/home/runner/work/edu-platform/edu-platform/frontend` — Vite + React + TypeScript + Tailwind UI prototype
+- `/home/runner/work/edu-platform/edu-platform/backend` — Fastify API with Prisma models, migrations, and seed data
+- `/home/runner/work/edu-platform/edu-platform/docs` — wireframes and component notes
+- `/home/runner/work/edu-platform/edu-platform/render.yaml` — Render blueprint for deploying the stack
+
+## Current implementation
+
+- The frontend currently runs from local mock data for the teacher/student demo flows.
+- The backend exposes seeded REST endpoints for users, courses, progress, and grades.
+- Render deployment provisions:
+  - a static frontend
+  - a Node API service
+  - a PostgreSQL database
+- The API seeds demo data automatically on first boot so the deployed environment is immediately testable.
+
+## Local development
+
+### Frontend
 
 ```bash
 cd /home/runner/work/edu-platform/edu-platform/frontend
@@ -10,11 +29,60 @@ npm install
 npm run dev
 ```
 
-## Included
+### Backend
 
-- React + TypeScript + Vite + Tailwind CSS frontend
-- Role-aware teacher/student dashboard layouts
+```bash
+cd /home/runner/work/edu-platform/edu-platform
+cp backend/.env.example backend/.env
+npm --prefix backend install
+docker compose up -d postgres
+npm --prefix backend run prisma:migrate -- --name init
+npm --prefix backend run prisma:generate
+npm --prefix backend run prisma:seed
+npm --prefix backend run dev
+```
+
+API default URL: `http://localhost:3001`
+
+Demo auth header:
+
+- Teacher: `x-user-id: t-1`
+- Students: `x-user-id: s-1`, `s-2`, `s-3`, `s-4`
+
+Useful checks:
+
+```bash
+curl http://localhost:3001/health
+curl -H 'x-user-id: t-1' http://localhost:3001/me
+curl -H 'x-user-id: s-1' http://localhost:3001/courses
+```
+
+## Deploying to Render
+
+1. Push this repository to GitHub.
+2. In Render, create a new Blueprint instance from the repository.
+3. Render will read `/home/runner/work/edu-platform/edu-platform/render.yaml` and create:
+   - `edu-platform-api`
+   - `edu-platform-frontend`
+   - `edu-platform-db`
+4. Approve the infrastructure and start the deploy.
+5. After the first deploy finishes:
+   - open the frontend URL to test the UI
+   - call the API `/health` endpoint to confirm the backend is live
+   - use the demo `x-user-id` values above to test authenticated API routes
+
+### Render behavior
+
+- The API build installs dependencies, generates Prisma client code, and compiles TypeScript.
+- The API start command applies Prisma migrations and seeds demo data only when the database is empty.
+- The frontend is published as a static single-page app with a rewrite to `index.html`.
+
+## Project structure highlights
+
+- Teacher and student dashboards
 - Expandable course hierarchy (units → lessons → activities)
-- Activity detail rendering and teacher activity-creation modal wireflow
-- Teacher-only gradebook view
-- Wireframes and architecture docs in `/home/runner/work/edu-platform/edu-platform/docs`
+- Activity detail views and teacher creation flow
+- Teacher gradebook workflow
+- Seeded backend data that mirrors the demo frontend content
+
+See `/home/runner/work/edu-platform/edu-platform/docs` for the wireframes and component map.
