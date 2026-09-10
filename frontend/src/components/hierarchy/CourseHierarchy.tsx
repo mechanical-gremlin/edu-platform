@@ -94,8 +94,6 @@ export const CourseHierarchy = ({
               {isTeacher && (
                 <ActionMenu
                   onAdd={onCreateActivity}
-                  onEdit={() => {}}
-                  onDelete={() => {}}
                 />
               )}
             </div>
@@ -110,8 +108,6 @@ export const CourseHierarchy = ({
                       {isTeacher && (
                         <ActionMenu
                           onAdd={onCreateActivity}
-                          onEdit={() => {}}
-                          onDelete={() => {}}
                         />
                       )}
                     </div>
@@ -123,8 +119,6 @@ export const CourseHierarchy = ({
                             {isTeacher && (
                               <ActionMenu
                                 onAdd={onCreateActivity}
-                                onEdit={() => {}}
-                                onDelete={() => {}}
                               />
                             )}
                           </div>

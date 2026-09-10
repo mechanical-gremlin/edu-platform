@@ -77,7 +77,7 @@ export const GradebookTable = ({ entries, onStudentClick, onActivityClick }: Gra
                           >
                             ✓ Submitted
                           </span>
-                        ) : (
+                        ) : entry.pointsEarned !== null ? (
                           <button
                             className="rounded px-1 hover:text-indigo-600 hover:underline"
                             onClick={() => onActivityClick?.(activityId)}
@@ -86,6 +86,8 @@ export const GradebookTable = ({ entries, onStudentClick, onActivityClick }: Gra
                             <span className="font-semibold text-slate-900">{entry.pointsEarned}</span>
                             <span className="text-slate-400">/{entry.pointsPossible}</span>
                           </button>
+                        ) : (
+                          <span className="text-slate-400">—</span>
                         )
                       ) : (
                         <span className="text-slate-400">—</span>

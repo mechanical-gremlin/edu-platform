@@ -18,17 +18,21 @@ export const DashboardPage = ({ user, courses, onCourseOpen }: DashboardPageProp
     ),
   )
 
-  const upcoming = allActivities.filter(
-    ({ activity }) =>
-      activity.dueDate >= today &&
-      (activity.statusByUser[user.id] ?? 'not_started') !== 'completed',
-  )
+  const upcoming = allActivities
+    .filter(
+      ({ activity }) =>
+        activity.dueDate >= today &&
+        (activity.statusByUser[user.id] ?? 'not_started') !== 'completed',
+    )
+    .sort((a, b) => a.activity.dueDate.localeCompare(b.activity.dueDate))
 
-  const late = allActivities.filter(
-    ({ activity }) =>
-      activity.dueDate < today &&
-      (activity.statusByUser[user.id] ?? 'not_started') !== 'completed',
-  )
+  const late = allActivities
+    .filter(
+      ({ activity }) =>
+        activity.dueDate < today &&
+        (activity.statusByUser[user.id] ?? 'not_started') !== 'completed',
+    )
+    .sort((a, b) => a.activity.dueDate.localeCompare(b.activity.dueDate))
 
   return (
     <section className="space-y-8">
