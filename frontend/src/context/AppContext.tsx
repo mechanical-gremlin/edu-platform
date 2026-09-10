@@ -1,4 +1,4 @@
-import { createContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useMemo, useState, type ReactNode } from 'react'
 import { mockCourses, mockGradebookEntries, mockUsers } from '../mocks/data'
 import type { Course, GradebookEntry, User } from '../types/models'
 
@@ -23,15 +23,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
   const [gradebookEntries, setGradebookEntries] = useState<GradebookEntry[]>(mockGradebookEntries)
 
-  const updateGradebookEntry = (studentId: string, activityId: string, points: number, comment: string) => {
-    setGradebookEntries((prev) =>
-      prev.map((e) =>
-        e.studentId === studentId && e.activityId === activityId
-          ? { ...e, pointsEarned: points, comment, submitted: true }
-          : e,
-      ),
-    )
-  }
+  const updateGradebookEntry = useCallback(
+    (studentId: string, activityId: string, points: number, comment: string) => {
+      setGradebookEntries((prev) =>
+        prev.map((e) =>
+          e.studentId === studentId && e.activityId === activityId
+            ? { ...e, pointsEarned: points, comment, submitted: true }
+            : e,
+        ),
+      )
+    },
+    [],
+  )
 
   const value = useMemo(
     () => ({
@@ -46,7 +49,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSelectedActivityId,
       updateGradebookEntry,
     }),
-    [currentUser, selectedActivityId, selectedCourseId, gradebookEntries],
+    [currentUser, selectedActivityId, selectedCourseId, gradebookEntries, updateGradebookEntry],
   )
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
