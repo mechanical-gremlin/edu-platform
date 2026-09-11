@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ActivityFullScreen } from './components/activity/ActivityFullScreen'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { useAppContext } from './context/useAppContext'
@@ -9,6 +9,28 @@ import { DashboardPage } from './pages/DashboardPage'
 import { GradebookPage } from './pages/GradebookPage'
 import { LoginPage } from './pages/LoginPage'
 import type { User } from './types/models'
+
+const STORAGE_KEYS = {
+  selectedNav: 'edu-platform.selected-nav',
+  apiDebugVisible: 'edu-platform.api-debug-visible',
+} as const
+
+const readStoredValue = <T,>(key: string, fallback: T): T => {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const storedValue = window.localStorage.getItem(key)
+  if (!storedValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(storedValue) as T
+  } catch {
+    return fallback
+  }
+}
 
 function App() {
   const {
@@ -34,18 +56,23 @@ function App() {
     updateGradebookEntry,
   } = useAppContext()
 
-  const [selectedNav, setSelectedNav] = useState<NavKey>('dashboard')
+  const [selectedNav, setSelectedNav] = useState<NavKey>(() =>
+    readStoredValue<NavKey>(STORAGE_KEYS.selectedNav, 'dashboard'),
+  )
   const [healthStatus, setHealthStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [healthMessage, setHealthMessage] = useState('Not checked')
   const [meStatus, setMeStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [meMessage, setMeMessage] = useState('Login to test /me')
+  const [apiDebugVisible, setApiDebugVisible] = useState<boolean>(() =>
+    readStoredValue<boolean>(STORAGE_KEYS.apiDebugVisible, true),
+  )
 
   const apiBaseUrl = useMemo(() => {
     const rawValue = import.meta.env.VITE_API_BASE_URL?.trim()
     return rawValue ? rawValue.replace(/\/+$/, '') : ''
   }, [])
 
-  const apiUrl = (path: string) => `${apiBaseUrl}${path}`
+  const apiUrl = useCallback((path: string) => `${apiBaseUrl}${path}`, [apiBaseUrl])
 
   useEffect(() => {
     let cancelled = false
@@ -83,7 +110,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [apiBaseUrl])
+  }, [apiUrl])
 
   useEffect(() => {
     let cancelled = false
@@ -127,7 +154,23 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [apiBaseUrl, currentUser])
+  }, [apiUrl, currentUser])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.selectedNav, JSON.stringify(selectedNav))
+  }, [selectedNav])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.apiDebugVisible, JSON.stringify(apiDebugVisible))
+  }, [apiDebugVisible])
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
@@ -156,11 +199,31 @@ function App() {
   }
 
   const apiDebugPanel = (
-    <div className="fixed bottom-4 right-4 z-50 w-full max-w-sm rounded-xl border border-slate-200 bg-white/95 p-3 text-xs shadow-lg">
-      <p className="font-semibold text-slate-900">API Debug</p>
-      <p className="mt-1 text-slate-500">Base URL: {apiBaseUrl || '(same origin)'}</p>
-      <p className={`mt-2 ${statusColor(healthStatus)}`}>/health: {healthMessage}</p>
-      <p className={`mt-1 ${statusColor(meStatus)}`}>/me: {meMessage}</p>
+    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+      {!apiDebugVisible && (
+        <button
+          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-lg hover:bg-slate-50"
+          onClick={() => setApiDebugVisible(true)}
+        >
+          Show API Debug
+        </button>
+      )}
+      {apiDebugVisible && (
+        <div className="w-full max-w-sm rounded-xl border border-slate-200 bg-white/95 p-3 text-xs shadow-lg">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold text-slate-900">API Debug</p>
+            <button
+              className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+              onClick={() => setApiDebugVisible(false)}
+            >
+              Hide
+            </button>
+          </div>
+          <p className="mt-1 text-slate-500">Base URL: {apiBaseUrl || '(same origin)'}</p>
+          <p className={`mt-2 ${statusColor(healthStatus)}`}>/health: {healthMessage}</p>
+          <p className={`mt-1 ${statusColor(meStatus)}`}>/me: {meMessage}</p>
+        </div>
+      )}
     </div>
   )
 
@@ -174,6 +237,15 @@ function App() {
   }
 
   const navItems = getRoleNavigation(currentUser.role)
+
+  const handleNavSelect = (nav: NavKey) => {
+    setSelectedNav(nav)
+    setSelectedActivityId(null)
+
+    if (nav === 'courses') {
+      setSelectedCourseId(null)
+    }
+  }
 
   const openCourse = (courseId: string) => {
     setSelectedCourseId(courseId)
@@ -195,8 +267,11 @@ function App() {
         user={currentUser}
         navItems={navItems}
         selectedNav={selectedNav}
-        onNavSelect={setSelectedNav}
-        onLogout={() => setCurrentUser(null)}
+        onNavSelect={handleNavSelect}
+        onLogout={() => {
+          setSelectedNav('dashboard')
+          setCurrentUser(null)
+        }}
       >
         {error && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
@@ -228,6 +303,7 @@ function App() {
             onCreateLesson={createLesson}
             onCreateActivity={createActivity}
             onToggleActivityVisibility={toggleActivityVisibility}
+            onBack={() => setSelectedCourseId(null)}
             onAddEnrollment={
               currentUser.role === 'teacher'
                 ? (courseId, userId, role) => addEnrollment(courseId, { userId, role })
@@ -258,6 +334,7 @@ function App() {
         {selectedNav === 'gradebook' && (
           <GradebookPage
             entries={gradebookEntries}
+            courses={courses}
             user={currentUser}
             onSaveGrade={updateGradebookEntry}
           />

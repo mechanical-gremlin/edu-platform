@@ -1,19 +1,43 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { GradebookTable } from '../components/gradebook/GradebookTable'
 import { GradingPanel } from '../components/teacher/GradingPanel'
-import type { GradebookEntry, User } from '../types/models'
+import type { Course, GradebookEntry, User } from '../types/models'
 
 interface GradebookPageProps {
   entries: GradebookEntry[]
+  courses: Course[]
   user: User
   onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
 }
 
-export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps) => {
+export const GradebookPage = ({ entries, courses, user, onSaveGrade }: GradebookPageProps) => {
   const isTeacher = user.role === 'teacher'
   const [gradingActivityId, setGradingActivityId] = useState<string | null>(null)
+  const courseOptions = useMemo(
+    () =>
+      courses
+        .filter((course) => entries.some((entry) => entry.courseId === course.id))
+        .map((course) => ({
+          id: course.id,
+          label: `${course.code} · ${course.title}`,
+        })),
+    [courses, entries],
+  )
+  const [selectedCourseId, setSelectedCourseId] = useState<string>('all')
+  const activeCourseId =
+    !isTeacher || selectedCourseId === 'all' || courseOptions.some((course) => course.id === selectedCourseId)
+      ? selectedCourseId
+      : 'all'
 
-  const visibleEntries = isTeacher ? entries : entries.filter((entry) => entry.studentId === user.id)
+  const visibleEntries = isTeacher
+    ? activeCourseId === 'all'
+      ? entries
+      : entries.filter((entry) => entry.courseId === activeCourseId)
+    : entries.filter((entry) => entry.studentId === user.id)
+  const activeGradingActivityId =
+    gradingActivityId && visibleEntries.some((entry) => entry.activityId === gradingActivityId)
+      ? gradingActivityId
+      : null
 
   if (!isTeacher) {
     const gradedEntries = visibleEntries.filter((entry) => entry.pointsEarned !== null)
@@ -97,8 +121,27 @@ export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps
 
   return (
     <section className="space-y-4">
-      <h2 className="text-2xl font-bold text-slate-900">Gradebook</h2>
-      <p className="text-sm text-slate-600">Click an assignment column to enter grade mode.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">Gradebook</h2>
+          <p className="text-sm text-slate-600">Click an assignment column to enter grade mode.</p>
+        </div>
+        <label className="text-sm text-slate-600">
+          <span className="mb-1 block font-medium text-slate-700">Class</span>
+          <select
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+            value={activeCourseId}
+            onChange={(event) => setSelectedCourseId(event.target.value)}
+          >
+            <option value="all">All classes</option>
+            {courseOptions.map((course) => (
+              <option key={course.id} value={course.id}>
+                {course.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
       <GradebookTable
         entries={visibleEntries}
         onActivityClick={(activityId) => {
@@ -106,14 +149,16 @@ export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps
           if (entry) setGradingActivityId(activityId)
         }}
       />
-      {gradingActivityId && (
+      {activeGradingActivityId && (
         <GradingPanel
-          activityId={gradingActivityId}
-          activityTitle={visibleEntries.find((entry) => entry.activityId === gradingActivityId)?.activityTitle ?? ''}
+          activityId={activeGradingActivityId}
+          activityTitle={
+            visibleEntries.find((entry) => entry.activityId === activeGradingActivityId)?.activityTitle ?? ''
+          }
           entries={visibleEntries}
           onClose={() => setGradingActivityId(null)}
           onSave={async (studentId, points, comment) => {
-            await onSaveGrade?.(studentId, gradingActivityId, points, comment)
+            await onSaveGrade?.(studentId, activeGradingActivityId, points, comment)
           }}
         />
       )}

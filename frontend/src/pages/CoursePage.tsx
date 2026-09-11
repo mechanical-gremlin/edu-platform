@@ -8,6 +8,7 @@ interface CoursePageProps {
   user: User
   course: Course
   gradebookEntries: GradebookEntry[]
+  onBack: () => void
   onActivitySelect: (activityId: string) => void
   onCreateUnit: (courseId: string, title: string, description: string) => Promise<string>
   onCreateLesson: (unitId: string, title: string, description: string) => Promise<string>
@@ -21,6 +22,7 @@ export const CoursePage = ({
   user,
   course,
   gradebookEntries,
+  onBack,
   onActivitySelect,
   onCreateUnit,
   onCreateLesson,
@@ -36,6 +38,12 @@ export const CoursePage = ({
     <section className="space-y-4">
       <div className="flex items-start justify-between gap-4">
         <div>
+          <button
+            className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            onClick={onBack}
+          >
+            ← Back to courses
+          </button>
           <h2 className="text-2xl font-bold text-slate-900">{course.title}</h2>
           <p className="text-sm text-slate-500">
             {course.code} · {course.teacherName}
