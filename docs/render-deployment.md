@@ -41,3 +41,22 @@ If you deploy only one web service from `backend`, visiting `/` will not show th
 - API health check path: `/health`
 - Frontend static publish path: `dist`
 - Frontend rewrite: `/* -> /index.html`
+- Frontend environment variable: `VITE_API_BASE_URL=https://<your-api-service>.onrender.com`
+
+## Manual setup (no Blueprint)
+
+If you are deploying for free and not using Blueprint:
+
+### Backend web service
+- Root directory: `backend`
+- Build command: `npm ci && npm run prisma:generate && npm run build`
+- Start command: `npm run prisma:migrate:deploy && npm run prisma:seed:if-empty && npm run start`
+- Health check path: `/health`
+- Environment variable: `DATABASE_URL` from your Render Postgres instance
+
+### Frontend static site
+- Root directory: leave blank
+- Build command: `npm --prefix frontend ci && npm --prefix frontend run build`
+- Publish directory: `frontend/dist`
+- Environment variable: `VITE_API_BASE_URL=https://<your-api-service>.onrender.com`
+- Add SPA rewrite rule in Static Site settings: `/* -> /index.html`
