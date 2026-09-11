@@ -73,6 +73,17 @@ export interface CreateActivityInput {
   visible?: boolean
 }
 
+export interface CreateCourseInput {
+  title: string
+  code: string
+  description?: string | null
+}
+
+export interface AddEnrollmentInput {
+  userId: string
+  role?: 'teacher' | 'student'
+}
+
 export interface UpdateActivityDirectionsInput {
   directions?: string | null
 }

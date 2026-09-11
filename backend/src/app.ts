@@ -23,6 +23,11 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
   app.setSerializerCompiler(serializerCompiler)
   await app.register(cors, { origin: true })
 
+  app.addHook('onSend', (_request, reply, _payload, done) => {
+    reply.header('Cross-Origin-Opener-Policy', 'same-origin')
+    done()
+  })
+
   app.setErrorHandler((error, _request, reply) => {
     const fastifyError = error as { statusCode?: number; name?: string; message?: string }
     const statusCode =

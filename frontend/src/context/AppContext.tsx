@@ -1,8 +1,10 @@
 import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { mockUsers } from '../mocks/data'
 import type {
+  AddEnrollmentInput,
   Course,
   CreateActivityInput,
+  CreateCourseInput,
   GradebookEntry,
   UpdateActivityDirectionsInput,
   User,
@@ -21,6 +23,8 @@ interface AppContextValue {
   setSelectedCourseId: (courseId: string | null) => void
   setSelectedActivityId: (activityId: string | null) => void
   refreshData: () => Promise<void>
+  createCourse: (input: CreateCourseInput) => Promise<string>
+  addEnrollment: (courseId: string, input: AddEnrollmentInput) => Promise<void>
   createUnit: (courseId: string, title: string, description: string) => Promise<string>
   createLesson: (unitId: string, title: string, description: string) => Promise<string>
   createActivity: (lessonId: string, input: CreateActivityInput) => Promise<string>
@@ -330,6 +334,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     void refreshData()
   }, [refreshData])
 
+  const createCourse = useCallback(
+    async (input: CreateCourseInput) => {
+      const response = await request<MutationResponse>('/courses', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      })
+      void refreshData()
+      return response.id
+    },
+    [refreshData, request],
+  )
+
+  const addEnrollment = useCallback(
+    async (courseId: string, input: AddEnrollmentInput) => {
+      await request<unknown>(`/courses/${courseId}/enrollments`, {
+        method: 'POST',
+        body: JSON.stringify(input),
+      })
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
   const createUnit = useCallback(
     async (courseId: string, title: string, description: string) => {
       const response = await request<MutationResponse>(`/courses/${courseId}/units`, {
@@ -567,6 +594,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSelectedCourseId,
       setSelectedActivityId,
       refreshData,
+      createCourse,
+      addEnrollment,
       createUnit,
       createLesson,
       createActivity,
@@ -576,8 +605,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       updateActivityDirections,
     }),
     [
+      addEnrollment,
       courses,
       createActivity,
+      createCourse,
       createLesson,
       createUnit,
       currentUser,

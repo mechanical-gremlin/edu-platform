@@ -36,37 +36,47 @@ const typeIcon: Record<Activity['type'], string> = {
 
 const demoWorkspaceUrls: Record<Activity['type'], string | null> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
+  coding: 'https://onecompiler.com/embed/?theme=dark&hideLanguageSelection=false&hideNew=true',
   quiz: null,
-  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
+  project: 'https://onecompiler.com/embed/?theme=dark&hideLanguageSelection=false&hideNew=true',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
 const getEmbeddedUrl = (activity: Activity) => {
-  const resourceUrl = activity.resourceUrl?.trim() || demoWorkspaceUrls[activity.type]
-  if (!resourceUrl) return null
+  const rawUrl = activity.resourceUrl?.trim() || demoWorkspaceUrls[activity.type]
+  if (!rawUrl) return null
 
-  if (resourceUrl.includes('youtube.com/watch?v=')) {
-    const videoId = new URL(resourceUrl).searchParams.get('v')
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    return null
+  }
+
+  if (parsed.hostname === 'www.youtube.com' || parsed.hostname === 'youtube.com') {
+    const videoId = parsed.searchParams.get('v')
     return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null
   }
 
-  if (resourceUrl.includes('youtu.be/')) {
-    const videoId = resourceUrl.split('youtu.be/')[1]?.split(/[?&]/)[0]
+  if (parsed.hostname === 'youtu.be') {
+    const videoId = parsed.pathname.slice(1).split('?')[0]
     return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : null
   }
 
-  const googleDriveMatch = resourceUrl.match(/\/d\/([^/]+)/)
-  if (googleDriveMatch) {
-    return `https://drive.google.com/file/d/${googleDriveMatch[1]}/preview`
+  if (parsed.hostname === 'drive.google.com') {
+    const driveMatch = parsed.pathname.match(/\/d\/([^/]+)/)
+    return driveMatch ? `https://drive.google.com/file/d/${driveMatch[1]}/preview` : null
   }
 
-  if (
-    resourceUrl.includes('stackblitz.com/') ||
-    resourceUrl.includes('editor.godotengine.org/') ||
-    resourceUrl.includes('canva.com/')
-  ) {
-    return resourceUrl
+  const allowedEmbedHosts = [
+    'stackblitz.com',
+    'onecompiler.com',
+    'editor.godotengine.org',
+    'canva.com',
+  ]
+
+  if (allowedEmbedHosts.some((host) => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`))) {
+    return rawUrl
   }
 
   return null

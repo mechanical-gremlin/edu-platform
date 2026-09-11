@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ActivityCreationModal } from '../components/teacher/ActivityCreationModal'
+import { RosterModal } from '../components/teacher/RosterModal'
 import { CourseHierarchy } from '../components/hierarchy/CourseHierarchy'
 import type { Course, CreateActivityInput, GradebookEntry, User } from '../types/models'
 
@@ -12,6 +13,8 @@ interface CoursePageProps {
   onCreateLesson: (unitId: string, title: string, description: string) => Promise<string>
   onCreateActivity: (lessonId: string, input: CreateActivityInput) => Promise<string>
   onToggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
+  onAddEnrollment?: (courseId: string, userId: string, role: 'teacher' | 'student') => Promise<void>
+  fetchUsers?: () => Promise<User[]>
 }
 
 export const CoursePage = ({
@@ -23,15 +26,30 @@ export const CoursePage = ({
   onCreateLesson,
   onCreateActivity,
   onToggleActivityVisibility,
+  onAddEnrollment,
+  fetchUsers,
 }: CoursePageProps) => {
   const [activityModalLessonId, setActivityModalLessonId] = useState<string | null>(null)
+  const [rosterOpen, setRosterOpen] = useState(false)
 
   return (
     <section className="space-y-4">
-      <h2 className="text-2xl font-bold text-slate-900">{course.title}</h2>
-      <p className="text-sm text-slate-500">
-        {course.code} · {course.teacherName}
-      </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900">{course.title}</h2>
+          <p className="text-sm text-slate-500">
+            {course.code} · {course.teacherName}
+          </p>
+        </div>
+        {user.role === 'teacher' && onAddEnrollment && fetchUsers && (
+          <button
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+            onClick={() => setRosterOpen(true)}
+          >
+            👥 Manage Roster
+          </button>
+        )}
+      </div>
       <CourseHierarchy
         course={course}
         isTeacher={user.role === 'teacher'}
@@ -52,6 +70,16 @@ export const CoursePage = ({
           setActivityModalLessonId(null)
         }}
       />
+      {rosterOpen && onAddEnrollment && fetchUsers && (
+        <RosterModal
+          courseId={course.id}
+          courseTitle={course.title}
+          currentUserId={user.id}
+          onClose={() => setRosterOpen(false)}
+          onAddEnrollment={onAddEnrollment}
+          fetchUsers={fetchUsers}
+        />
+      )}
     </section>
   )
 }
