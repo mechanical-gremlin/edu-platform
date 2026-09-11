@@ -6,20 +6,19 @@ import type { GradebookEntry, User } from '../types/models'
 interface GradebookPageProps {
   entries: GradebookEntry[]
   user: User
-  onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => void
+  onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
 }
 
 export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps) => {
   const isTeacher = user.role === 'teacher'
   const [gradingActivityId, setGradingActivityId] = useState<string | null>(null)
 
-  const visibleEntries = isTeacher
-    ? entries
-    : entries.filter((e) => e.studentId === user.id)
+  const visibleEntries = isTeacher ? entries : entries.filter((entry) => entry.studentId === user.id)
 
   if (!isTeacher) {
-    const totalEarned = visibleEntries.reduce((sum, e) => sum + (e.pointsEarned ?? 0), 0)
-    const totalPossible = visibleEntries.reduce((sum, e) => sum + e.pointsPossible, 0)
+    const gradedEntries = visibleEntries.filter((entry) => entry.pointsEarned !== null)
+    const totalEarned = gradedEntries.reduce((sum, entry) => sum + (entry.pointsEarned ?? 0), 0)
+    const totalPossible = gradedEntries.reduce((sum, entry) => sum + entry.pointsPossible, 0)
     const overallPct = totalPossible > 0 ? Math.round((totalEarned / totalPossible) * 100) : null
 
     return (
@@ -27,9 +26,8 @@ export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps
         <h2 className="text-2xl font-bold text-slate-900">My Grades</h2>
         {overallPct !== null && (
           <p className="text-sm text-slate-600">
-            Overall grade:{' '}
-            <span className="font-semibold text-indigo-600">{overallPct}%</span>
-            {' '}({totalEarned} / {totalPossible} pts)
+            Overall grade: <span className="font-semibold text-indigo-600">{overallPct}%</span> ({totalEarned} /{' '}
+            {totalPossible} graded pts)
           </p>
         )}
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -52,20 +50,18 @@ export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps
                 return (
                   <tr key={`${entry.activityId}-${entry.studentId}`} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium text-slate-800">{entry.activityTitle}</td>
-                    <td className="px-4 py-3 text-slate-500">{entry.courseId}</td>
+                    <td className="px-4 py-3 text-slate-500">{entry.courseCode ?? entry.courseId}</td>
                     <td className="px-4 py-3">
                       {entry.pointsEarned !== null ? (
                         <span>
                           <span className="font-semibold text-slate-900">{entry.pointsEarned}</span>
                           <span className="text-slate-400">/{entry.pointsPossible}</span>
-                          {pct !== null && (
-                            <span className="ml-2 text-xs text-slate-500">({pct}%)</span>
-                          )}
+                          {pct !== null && <span className="ml-2 text-xs text-slate-500">({pct}%)</span>}
                         </span>
                       ) : entry.submitted ? (
                         <span className="text-xs text-amber-600">Submitted – pending</span>
                       ) : (
-                        <span className="text-slate-400">—</span>
+                        <span className="text-slate-400">Not graded yet</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -78,12 +74,10 @@ export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps
                           ⏳ Submitted
                         </span>
                       ) : (
-                        <span className="text-slate-400 text-xs">Not submitted</span>
+                        <span className="text-xs text-slate-400">Awaiting submission</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 text-xs italic">
-                      {entry.comment ?? '—'}
-                    </td>
+                    <td className="px-4 py-3 text-xs italic text-slate-600">{entry.comment ?? '—'}</td>
                   </tr>
                 )
               })}
@@ -108,22 +102,21 @@ export const GradebookPage = ({ entries, user, onSaveGrade }: GradebookPageProps
       <GradebookTable
         entries={visibleEntries}
         onActivityClick={(activityId) => {
-          const entry = visibleEntries.find((e) => e.activityId === activityId)
+          const entry = visibleEntries.find((gradebookEntry) => gradebookEntry.activityId === activityId)
           if (entry) setGradingActivityId(activityId)
         }}
       />
       {gradingActivityId && (
         <GradingPanel
           activityId={gradingActivityId}
-          activityTitle={visibleEntries.find((e) => e.activityId === gradingActivityId)?.activityTitle ?? ''}
+          activityTitle={visibleEntries.find((entry) => entry.activityId === gradingActivityId)?.activityTitle ?? ''}
           entries={visibleEntries}
           onClose={() => setGradingActivityId(null)}
-          onSave={(studentId, points, comment) => {
-            onSaveGrade?.(studentId, gradingActivityId, points, comment)
+          onSave={async (studentId, points, comment) => {
+            await onSaveGrade?.(studentId, gradingActivityId, points, comment)
           }}
         />
       )}
     </section>
   )
 }
-

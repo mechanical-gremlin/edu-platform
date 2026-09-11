@@ -103,6 +103,7 @@ model Activity {
   title          String
   type           ActivityType
   description    String
+  directions     String?
   resourceUrl    String?
   visible        Boolean      @default(true)
   dueAt          DateTime?

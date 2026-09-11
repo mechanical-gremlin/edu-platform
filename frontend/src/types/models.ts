@@ -17,20 +17,22 @@ export interface Activity {
   dueDate: string
   points: number
   description: string
-  resourceUrl?: string
-  statusByUser: Record<string, 'not_started' | 'in_progress' | 'completed'>
+  directions?: string | null
+  resourceUrl?: string | null
   visible?: boolean
 }
 
 export interface Lesson {
   id: string
   title: string
+  description?: string | null
   activities: Activity[]
 }
 
 export interface Unit {
   id: string
   title: string
+  description?: string | null
   lessons: Lesson[]
 }
 
@@ -39,6 +41,7 @@ export interface Course {
   title: string
   code: string
   teacherName: string
+  description?: string | null
   units: Unit[]
 }
 
@@ -46,10 +49,26 @@ export interface GradebookEntry {
   studentId: string
   studentName: string
   courseId: string
+  courseCode?: string
+  courseTitle?: string
   activityId: string
   activityTitle: string
   pointsEarned: number | null
   pointsPossible: number
   submitted?: boolean
-  comment?: string
+  comment?: string | null
+  gradedAt?: string | null
+  submittedAt?: string | null
+  submissionText?: string | null
+}
+
+export interface CreateActivityInput {
+  title: string
+  type: ActivityType
+  description: string
+  directions?: string | null
+  dueAt?: string | null
+  pointsPossible: number
+  resourceUrl?: string | null
+  visible?: boolean
 }

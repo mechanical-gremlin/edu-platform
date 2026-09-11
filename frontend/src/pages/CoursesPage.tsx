@@ -1,14 +1,15 @@
 import { CourseCard } from '../components/dashboard/CourseCard'
 import { getCourseProgress } from '../utils/progress'
-import type { Course, User } from '../types/models'
+import type { Course, GradebookEntry, User } from '../types/models'
 
 interface CoursesPageProps {
   user: User
   courses: Course[]
+  gradebookEntries: GradebookEntry[]
   onCourseOpen: (courseId: string) => void
 }
 
-export const CoursesPage = ({ user, courses, onCourseOpen }: CoursesPageProps) => (
+export const CoursesPage = ({ user, courses, gradebookEntries, onCourseOpen }: CoursesPageProps) => (
   <section className="space-y-4">
     <div>
       <h2 className="text-2xl font-bold text-slate-900">My Courses</h2>
@@ -19,7 +20,7 @@ export const CoursesPage = ({ user, courses, onCourseOpen }: CoursesPageProps) =
         <CourseCard
           key={course.id}
           course={course}
-          progress={getCourseProgress(course, user.id)}
+          progress={getCourseProgress(course, user.id, gradebookEntries)}
           onOpen={() => onCourseOpen(course.id)}
         />
       ))}
