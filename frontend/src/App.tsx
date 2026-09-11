@@ -27,6 +27,7 @@ function App() {
     createUnit,
     submitActivity,
     toggleActivityVisibility,
+    updateActivityDirections,
     updateGradebookEntry,
   } = useAppContext()
 
@@ -247,6 +248,7 @@ function App() {
           onNavigate={setSelectedActivityId}
           onSaveGrade={updateGradebookEntry}
           onSubmitActivity={submitActivity}
+          onUpdateActivityDirections={updateActivityDirections}
         />
       )}
       {apiDebugPanel}

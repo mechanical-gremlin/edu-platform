@@ -72,3 +72,7 @@ export interface CreateActivityInput {
   resourceUrl?: string | null
   visible?: boolean
 }
+
+export interface UpdateActivityDirectionsInput {
+  directions?: string | null
+}

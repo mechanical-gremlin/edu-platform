@@ -1,6 +1,12 @@
 import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { mockUsers } from '../mocks/data'
-import type { Course, CreateActivityInput, GradebookEntry, User } from '../types/models'
+import type {
+  Course,
+  CreateActivityInput,
+  GradebookEntry,
+  UpdateActivityDirectionsInput,
+  User,
+} from '../types/models'
 
 interface AppContextValue {
   users: User[]
@@ -25,6 +31,10 @@ interface AppContextValue {
     activityId: string,
     points: number,
     comment: string,
+  ) => Promise<void>
+  updateActivityDirections: (
+    activityId: string,
+    input: UpdateActivityDirectionsInput,
   ) => Promise<void>
 }
 
@@ -108,7 +118,27 @@ interface ApiStudentGrade {
 
 interface MutationResponse {
   id: string
+  title?: string
+  description?: string | null
 }
+
+const updateCoursesForActivity = (
+  courses: Course[],
+  activityId: string,
+  updater: (activity: Course['units'][number]['lessons'][number]['activities'][number]) => Course['units'][number]['lessons'][number]['activities'][number],
+) =>
+  courses.map((course) => ({
+    ...course,
+    units: course.units.map((unit) => ({
+      ...unit,
+      lessons: unit.lessons.map((lesson) => ({
+        ...lesson,
+        activities: lesson.activities.map((activity) =>
+          activity.id === activityId ? updater(activity) : activity,
+        ),
+      })),
+    })),
+  }))
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
 
@@ -306,7 +336,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         method: 'POST',
         body: JSON.stringify({ title, description: description || null }),
       })
-      await refreshData()
+      setCourses((previous) =>
+        previous.map((course) =>
+          course.id === courseId
+            ? {
+                ...course,
+                units: [
+                  ...course.units,
+                  {
+                    id: response.id,
+                    title: response.title ?? title,
+                    description: response.description ?? (description || null),
+                    lessons: [],
+                  },
+                ],
+              }
+            : course,
+        ),
+      )
+      void refreshData()
       return response.id
     },
     [refreshData, request],
@@ -318,7 +366,28 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         method: 'POST',
         body: JSON.stringify({ title, description: description || null }),
       })
-      await refreshData()
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.map((unit) =>
+            unit.id === unitId
+              ? {
+                  ...unit,
+                  lessons: [
+                    ...unit.lessons,
+                    {
+                      id: response.id,
+                      title: response.title ?? title,
+                      description: response.description ?? (description || null),
+                      activities: [],
+                    },
+                  ],
+                }
+              : unit,
+          ),
+        })),
+      )
+      void refreshData()
       return response.id
     },
     [refreshData, request],
@@ -326,14 +395,80 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   const createActivity = useCallback(
     async (lessonId: string, input: CreateActivityInput) => {
-      const response = await request<MutationResponse>(`/lessons/${lessonId}/activities`, {
+      const response = await request<ApiActivity>(`/lessons/${lessonId}/activities`, {
         method: 'POST',
         body: JSON.stringify(input),
       })
-      await refreshData()
+      let courseId: string | null = null
+
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.map((unit) => ({
+            ...unit,
+            lessons: unit.lessons.map((lesson) => {
+              if (lesson.id !== lessonId) {
+                return lesson
+              }
+
+              courseId = course.id
+
+              return {
+                ...lesson,
+                activities: [
+                  ...lesson.activities,
+                  {
+                    id: response.id,
+                    title: response.title,
+                    type: response.type,
+                    description: response.description,
+                    directions: response.directions,
+                    resourceUrl: response.resourceUrl,
+                    visible: response.visible,
+                    dueDate: withDateOnly(response.dueAt),
+                    points: response.pointsPossible,
+                  },
+                ],
+              }
+            }),
+          })),
+        })),
+      )
+
+      if (currentUser?.role === 'teacher' && courseId) {
+        setGradebookEntries((previous) => {
+          const students = Array.from(
+            new Map(
+              previous
+                .filter((entry) => entry.courseId === courseId)
+                .map((entry) => [entry.studentId, entry.studentName]),
+            ).entries(),
+          )
+
+          return [
+            ...previous,
+            ...students.map(([studentId, studentName]) => ({
+              studentId,
+              studentName,
+              courseId: courseId!,
+              activityId: response.id,
+              activityTitle: response.title,
+              pointsEarned: null,
+              pointsPossible: response.pointsPossible,
+              submitted: false,
+              comment: null,
+              gradedAt: null,
+              submittedAt: null,
+              submissionText: null,
+            })),
+          ]
+        })
+      }
+
+      void refreshData()
       return response.id
     },
-    [refreshData, request],
+    [currentUser, refreshData, request],
   )
 
   const toggleActivityVisibility = useCallback(
@@ -342,7 +477,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         method: 'PATCH',
         body: JSON.stringify({ visible }),
       })
-      await refreshData()
+      setCourses((previous) =>
+        updateCoursesForActivity(previous, activityId, (activity) => ({ ...activity, visible })),
+      )
+      void refreshData()
     },
     [refreshData, request],
   )
@@ -353,9 +491,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         method: 'POST',
         body: JSON.stringify({ content: { responseText } }),
       })
-      await refreshData()
+      setGradebookEntries((previous) =>
+        previous.map((entry) =>
+          entry.activityId === activityId && entry.studentId === currentUser?.id
+            ? {
+                ...entry,
+                submitted: true,
+                submittedAt: new Date().toISOString(),
+                submissionText: responseText,
+              }
+            : entry,
+        ),
+      )
+      void refreshData()
     },
-    [refreshData, request],
+    [currentUser?.id, refreshData, request],
   )
 
   const updateGradebookEntry = useCallback(
@@ -369,7 +519,36 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           comment: comment || null,
         }),
       })
-      await refreshData()
+      setGradebookEntries((previous) =>
+        previous.map((entry) =>
+          entry.studentId === studentId && entry.activityId === activityId
+            ? {
+                ...entry,
+                pointsEarned: Math.trunc(points),
+                comment: comment || null,
+                gradedAt: new Date().toISOString(),
+              }
+            : entry,
+        ),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const updateActivityDirections = useCallback(
+    async (activityId: string, input: UpdateActivityDirectionsInput) => {
+      const response = await request<ApiActivity>(`/activities/${activityId}/directions`, {
+        method: 'PATCH',
+        body: JSON.stringify({ directions: input.directions ?? null }),
+      })
+      setCourses((previous) =>
+        updateCoursesForActivity(previous, activityId, (activity) => ({
+          ...activity,
+          directions: response.directions,
+        })),
+      )
+      void refreshData()
     },
     [refreshData, request],
   )
@@ -394,6 +573,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       toggleActivityVisibility,
       submitActivity,
       updateGradebookEntry,
+      updateActivityDirections,
     }),
     [
       courses,
@@ -409,6 +589,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectedCourseId,
       submitActivity,
       toggleActivityVisibility,
+      updateActivityDirections,
       updateGradebookEntry,
     ],
   )
