@@ -33,6 +33,23 @@ const unitParamsSchema = z.object({ unitId: z.string().trim().min(1) })
 const lessonParamsSchema = z.object({ lessonId: z.string().trim().min(1) })
 const activityParamsSchema = z.object({ activityId: z.string().trim().min(1) })
 
+const createCourseBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  code: z.string().trim().min(1).max(20),
+  description: z.string().trim().max(2000).optional().nullable(),
+})
+
+const enrollmentBodySchema = z.object({
+  userId: z.string().trim().min(1),
+  role: z.enum(['teacher', 'student']).optional().default('student'),
+})
+
+const enrollmentResponseSchema = z.object({
+  userId: z.string(),
+  courseId: z.string(),
+  role: z.enum(['teacher', 'student']),
+})
+
 const courseListSchema = z.array(
   z.object({
     id: z.string(),
@@ -248,6 +265,86 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         description: course.description,
         teacherName: course.enrollments[0]?.user.name ?? null,
       }))
+    },
+  )
+
+  app.post(
+    '/courses',
+    {
+      schema: {
+        body: createCourseBodySchema,
+        response: {
+          201: mutationResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = requireRole(request, 'teacher')
+      const payload = createCourseBodySchema.parse(request.body)
+
+      const existing = await app.prisma.course.findUnique({ where: { code: payload.code }, select: { id: true } })
+      if (existing) {
+        throw new AppError(409, `A course with code "${payload.code}" already exists`)
+      }
+
+      const course = await app.prisma.course.create({
+        data: {
+          id: randomUUID(),
+          title: payload.title,
+          code: payload.code,
+          description: payload.description ?? null,
+          enrollments: {
+            create: {
+              userId: user.id,
+              role: 'teacher',
+            },
+          },
+        },
+      })
+
+      reply.code(201)
+      return {
+        id: course.id,
+        title: course.title,
+        description: course.description,
+      }
+    },
+  )
+
+  app.post(
+    '/courses/:courseId/enrollments',
+    {
+      schema: {
+        params: courseParamsSchema,
+        body: enrollmentBodySchema,
+        response: {
+          201: enrollmentResponseSchema,
+        },
+      },
+    },
+    async (request, reply) => {
+      const user = requireRole(request, 'teacher')
+      const { courseId } = courseParamsSchema.parse(request.params)
+      const payload = enrollmentBodySchema.parse(request.body)
+      await assertTeacherForCourse(app, courseId, user.id)
+
+      const targetUser = await app.prisma.user.findUnique({ where: { id: payload.userId }, select: { id: true } })
+      if (!targetUser) {
+        throw new AppError(404, 'User not found')
+      }
+
+      const enrollment = await app.prisma.enrollment.upsert({
+        where: { userId_courseId: { userId: payload.userId, courseId } },
+        update: { role: payload.role },
+        create: { userId: payload.userId, courseId, role: payload.role },
+      })
+
+      reply.code(201)
+      return {
+        userId: enrollment.userId,
+        courseId: enrollment.courseId,
+        role: enrollment.role as 'teacher' | 'student',
+      }
     },
   )
 

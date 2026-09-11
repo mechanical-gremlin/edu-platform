@@ -36,9 +36,9 @@ const typeIcon: Record<Activity['type'], string> = {
 
 const demoWorkspaceUrls: Record<Activity['type'], string | null> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
+  coding: 'https://onecompiler.com/embed/?theme=dark&hideLanguageSelection=false&hideNew=true',
   quiz: null,
-  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
+  project: 'https://onecompiler.com/embed/?theme=dark&hideLanguageSelection=false&hideNew=true',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
@@ -63,6 +63,7 @@ const getEmbeddedUrl = (activity: Activity) => {
 
   if (
     resourceUrl.includes('stackblitz.com/') ||
+    resourceUrl.includes('onecompiler.com/') ||
     resourceUrl.includes('editor.godotengine.org/') ||
     resourceUrl.includes('canva.com/')
   ) {

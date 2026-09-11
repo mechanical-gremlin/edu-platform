@@ -8,6 +8,7 @@ import { CoursesPage } from './pages/CoursesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GradebookPage } from './pages/GradebookPage'
 import { LoginPage } from './pages/LoginPage'
+import type { User } from './types/models'
 
 function App() {
   const {
@@ -22,7 +23,9 @@ function App() {
     setCurrentUser,
     setSelectedCourseId,
     setSelectedActivityId,
+    addEnrollment,
     createActivity,
+    createCourse,
     createLesson,
     createUnit,
     submitActivity,
@@ -178,6 +181,14 @@ function App() {
     setSelectedActivityId(null)
   }
 
+  const fetchUsers = async (): Promise<User[]> => {
+    const response = await fetch(apiUrl('/users'), {
+      headers: { 'x-user-id': currentUser.id, 'Content-Type': 'application/json' },
+    })
+    if (!response.ok) throw new Error(`HTTP ${response.status}`)
+    return (await response.json()) as User[]
+  }
+
   return (
     <>
       <DashboardLayout
@@ -217,6 +228,12 @@ function App() {
             onCreateLesson={createLesson}
             onCreateActivity={createActivity}
             onToggleActivityVisibility={toggleActivityVisibility}
+            onAddEnrollment={
+              currentUser.role === 'teacher'
+                ? (courseId, userId, role) => addEnrollment(courseId, { userId, role })
+                : undefined
+            }
+            fetchUsers={currentUser.role === 'teacher' ? fetchUsers : undefined}
           />
         )}
 
@@ -226,6 +243,15 @@ function App() {
             courses={courses}
             gradebookEntries={gradebookEntries}
             onCourseOpen={openCourse}
+            onCreateCourse={
+              currentUser.role === 'teacher'
+                ? async (title, code, description) => {
+                    const id = await createCourse({ title, code, description: description || null })
+                    setSelectedCourseId(id)
+                    setSelectedNav('courses')
+                  }
+                : undefined
+            }
           />
         )}
 
