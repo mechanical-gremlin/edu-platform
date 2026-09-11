@@ -410,7 +410,7 @@ export const ActivityFullScreen = ({
               </p>
               <button
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                disabled={submitting || (activity.type !== 'coding' && submissionText.trim().length === 0)}
+                disabled={submitting || (activity.type === 'coding' ? monacoCode.trim().length === 0 : submissionText.trim().length === 0)}
                 onClick={async () => {
                   try {
                     setSubmitting(true)

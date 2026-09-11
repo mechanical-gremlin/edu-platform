@@ -60,7 +60,6 @@ interface MonacoEditorProps {
   userId?: string
   /** Expected output for automatic pass/fail feedback */
   expectedOutput?: string | null
-  /** Expected output string from activity, for pass/fail display */
   readOnly?: boolean
   minHeight?: string
 }
