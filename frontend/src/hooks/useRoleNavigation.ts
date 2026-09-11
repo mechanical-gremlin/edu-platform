@@ -1,6 +1,6 @@
 import type { UserRole } from '../types/models'
 
-export type NavKey = 'dashboard' | 'courses' | 'gradebook'
+export type NavKey = 'dashboard' | 'courses' | 'gradebook' | 'admin'
 
 export interface NavItem {
   key: NavKey
@@ -15,6 +15,10 @@ export const getRoleNavigation = (role: UserRole): NavItem[] => {
 
   if (role === 'teacher') {
     return [...shared, { key: 'gradebook', label: 'Gradebook' }]
+  }
+
+  if (role === 'school_admin' || role === 'system_admin') {
+    return [{ key: 'admin', label: 'Admin Portal' }, ...shared, { key: 'gradebook', label: 'Gradebook' }]
   }
 
   return [...shared, { key: 'gradebook', label: 'My Grades' }]

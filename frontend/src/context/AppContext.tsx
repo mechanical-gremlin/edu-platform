@@ -88,6 +88,8 @@ interface ApiActivity {
   type: Course['units'][number]['lessons'][number]['activities'][number]['type']
   description: string
   directions: string | null
+  starterCode: string | null
+  expectedOutput: string | null
   resourceUrl: string | null
   visible: boolean
   dueAt: string | null
@@ -200,6 +202,8 @@ const mapCourse = (course: ApiCourse): Course => ({
         type: activity.type,
         description: activity.description,
         directions: activity.directions,
+        starterCode: activity.starterCode,
+        expectedOutput: activity.expectedOutput,
         resourceUrl: activity.resourceUrl,
         visible: activity.visible,
         dueDate: withDateOnly(activity.dueAt),
@@ -544,6 +548,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     type: response.type,
                     description: response.description,
                     directions: response.directions,
+                    starterCode: response.starterCode,
+                    expectedOutput: response.expectedOutput,
                     resourceUrl: response.resourceUrl,
                     visible: response.visible,
                     dueDate: withDateOnly(response.dueAt),

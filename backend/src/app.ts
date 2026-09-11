@@ -5,6 +5,7 @@ import type { PrismaClient } from '@prisma/client'
 import { dbPlugin } from './plugins/db.js'
 import { authPlugin } from './plugins/auth.js'
 import { loggingPlugin } from './plugins/logging.js'
+import { executeRoutes } from './modules/execute/routes.js'
 import { healthRoutes } from './modules/health/routes.js'
 import { userRoutes } from './modules/users/routes.js'
 import { courseRoutes } from './modules/courses/routes.js'
@@ -54,6 +55,7 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
   await app.register(courseRoutes)
   await app.register(gradeRoutes)
   await app.register(progressRoutes)
+  await app.register(executeRoutes)
 
   return app
 }

@@ -10,6 +10,8 @@ datasource db {
 enum UserRole {
   teacher
   student
+  school_admin
+  system_admin
 }
 
 enum EnrollmentRole {
@@ -104,6 +106,8 @@ model Activity {
   type           ActivityType
   description    String
   directions     String?
+  starterCode    String?
+  expectedOutput String?
   resourceUrl    String?
   visible        Boolean      @default(true)
   dueAt          DateTime?

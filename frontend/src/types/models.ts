@@ -1,4 +1,4 @@
-export type UserRole = 'teacher' | 'student'
+export type UserRole = 'teacher' | 'student' | 'school_admin' | 'system_admin'
 
 export type ActivityType = 'video' | 'coding' | 'quiz' | 'project' | 'godot'
 
@@ -18,6 +18,8 @@ export interface Activity {
   points: number
   description: string
   directions?: string | null
+  starterCode?: string | null
+  expectedOutput?: string | null
   resourceUrl?: string | null
   visible?: boolean
 }
@@ -67,6 +69,8 @@ export interface CreateActivityInput {
   type: ActivityType
   description: string
   directions?: string | null
+  starterCode?: string | null
+  expectedOutput?: string | null
   dueAt?: string | null
   pointsPossible: number
   resourceUrl?: string | null

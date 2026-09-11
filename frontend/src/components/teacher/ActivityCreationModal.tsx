@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ActivityType, CreateActivityInput } from '../../types/models'
 import { DirectionsEditor } from './DirectionsEditor'
+import { MonacoEditor } from '../coding/MonacoEditor'
 
 interface ActivityCreationModalProps {
   open: boolean
@@ -8,34 +9,11 @@ interface ActivityCreationModalProps {
   onSave: (input: CreateActivityInput) => Promise<void>
 }
 
-const CODING_LANGUAGES: { value: string; label: string }[] = [
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'python', label: 'Python' },
-  { value: 'java', label: 'Java' },
-  { value: 'c', label: 'C' },
-  { value: 'cpp', label: 'C++' },
-  { value: 'csharp', label: 'C#' },
-  { value: 'html', label: 'HTML' },
-  { value: 'php', label: 'PHP' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'ruby', label: 'Ruby' },
-  { value: 'go', label: 'Go' },
-  { value: 'rust', label: 'Rust' },
-  { value: 'swift', label: 'Swift' },
-  { value: 'kotlin', label: 'Kotlin' },
-]
-
-const buildCodingUrl = (language: string, code: string): string => {
-  const base = `https://onecompiler.com/embed/${language}`
-  if (!code.trim()) return `${base}?theme=dark&hideLanguageSelection=false`
-  return `${base}?theme=dark&hideLanguageSelection=false&code=${encodeURIComponent(code)}`
-}
-
 const suggestedResourceUrls: Record<ActivityType, string> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  coding: 'https://onecompiler.com/embed/javascript?theme=dark&hideLanguageSelection=false',
+  coding: '',
   quiz: '',
-  project: 'https://onecompiler.com/embed/javascript?theme=dark',
+  project: '',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
@@ -53,6 +31,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const [saving, setSaving] = useState(false)
   const [starterLanguage, setStarterLanguage] = useState('javascript')
   const [starterCode, setStarterCode] = useState('')
+  const [expectedOutput, setExpectedOutput] = useState('')
 
   const totalSteps = type === 'coding' ? 4 : 3
 
@@ -71,6 +50,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
       setSaving(false)
       setStarterLanguage('javascript')
       setStarterCode('')
+      setExpectedOutput('')
     }
   }, [open])
 
@@ -83,13 +63,12 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
 
   const computedResourceUrl = (): string | null => {
     if (resourceUrl.trim()) return resourceUrl.trim()
-    if (type === 'coding') return buildCodingUrl(starterLanguage, starterCode)
     return suggestedResourceUrls[type] || null
   }
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+      <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900">
             Create Activity • Step {step} of {totalSteps}
@@ -178,43 +157,38 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
         )}
 
         {step === 4 && type === 'coding' && (
-          <div className="space-y-3 text-sm">
+          <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              Optionally provide a programming language and starter code. Students will see this code
-              pre-loaded in their editor when they open the activity.
+              Write the starter code students will see pre-loaded in their Monaco editor. Optionally
+              set expected output to give students automatic pass/fail feedback when they run their code.
             </p>
-            <div>
-              <label className="mb-1 block font-medium text-slate-700">Programming Language</label>
-              <select
-                className="w-full rounded-lg border border-slate-200 px-3 py-2"
-                value={starterLanguage}
-                onChange={(event) => setStarterLanguage(event.target.value)}
-              >
-                {CODING_LANGUAGES.map((lang) => (
-                  <option key={lang.value} value={lang.value}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <MonacoEditor
+              defaultValue={starterCode}
+              language={starterLanguage}
+              showLanguageSelector
+              onLanguageChange={setStarterLanguage}
+              onChange={setStarterCode}
+              minHeight="300px"
+            />
             <div>
               <label className="mb-1 block font-medium text-slate-700">
-                Starter Code{' '}
-                <span className="text-xs font-normal text-slate-400">(optional)</span>
+                Expected Output{' '}
+                <span className="text-xs font-normal text-slate-400">
+                  (optional — exact stdout the student's program should produce)
+                </span>
               </label>
-              <textarea
-                className="h-48 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                placeholder={`// Write the starter code students will see\nconsole.log("Hello, World!");`}
-                value={starterCode}
-                onChange={(event) => setStarterCode(event.target.value)}
-                spellCheck={false}
+              <input
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs"
+                placeholder="e.g. Hello, World!"
+                value={expectedOutput}
+                onChange={(event) => setExpectedOutput(event.target.value)}
               />
+              {expectedOutput.trim() && (
+                <p className="mt-1 text-xs text-indigo-600">
+                  ✓ Students will see pass/fail feedback when their output matches this.
+                </p>
+              )}
             </div>
-            {starterCode.trim() && (
-              <p className="text-xs text-indigo-600">
-                ✓ Starter code will be pre-loaded into the OneCompiler editor for all students.
-              </p>
-            )}
           </div>
         )}
 
@@ -245,6 +219,8 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                   type,
                   description: description.trim(),
                   directions: directions.trim() || null,
+                  starterCode: type === 'coding' ? (starterCode.trim() || null) : null,
+                  expectedOutput: type === 'coding' ? (expectedOutput.trim() || null) : null,
                   dueAt: dueDate ? new Date(`${dueDate}T23:59:00`).toISOString() : null,
                   pointsPossible: points,
                   resourceUrl: computedResourceUrl(),
