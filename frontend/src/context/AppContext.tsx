@@ -1,4 +1,13 @@
-import { createContext, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from 'react'
 import { mockUsers } from '../mocks/data'
 import type {
   AddEnrollmentInput,
@@ -20,8 +29,8 @@ interface AppContextValue {
   loading: boolean
   error: string | null
   setCurrentUser: (user: User | null) => void
-  setSelectedCourseId: (courseId: string | null) => void
-  setSelectedActivityId: (activityId: string | null) => void
+  setSelectedCourseId: Dispatch<SetStateAction<string | null>>
+  setSelectedActivityId: Dispatch<SetStateAction<string | null>>
   refreshData: () => Promise<void>
   createCourse: (input: CreateCourseInput) => Promise<string>
   addEnrollment: (courseId: string, input: AddEnrollmentInput) => Promise<void>
@@ -40,6 +49,29 @@ interface AppContextValue {
     activityId: string,
     input: UpdateActivityDirectionsInput,
   ) => Promise<void>
+}
+
+const STORAGE_KEYS = {
+  currentUser: 'edu-platform.current-user',
+  selectedCourseId: 'edu-platform.selected-course-id',
+  selectedActivityId: 'edu-platform.selected-activity-id',
+} as const
+
+const readStoredValue = <T,>(key: string, fallback: T): T => {
+  if (typeof window === 'undefined') {
+    return fallback
+  }
+
+  const storedValue = window.localStorage.getItem(key)
+  if (!storedValue) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(storedValue) as T
+  } catch {
+    return fallback
+  }
 }
 
 interface ApiCourseListItem {
@@ -229,13 +261,75 @@ const mapStudentGradebookEntries = (
 export const AppContext = createContext<AppContextValue | undefined>(undefined)
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
-  const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null)
+  const [currentUser, setCurrentUserState] = useState<User | null>(() =>
+    readStoredValue<User | null>(STORAGE_KEYS.currentUser, null),
+  )
+  const [selectedCourseId, setSelectedCourseIdState] = useState<string | null>(() =>
+    readStoredValue<string | null>(STORAGE_KEYS.selectedCourseId, null),
+  )
+  const [selectedActivityId, setSelectedActivityIdState] = useState<string | null>(() =>
+    readStoredValue<string | null>(STORAGE_KEYS.selectedActivityId, null),
+  )
   const [courses, setCourses] = useState<Course[]>([])
   const [gradebookEntries, setGradebookEntries] = useState<GradebookEntry[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const setCurrentUser = useCallback((user: User | null) => {
+    setCurrentUserState(user)
+
+    if (!user) {
+      setSelectedCourseIdState(null)
+      setSelectedActivityIdState(null)
+    }
+  }, [])
+
+  const setSelectedCourseId = useCallback<Dispatch<SetStateAction<string | null>>>((courseId) => {
+    setSelectedCourseIdState(courseId)
+  }, [])
+
+  const setSelectedActivityId = useCallback<Dispatch<SetStateAction<string | null>>>((activityId) => {
+    setSelectedActivityIdState(activityId)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (currentUser) {
+      window.localStorage.setItem(STORAGE_KEYS.currentUser, JSON.stringify(currentUser))
+      return
+    }
+
+    window.localStorage.removeItem(STORAGE_KEYS.currentUser)
+  }, [currentUser])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (selectedCourseId) {
+      window.localStorage.setItem(STORAGE_KEYS.selectedCourseId, JSON.stringify(selectedCourseId))
+      return
+    }
+
+    window.localStorage.removeItem(STORAGE_KEYS.selectedCourseId)
+  }, [selectedCourseId])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    if (selectedActivityId) {
+      window.localStorage.setItem(STORAGE_KEYS.selectedActivityId, JSON.stringify(selectedActivityId))
+      return
+    }
+
+    window.localStorage.removeItem(STORAGE_KEYS.selectedActivityId)
+  }, [selectedActivityId])
 
   const apiUrl = useCallback((path: string) => `${apiBaseUrl}${path}`, [])
 
@@ -328,7 +422,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setLoading(false)
     }
-  }, [currentUser, request])
+  }, [currentUser, request, setSelectedActivityId, setSelectedCourseId])
 
   useEffect(() => {
     void refreshData()
@@ -616,6 +710,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       gradebookEntries,
       loading,
       refreshData,
+      setCurrentUser,
+      setSelectedActivityId,
+      setSelectedCourseId,
       selectedActivityId,
       selectedCourseId,
       submitActivity,

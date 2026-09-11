@@ -36,15 +36,19 @@ const typeIcon: Record<Activity['type'], string> = {
 
 const demoWorkspaceUrls: Record<Activity['type'], string | null> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  coding: 'https://onecompiler.com/embed/?theme=dark&hideLanguageSelection=false&hideNew=true',
+  coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
   quiz: null,
-  project: 'https://onecompiler.com/embed/?theme=dark&hideLanguageSelection=false&hideNew=true',
+  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
 const getEmbeddedUrl = (activity: Activity) => {
   const rawUrl = activity.resourceUrl?.trim() || demoWorkspaceUrls[activity.type]
   if (!rawUrl) return null
+
+  if (activity.type === 'godot') {
+    return null
+  }
 
   let parsed: URL
   try {
@@ -314,6 +318,20 @@ export const ActivityFullScreen = ({
         <p className="max-w-3xl whitespace-pre-wrap text-sm text-slate-600">{activity.description}</p>
 
         {renderWorkspace()}
+        {launchUrl && embeddedUrl && (
+          <p className="-mt-1 text-xs text-slate-500">
+            If the embedded tool is blocked on your network, use{' '}
+            <a
+              href={launchUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-medium text-indigo-600 hover:underline"
+            >
+              Open Resource ↗
+            </a>
+            .
+          </p>
+        )}
 
         {currentUser.role === 'student' && (
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
