@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ActivityFullScreen } from './components/activity/ActivityFullScreen'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { useAppContext } from './context/useAppContext'
 import { getRoleNavigation, type NavKey } from './hooks/useRoleNavigation'
@@ -7,7 +8,6 @@ import { CoursesPage } from './pages/CoursesPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { GradebookPage } from './pages/GradebookPage'
 import { LoginPage } from './pages/LoginPage'
-import { ActivityFullScreen } from './components/activity/ActivityFullScreen'
 
 function App() {
   const {
@@ -17,14 +17,20 @@ function App() {
     currentUser,
     selectedCourseId,
     selectedActivityId,
+    loading,
+    error,
     setCurrentUser,
     setSelectedCourseId,
     setSelectedActivityId,
+    createActivity,
+    createLesson,
+    createUnit,
+    submitActivity,
+    toggleActivityVisibility,
     updateGradebookEntry,
   } = useAppContext()
 
   const [selectedNav, setSelectedNav] = useState<NavKey>('dashboard')
-  const [modalOpen, setModalOpen] = useState(false)
   const [healthStatus, setHealthStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [healthMessage, setHealthMessage] = useState('Not checked')
   const [meStatus, setMeStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
@@ -60,10 +66,10 @@ function App() {
             setHealthMessage('Unexpected /health response')
           }
         }
-      } catch (error) {
+      } catch (checkError) {
         if (!cancelled) {
           setHealthStatus('error')
-          setHealthMessage(error instanceof Error ? error.message : 'Connection failed')
+          setHealthMessage(checkError instanceof Error ? checkError.message : 'Connection failed')
         }
       }
     }
@@ -104,10 +110,10 @@ function App() {
           setMeStatus('ok')
           setMeMessage(`API user: ${payload.id ?? 'unknown'} (${payload.role ?? 'unknown'})`)
         }
-      } catch (error) {
+      } catch (checkError) {
         if (!cancelled) {
           setMeStatus('error')
-          setMeMessage(error instanceof Error ? error.message : 'Connection failed')
+          setMeMessage(checkError instanceof Error ? checkError.message : 'Connection failed')
         }
       }
     }
@@ -127,14 +133,14 @@ function App() {
   const allActivities = useMemo(
     () =>
       courses
-        .flatMap((c) => c.units)
-        .flatMap((u) => u.lessons)
-        .flatMap((l) => l.activities),
+        .flatMap((course) => course.units)
+        .flatMap((unit) => unit.lessons)
+        .flatMap((lesson) => lesson.activities),
     [courses],
   )
 
   const selectedActivity = useMemo(
-    () => allActivities.find((a) => a.id === selectedActivityId) ?? null,
+    () => allActivities.find((activity) => activity.id === selectedActivityId) ?? null,
     [allActivities, selectedActivityId],
   )
 
@@ -173,9 +179,31 @@ function App() {
 
   return (
     <>
-      <DashboardLayout user={currentUser} navItems={navItems} selectedNav={selectedNav} onNavSelect={setSelectedNav} onLogout={() => setCurrentUser(null)}>
+      <DashboardLayout
+        user={currentUser}
+        navItems={navItems}
+        selectedNav={selectedNav}
+        onNavSelect={setSelectedNav}
+        onLogout={() => setCurrentUser(null)}
+      >
+        {error && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+        {loading && courses.length === 0 && (
+          <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
+            Loading course data…
+          </div>
+        )}
+
         {selectedNav === 'dashboard' && (
-          <DashboardPage user={currentUser} courses={courses} gradebookEntries={gradebookEntries} onCourseOpen={openCourse} />
+          <DashboardPage
+            user={currentUser}
+            courses={courses}
+            gradebookEntries={gradebookEntries}
+            onCourseOpen={openCourse}
+          />
         )}
 
         {selectedNav === 'courses' && selectedCourse && (
@@ -184,14 +212,20 @@ function App() {
             course={selectedCourse}
             gradebookEntries={gradebookEntries}
             onActivitySelect={setSelectedActivityId}
-            modalOpen={modalOpen}
-            onModalOpen={() => setModalOpen(true)}
-            onModalClose={() => setModalOpen(false)}
+            onCreateUnit={createUnit}
+            onCreateLesson={createLesson}
+            onCreateActivity={createActivity}
+            onToggleActivityVisibility={toggleActivityVisibility}
           />
         )}
 
         {selectedNav === 'courses' && !selectedCourse && (
-          <CoursesPage user={currentUser} courses={courses} onCourseOpen={openCourse} />
+          <CoursesPage
+            user={currentUser}
+            courses={courses}
+            gradebookEntries={gradebookEntries}
+            onCourseOpen={openCourse}
+          />
         )}
 
         {selectedNav === 'gradebook' && (
@@ -203,7 +237,6 @@ function App() {
         )}
       </DashboardLayout>
 
-      {/* Full-screen activity overlay */}
       {selectedActivity && (
         <ActivityFullScreen
           activity={selectedActivity}
@@ -213,6 +246,7 @@ function App() {
           onClose={() => setSelectedActivityId(null)}
           onNavigate={setSelectedActivityId}
           onSaveGrade={updateGradebookEntry}
+          onSubmitActivity={submitActivity}
         />
       )}
       {apiDebugPanel}

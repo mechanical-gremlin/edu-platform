@@ -32,6 +32,8 @@ const gradebookResponseSchema = z.object({
           pointsPossible: z.int(),
           comment: z.string().nullable(),
           gradedAt: z.string().nullable(),
+          submittedAt: z.string().nullable(),
+          submissionText: z.string().nullable(),
         }),
       ),
     }),
@@ -59,8 +61,19 @@ const meGradesResponseSchema = z.array(
     submitted: z.boolean(),
     comment: z.string().nullable(),
     gradedAt: z.string().nullable(),
+    submittedAt: z.string().nullable(),
+    submissionText: z.string().nullable(),
   }),
 )
+
+const getSubmissionText = (content: unknown) => {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) {
+    return null
+  }
+
+  const responseText = Reflect.get(content, 'responseText')
+  return typeof responseText === 'string' && responseText.trim() ? responseText : null
+}
 
 const assertTeacherForCourse = async (app: Parameters<FastifyPluginAsync>[0], courseId: string, userId: string) => {
   const enrollment = await app.prisma.enrollment.findUnique({
@@ -160,6 +173,8 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
               pointsPossible: activity.pointsPossible,
               comment: grade?.comment ?? null,
               gradedAt: iso(grade?.gradedAt),
+              submittedAt: iso(submission?.submittedAt),
+              submissionText: getSubmissionText(submission?.content),
             }
           }),
         })),
@@ -308,6 +323,8 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
                   submitted: submission?.status === 'submitted',
                   comment: grade?.comment ?? null,
                   gradedAt: iso(grade?.gradedAt),
+                  submittedAt: iso(submission?.submittedAt),
+                  submissionText: getSubmissionText(submission?.content),
                 }
               }),
             ),
