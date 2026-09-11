@@ -20,7 +20,7 @@ interface ActivityFullScreenProps {
 
 const typeCopy: Record<Activity['type'], string> = {
   video: 'Use the embedded player or launch the demo link, then submit a short reflection.',
-  coding: 'Work in the linked coding sandbox and submit a share link or pasted solution.',
+  coding: 'Write and run your code in the embedded editor below. When finished, copy your code into the submission box and submit.',
   quiz: 'Respond in the workspace below and submit when complete.',
   project: 'Use the linked tool or your own workspace, then submit a summary or share link.',
   godot: 'Launch the browser Godot editor and submit the project link or build notes.',
@@ -36,9 +36,9 @@ const typeIcon: Record<Activity['type'], string> = {
 
 const demoWorkspaceUrls: Record<Activity['type'], string | null> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
+  coding: 'https://onecompiler.com/embed/javascript?theme=dark&hideLanguageSelection=false',
   quiz: null,
-  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
+  project: 'https://onecompiler.com/embed/javascript?theme=dark',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
@@ -73,8 +73,8 @@ const getEmbeddedUrl = (activity: Activity) => {
   }
 
   const allowedEmbedHosts = [
-    'stackblitz.com',
     'onecompiler.com',
+    'stackblitz.com',
     'editor.godotengine.org',
     'canva.com',
   ]
@@ -149,6 +149,11 @@ export const ActivityFullScreen = ({
         <div>
           <p className="text-5xl">{typeIcon[activity.type]}</p>
           <p className="mt-4 text-base font-medium text-slate-700">{typeCopy[activity.type]}</p>
+          {activity.type === 'godot' && (
+            <p className="mt-2 text-xs text-amber-600">
+              ⚠ In-browser Godot embedding is under investigation for a future release. Use the button below to open the editor in a new window.
+            </p>
+          )}
           {launchUrl && (
             <a
               href={launchUrl}
@@ -156,7 +161,7 @@ export const ActivityFullScreen = ({
               rel="noreferrer"
               className="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
             >
-              Open Resource ↗
+              {activity.type === 'godot' ? 'Open Godot Editor ↗' : 'Open Resource ↗'}
             </a>
           )}
         </div>
