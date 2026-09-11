@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
 import { DirectionsEditor } from '../teacher/DirectionsEditor'
+import { MonacoEditor } from '../coding/MonacoEditor'
 import type { Activity, GradebookEntry, UpdateActivityDirectionsInput, User } from '../../types/models'
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
 
 interface ActivityFullScreenProps {
   activity: Activity
@@ -110,6 +113,8 @@ export const ActivityFullScreen = ({
   const [submissionText, setSubmissionText] = useState('')
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [monacoLanguage, setMonacoLanguage] = useState('javascript')
+  const [monacoCode, setMonacoCode] = useState(activity.starterCode ?? '')
   const currentIndex = allActivities.findIndex((currentActivity) => currentActivity.id === activity.id)
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
@@ -124,7 +129,8 @@ export const ActivityFullScreen = ({
     setDirectionsError(null)
     setSubmissionText(gradeEntry?.submissionText ?? '')
     setSubmissionError(null)
-  }, [activity.directions, activity.id, currentUser.role, gradeEntry?.submissionText])
+    setMonacoCode(activity.starterCode ?? '')
+  }, [activity.directions, activity.id, activity.starterCode, currentUser.role, gradeEntry?.submissionText])
 
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
   const isSubmitted = Boolean(gradeEntry?.submitted)
@@ -132,6 +138,28 @@ export const ActivityFullScreen = ({
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
 
   const renderWorkspace = () => {
+    if (activity.type === 'coding') {
+      return (
+        <MonacoEditor
+          key={activity.id}
+          defaultValue={activity.starterCode ?? ''}
+          language={monacoLanguage}
+          showLanguageSelector
+          onLanguageChange={setMonacoLanguage}
+          onChange={(code) => {
+            setMonacoCode(code)
+            if (currentUser.role === 'student') {
+              setSubmissionText(code)
+            }
+          }}
+          executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
+          userId={currentUser.id}
+          expectedOutput={activity.expectedOutput}
+          minHeight="450px"
+        />
+      )
+    }
+
     if (embeddedUrl) {
       return (
         <iframe
@@ -344,10 +372,12 @@ export const ActivityFullScreen = ({
               <div>
                 <h2 className="text-base font-semibold text-slate-900">Student Submission</h2>
                 <p className="text-sm text-slate-500">
-                  Add a reflection, answer, or share link for the teacher to review.
+                  {activity.type === 'coding'
+                    ? 'Your current code in the editor will be saved when you submit.'
+                    : 'Add a reflection, answer, or share link for the teacher to review.'}
                 </p>
               </div>
-              {launchUrl && (
+              {launchUrl && activity.type !== 'coding' && (
                 <a
                   href={launchUrl}
                   target="_blank"
@@ -358,12 +388,19 @@ export const ActivityFullScreen = ({
                 </a>
               )}
             </div>
-            <textarea
-              className="mt-4 h-32 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              placeholder="Paste a share link, write your answer, or describe your work..."
-              value={submissionText}
-              onChange={(event) => setSubmissionText(event.target.value)}
-            />
+            {activity.type !== 'coding' && (
+              <textarea
+                className="mt-4 h-32 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                placeholder="Paste a share link, write your answer, or describe your work..."
+                value={submissionText}
+                onChange={(event) => setSubmissionText(event.target.value)}
+              />
+            )}
+            {activity.type === 'coding' && (
+              <p className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                ✓ Your code from the editor above will be submitted automatically.
+              </p>
+            )}
             {submissionError && <p className="mt-2 text-sm text-rose-600">{submissionError}</p>}
             <div className="mt-4 flex items-center justify-between">
               <p className="text-xs text-slate-500">
@@ -373,12 +410,13 @@ export const ActivityFullScreen = ({
               </p>
               <button
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                disabled={submitting || submissionText.trim().length === 0}
+                disabled={submitting || (activity.type === 'coding' ? monacoCode.trim().length === 0 : submissionText.trim().length === 0)}
                 onClick={async () => {
                   try {
                     setSubmitting(true)
                     setSubmissionError(null)
-                    await onSubmitActivity?.(activity.id, submissionText.trim())
+                    const textToSubmit = activity.type === 'coding' ? monacoCode : submissionText.trim()
+                    await onSubmitActivity?.(activity.id, textToSubmit)
                   } catch (saveError) {
                     setSubmissionError(
                       saveError instanceof Error ? saveError.message : 'Failed to submit activity',

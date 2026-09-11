@@ -3,6 +3,7 @@ import { ActivityFullScreen } from './components/activity/ActivityFullScreen'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { useAppContext } from './context/useAppContext'
 import { getRoleNavigation, type NavKey } from './hooks/useRoleNavigation'
+import { AdminPage } from './pages/AdminPage'
 import { CoursePage } from './pages/CoursePage'
 import { CoursesPage } from './pages/CoursesPage'
 import { DashboardPage } from './pages/DashboardPage'
@@ -338,6 +339,10 @@ function App() {
             user={currentUser}
             onSaveGrade={updateGradebookEntry}
           />
+        )}
+
+        {selectedNav === 'admin' && (
+          <AdminPage currentUser={currentUser} />
         )}
       </DashboardLayout>
 
