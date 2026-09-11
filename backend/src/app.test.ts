@@ -30,6 +30,20 @@ test('GET /health returns ok', async () => {
   await app.close()
 })
 
+test('GET / returns service metadata', async () => {
+  const app = await buildApp({ prisma: prismaStub })
+  const response = await app.inject({ method: 'GET', url: '/' })
+
+  assert.equal(response.statusCode, 200)
+  assert.deepEqual(response.json(), {
+    service: 'edu-platform-api',
+    status: 'ok',
+    health: '/health',
+  })
+
+  await app.close()
+})
+
 test('GET /me requires authentication header', async () => {
   const app = await buildApp({ prisma: prismaStub })
   const response = await app.inject({ method: 'GET', url: '/me' })
