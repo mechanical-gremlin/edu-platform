@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ActivityType, CreateActivityInput } from '../../types/models'
+import { DirectionsEditor } from './DirectionsEditor'
 
 interface ActivityCreationModalProps {
   open: boolean
@@ -11,7 +12,7 @@ const suggestedResourceUrls: Record<ActivityType, string> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
   coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
   quiz: '',
-  project: 'https://www.canva.com/design/play',
+  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
@@ -131,15 +132,10 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
         )}
 
         {step === 3 && (
-          <div className="space-y-3 text-sm">
-            <p className="text-slate-600">Add student directions in the basic online editor.</p>
-            <textarea
-              className="h-48 w-full rounded-lg border border-slate-200 px-3 py-2"
-              placeholder="Directions for students..."
-              value={directions}
-              onChange={(event) => setDirections(event.target.value)}
-            />
-          </div>
+          <>
+            <p className="text-sm text-slate-600">Add student directions in the basic online editor.</p>
+            <DirectionsEditor value={directions} onChange={setDirections} />
+          </>
         )}
 
         {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}

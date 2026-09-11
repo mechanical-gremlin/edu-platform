@@ -168,6 +168,42 @@ export const CourseHierarchy = ({
   const [unitModalOpen, setUnitModalOpen] = useState(false)
   const [savingActivityId, setSavingActivityId] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!isTeacher) {
+      return
+    }
+
+    setOpenUnits((previous) => {
+      let changed = false
+      const next = { ...previous }
+
+      for (const unit of course.units) {
+        if (!(unit.id in next) && unit.lessons.length === 0) {
+          next[unit.id] = true
+          changed = true
+        }
+      }
+
+      return changed ? next : previous
+    })
+
+    setOpenLessons((previous) => {
+      let changed = false
+      const next = { ...previous }
+
+      for (const unit of course.units) {
+        for (const lesson of unit.lessons) {
+          if (!(lesson.id in next) && lesson.activities.length === 0) {
+            next[lesson.id] = true
+            changed = true
+          }
+        }
+      }
+
+      return changed ? next : previous
+    })
+  }, [course.units, isTeacher])
+
   const getEntry = (activityId: string) =>
     gradebookEntries.find((entry) => entry.activityId === activityId && entry.studentId === currentUserId)
 

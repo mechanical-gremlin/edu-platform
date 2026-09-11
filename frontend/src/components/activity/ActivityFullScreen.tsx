@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
-import type { Activity, GradebookEntry, User } from '../../types/models'
+import { DirectionsEditor } from '../teacher/DirectionsEditor'
+import type { Activity, GradebookEntry, UpdateActivityDirectionsInput, User } from '../../types/models'
 
 interface ActivityFullScreenProps {
   activity: Activity
@@ -11,6 +12,10 @@ interface ActivityFullScreenProps {
   onNavigate: (activityId: string) => void
   onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
   onSubmitActivity?: (activityId: string, responseText: string) => Promise<void>
+  onUpdateActivityDirections?: (
+    activityId: string,
+    input: UpdateActivityDirectionsInput,
+  ) => Promise<void>
 }
 
 const typeCopy: Record<Activity['type'], string> = {
@@ -29,8 +34,16 @@ const typeIcon: Record<Activity['type'], string> = {
   godot: '🎮',
 }
 
+const demoWorkspaceUrls: Record<Activity['type'], string | null> = {
+  video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
+  quiz: null,
+  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
+  godot: 'https://editor.godotengine.org/releases/latest/',
+}
+
 const getEmbeddedUrl = (activity: Activity) => {
-  const resourceUrl = activity.resourceUrl?.trim()
+  const resourceUrl = activity.resourceUrl?.trim() || demoWorkspaceUrls[activity.type]
   if (!resourceUrl) return null
 
   if (resourceUrl.includes('youtube.com/watch?v=')) {
@@ -59,6 +72,8 @@ const getEmbeddedUrl = (activity: Activity) => {
   return null
 }
 
+const getLaunchUrl = (activity: Activity) => activity.resourceUrl?.trim() || demoWorkspaceUrls[activity.type]
+
 export const ActivityFullScreen = ({
   activity,
   allActivities,
@@ -68,9 +83,16 @@ export const ActivityFullScreen = ({
   onNavigate,
   onSaveGrade,
   onSubmitActivity,
+  onUpdateActivityDirections,
 }: ActivityFullScreenProps) => {
   const [gradingOpen, setGradingOpen] = useState(false)
-  const [directionsOpen, setDirectionsOpen] = useState(Boolean(activity.directions))
+  const [directionsOpen, setDirectionsOpen] = useState(
+    Boolean(activity.directions) || currentUser.role === 'teacher',
+  )
+  const [editingDirections, setEditingDirections] = useState(false)
+  const [directionsDraft, setDirectionsDraft] = useState(activity.directions ?? '')
+  const [directionsError, setDirectionsError] = useState<string | null>(null)
+  const [savingDirections, setSavingDirections] = useState(false)
   const [submissionText, setSubmissionText] = useState('')
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -82,14 +104,18 @@ export const ActivityFullScreen = ({
   )
 
   useEffect(() => {
-    setDirectionsOpen(Boolean(activity.directions))
+    setDirectionsOpen(Boolean(activity.directions) || currentUser.role === 'teacher')
+    setEditingDirections(false)
+    setDirectionsDraft(activity.directions ?? '')
+    setDirectionsError(null)
     setSubmissionText(gradeEntry?.submissionText ?? '')
     setSubmissionError(null)
-  }, [activity.directions, activity.id, gradeEntry?.submissionText])
+  }, [activity.directions, activity.id, currentUser.role, gradeEntry?.submissionText])
 
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
   const isSubmitted = Boolean(gradeEntry?.submitted)
   const embeddedUrl = useMemo(() => getEmbeddedUrl(activity), [activity])
+  const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
 
   const renderWorkspace = () => {
     if (embeddedUrl) {
@@ -109,9 +135,9 @@ export const ActivityFullScreen = ({
         <div>
           <p className="text-5xl">{typeIcon[activity.type]}</p>
           <p className="mt-4 text-base font-medium text-slate-700">{typeCopy[activity.type]}</p>
-          {activity.resourceUrl && (
+          {launchUrl && (
             <a
-              href={activity.resourceUrl}
+              href={launchUrl}
               target="_blank"
               rel="noreferrer"
               className="mt-4 inline-block rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
@@ -205,14 +231,77 @@ export const ActivityFullScreen = ({
 
         {directionsOpen && (
           <section className="rounded-2xl border border-indigo-100 bg-indigo-50 p-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Directions</h2>
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
-              {activity.directions?.trim() || 'No directions were added for this activity yet.'}
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-indigo-700">Directions</h2>
+              {currentUser.role === 'teacher' && (
+                <div className="flex items-center gap-2">
+                  {editingDirections ? (
+                    <>
+                      <button
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                        onClick={() => {
+                          setEditingDirections(false)
+                          setDirectionsDraft(activity.directions ?? '')
+                          setDirectionsError(null)
+                        }}
+                        disabled={savingDirections}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                        onClick={async () => {
+                          try {
+                            setSavingDirections(true)
+                            setDirectionsError(null)
+                            await onUpdateActivityDirections?.(activity.id, {
+                              directions: directionsDraft.trim() || null,
+                            })
+                            setEditingDirections(false)
+                          } catch (saveError) {
+                            setDirectionsError(
+                              saveError instanceof Error
+                                ? saveError.message
+                                : 'Failed to update directions',
+                            )
+                          } finally {
+                            setSavingDirections(false)
+                          }
+                        }}
+                        disabled={savingDirections}
+                      >
+                        {savingDirections ? 'Saving…' : 'Save Directions'}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                      onClick={() => setEditingDirections(true)}
+                    >
+                      Edit Directions
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            {editingDirections ? (
+              <div className="mt-3">
+                <DirectionsEditor
+                  value={directionsDraft}
+                  onChange={setDirectionsDraft}
+                  minHeightClassName="h-40"
+                />
+              </div>
+            ) : (
+              <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                {activity.directions?.trim() || 'No directions were added for this activity yet.'}
+              </p>
+            )}
+            {directionsError && <p className="mt-3 text-sm text-rose-600">{directionsError}</p>}
           </section>
         )}
 
-        <p className="max-w-3xl text-sm text-slate-600">{activity.description}</p>
+        <p className="max-w-3xl whitespace-pre-wrap text-sm text-slate-600">{activity.description}</p>
 
         {renderWorkspace()}
 
@@ -225,9 +314,9 @@ export const ActivityFullScreen = ({
                   Add a reflection, answer, or share link for the teacher to review.
                 </p>
               </div>
-              {activity.resourceUrl && (
+              {launchUrl && (
                 <a
-                  href={activity.resourceUrl}
+                  href={launchUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"

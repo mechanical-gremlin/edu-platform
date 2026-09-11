@@ -22,6 +22,9 @@ const createActivityBodySchema = z.object({
 const visibilitySchema = z.object({
   visible: z.boolean(),
 })
+const directionsSchema = z.object({
+  directions: z.string().trim().max(20000).optional().nullable(),
+})
 const submissionBodySchema = z.object({
   content: z.record(z.string(), z.unknown()).optional().nullable(),
 })
@@ -430,6 +433,43 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         visible: activity.visible,
         dueAt: iso(activity.dueAt),
         pointsPossible: activity.pointsPossible,
+      }
+    },
+  )
+
+  app.patch(
+    '/activities/:activityId/directions',
+    {
+      schema: {
+        params: activityParamsSchema,
+        body: directionsSchema,
+        response: {
+          200: activityResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { activityId } = activityParamsSchema.parse(request.params)
+      const payload = directionsSchema.parse(request.body)
+      const activity = await findTeacherActivity(app, activityId)
+      await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
+
+      const updated = await app.prisma.activity.update({
+        where: { id: activityId },
+        data: { directions: payload.directions ?? null },
+      })
+
+      return {
+        id: updated.id,
+        title: updated.title,
+        type: updated.type,
+        description: updated.description,
+        directions: updated.directions,
+        resourceUrl: updated.resourceUrl,
+        visible: updated.visible,
+        dueAt: iso(updated.dueAt),
+        pointsPossible: updated.pointsPossible,
       }
     },
   )
