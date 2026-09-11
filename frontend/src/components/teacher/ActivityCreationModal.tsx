@@ -8,11 +8,34 @@ interface ActivityCreationModalProps {
   onSave: (input: CreateActivityInput) => Promise<void>
 }
 
+const CODING_LANGUAGES: { value: string; label: string }[] = [
+  { value: 'javascript', label: 'JavaScript' },
+  { value: 'python', label: 'Python' },
+  { value: 'java', label: 'Java' },
+  { value: 'c', label: 'C' },
+  { value: 'cpp', label: 'C++' },
+  { value: 'csharp', label: 'C#' },
+  { value: 'html', label: 'HTML' },
+  { value: 'php', label: 'PHP' },
+  { value: 'typescript', label: 'TypeScript' },
+  { value: 'ruby', label: 'Ruby' },
+  { value: 'go', label: 'Go' },
+  { value: 'rust', label: 'Rust' },
+  { value: 'swift', label: 'Swift' },
+  { value: 'kotlin', label: 'Kotlin' },
+]
+
+const buildCodingUrl = (language: string, code: string): string => {
+  const base = `https://onecompiler.com/embed/${language}`
+  if (!code.trim()) return `${base}?theme=dark&hideLanguageSelection=false`
+  return `${base}?theme=dark&hideLanguageSelection=false&code=${encodeURIComponent(code)}`
+}
+
 const suggestedResourceUrls: Record<ActivityType, string> = {
   video: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-  coding: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=editor',
+  coding: 'https://onecompiler.com/embed/javascript?theme=dark&hideLanguageSelection=false',
   quiz: '',
-  project: 'https://stackblitz.com/edit/vitejs-vite?embed=1&file=src%2Fmain.js&view=preview',
+  project: 'https://onecompiler.com/embed/javascript?theme=dark',
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
@@ -28,6 +51,10 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const [visible, setVisible] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [starterLanguage, setStarterLanguage] = useState('javascript')
+  const [starterCode, setStarterCode] = useState('')
+
+  const totalSteps = type === 'coding' ? 4 : 3
 
   useEffect(() => {
     if (!open) {
@@ -42,6 +69,8 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
       setVisible(true)
       setError(null)
       setSaving(false)
+      setStarterLanguage('javascript')
+      setStarterCode('')
     }
   }, [open])
 
@@ -52,11 +81,19 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const points = Number(pointsPossible)
   const detailsValid = title.trim() && description.trim() && Number.isInteger(points) && points >= 0
 
+  const computedResourceUrl = (): string | null => {
+    if (resourceUrl.trim()) return resourceUrl.trim()
+    if (type === 'coding') return buildCodingUrl(starterLanguage, starterCode)
+    return suggestedResourceUrls[type] || null
+  }
+
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
       <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-900">Create Activity • Step {step} of 3</h3>
+          <h3 className="text-lg font-semibold text-slate-900">
+            Create Activity • Step {step} of {totalSteps}
+          </h3>
           <button onClick={onClose} className="text-slate-500">
             ✕
           </button>
@@ -114,12 +151,14 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                 onChange={(event) => setPointsPossible(event.target.value)}
               />
             </div>
-            <input
-              className="w-full rounded-lg border border-slate-200 px-3 py-2"
-              placeholder={`Resource URL (leave blank to use suggested ${type} demo resource)`}
-              value={resourceUrl}
-              onChange={(event) => setResourceUrl(event.target.value)}
-            />
+            {type !== 'coding' && (
+              <input
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                placeholder={`Resource URL (leave blank to use suggested ${type} demo resource)`}
+                value={resourceUrl}
+                onChange={(event) => setResourceUrl(event.target.value)}
+              />
+            )}
             <label className="flex items-center gap-2 text-sm text-slate-600">
               <input
                 type="checkbox"
@@ -138,6 +177,47 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
           </>
         )}
 
+        {step === 4 && type === 'coding' && (
+          <div className="space-y-3 text-sm">
+            <p className="text-slate-600">
+              Optionally provide a programming language and starter code. Students will see this code
+              pre-loaded in their editor when they open the activity.
+            </p>
+            <div>
+              <label className="mb-1 block font-medium text-slate-700">Programming Language</label>
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-2"
+                value={starterLanguage}
+                onChange={(event) => setStarterLanguage(event.target.value)}
+              >
+                {CODING_LANGUAGES.map((lang) => (
+                  <option key={lang.value} value={lang.value}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block font-medium text-slate-700">
+                Starter Code{' '}
+                <span className="text-xs font-normal text-slate-400">(optional)</span>
+              </label>
+              <textarea
+                className="h-48 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs leading-relaxed focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                placeholder={`// Write the starter code students will see\nconsole.log("Hello, World!");`}
+                value={starterCode}
+                onChange={(event) => setStarterCode(event.target.value)}
+                spellCheck={false}
+              />
+            </div>
+            {starterCode.trim() && (
+              <p className="text-xs text-indigo-600">
+                ✓ Starter code will be pre-loaded into the OneCompiler editor for all students.
+              </p>
+            )}
+          </div>
+        )}
+
         {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
 
         <div className="mt-6 flex justify-between">
@@ -152,7 +232,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             disabled={(step === 2 && !detailsValid) || saving}
             onClick={async () => {
-              if (step < 3) {
+              if (step < totalSteps) {
                 setStep(step + 1)
                 return
               }
@@ -167,7 +247,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                   directions: directions.trim() || null,
                   dueAt: dueDate ? new Date(`${dueDate}T23:59:00`).toISOString() : null,
                   pointsPossible: points,
-                  resourceUrl: resourceUrl.trim() || suggestedResourceUrls[type] || null,
+                  resourceUrl: computedResourceUrl(),
                   visible,
                 })
               } catch (saveError) {
@@ -177,7 +257,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
               }
             }}
           >
-            {step < 3 ? 'Next' : saving ? 'Saving…' : 'Save activity'}
+            {step < totalSteps ? 'Next' : saving ? 'Saving…' : 'Save activity'}
           </button>
         </div>
       </div>
