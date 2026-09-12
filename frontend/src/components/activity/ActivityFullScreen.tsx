@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
 import { DirectionsEditor } from '../teacher/DirectionsEditor'
 import { MonacoEditor } from '../coding/MonacoEditor'
@@ -138,6 +138,7 @@ export const ActivityFullScreen = ({
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [draftHistory, setDraftHistory] = useState<CodingDraftSnapshot[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
+  const savedDraftSignatureRef = useRef<string | null>(null)
   const currentIndex = allActivities.findIndex((currentActivity) => currentActivity.id === activity.id)
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
@@ -162,6 +163,7 @@ export const ActivityFullScreen = ({
       setMonacoLanguage(activity.language ?? 'javascript')
       setMonacoCode(activity.starterCode ?? '')
       setWebFiles(activity.starterFiles ?? [])
+      savedDraftSignatureRef.current = null
       return
     }
 
@@ -187,11 +189,15 @@ export const ActivityFullScreen = ({
       setMonacoCode('')
       setWebFiles(nextFiles)
       setSubmissionText(storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles))
+      savedDraftSignatureRef.current = `web:${storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles)}`
     } else {
-      setMonacoLanguage(storedDraft?.language ?? activity.language ?? 'javascript')
-      setMonacoCode(storedDraft?.submissionText ?? gradeEntry?.submissionText ?? activity.starterCode ?? '')
+      const nextLanguage = storedDraft?.language ?? activity.language ?? 'javascript'
+      const nextCode = storedDraft?.submissionText ?? gradeEntry?.submissionText ?? activity.starterCode ?? ''
+      setMonacoLanguage(nextLanguage)
+      setMonacoCode(nextCode)
       setWebFiles(activity.starterFiles ?? [])
-      setSubmissionText(storedDraft?.submissionText ?? gradeEntry?.submissionText ?? '')
+      setSubmissionText(nextCode)
+      savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
     }
 
     setDraftSavedAt(storedDraft?.updatedAt ?? null)
@@ -217,9 +223,14 @@ export const ActivityFullScreen = ({
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
   const languageLockedForStudents = Boolean(activity.languageLocked && activity.language)
   const codingSubmissionText = isWebActivity ? serializeSubmissionFiles(webFiles) : monacoCode
+  const currentDraftSignature = `${isWebActivity ? 'web' : monacoLanguage}:${codingSubmissionText}`
 
   useEffect(() => {
-    if (currentUser.role !== 'student' || !isCodingActivity) {
+    if (
+      currentUser.role !== 'student'
+      || !isCodingActivity
+      || savedDraftSignatureRef.current === currentDraftSignature
+    ) {
       return
     }
 
@@ -235,6 +246,7 @@ export const ActivityFullScreen = ({
 
       if (savedDraft) {
         setDraftSavedAt(savedDraft.updatedAt)
+        savedDraftSignatureRef.current = currentDraftSignature
       }
     }, 500)
 
@@ -242,6 +254,7 @@ export const ActivityFullScreen = ({
   }, [
     activity.id,
     codingSubmissionText,
+    currentDraftSignature,
     currentUser.id,
     currentUser.role,
     draftHistory,
@@ -288,6 +301,7 @@ export const ActivityFullScreen = ({
           userId: currentUser.id,
         })
         setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+        savedDraftSignatureRef.current = `web:${snapshot.submissionText || serializeSubmissionFiles(nextFiles)}`
       }
     } else {
       setMonacoLanguage(snapshot.language)
@@ -302,6 +316,7 @@ export const ActivityFullScreen = ({
           userId: currentUser.id,
         })
         setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+        savedDraftSignatureRef.current = `${snapshot.language}:${snapshot.submissionText}`
       }
     }
   }
@@ -327,6 +342,7 @@ export const ActivityFullScreen = ({
           userId: currentUser.id,
         })
         setDraftSavedAt(savedDraft?.updatedAt ?? null)
+        savedDraftSignatureRef.current = `web:${serializeSubmissionFiles(nextFiles)}`
       }
       return
     }
@@ -345,6 +361,7 @@ export const ActivityFullScreen = ({
         userId: currentUser.id,
       })
       setDraftSavedAt(savedDraft?.updatedAt ?? null)
+      savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
     }
   }
 
@@ -725,6 +742,18 @@ export const ActivityFullScreen = ({
                       textToSubmit,
                       activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
                     )
+                    if (activity.type === 'coding' && currentUser.role === 'student') {
+                      const savedDraft = saveCodingDraft({
+                        activityId: activity.id,
+                        history: draftHistory,
+                        language: isWebActivity ? 'web' : monacoLanguage,
+                        submissionFiles: isWebActivity ? webFiles : null,
+                        submissionText: textToSubmit,
+                        userId: currentUser.id,
+                      })
+                      setDraftSavedAt(savedDraft?.updatedAt ?? null)
+                      savedDraftSignatureRef.current = `${isWebActivity ? 'web' : monacoLanguage}:${textToSubmit}`
+                    }
                   } catch (saveError) {
                     setSubmissionError(
                       saveError instanceof Error ? saveError.message : 'Failed to submit activity',
