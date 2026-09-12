@@ -13,6 +13,7 @@ Educational platform prototype with a React frontend for teacher/student workflo
 
 - The frontend currently runs from local mock data for the teacher/student demo flows.
 - The backend exposes seeded REST endpoints for users, courses, progress, and grades.
+- Coding activities execute through backend `POST /execute` using Judge0 (RapidAPI free tier or self-hosted Judge0 URL).
 - Render deployment provisions:
   - a static frontend
   - a Node API service
@@ -45,6 +46,8 @@ npm --prefix backend run dev
 
 API default URL: `http://localhost:3001`
 
+> To enable code execution locally, set `JUDGE0_API_KEY` in `backend/.env` (free RapidAPI tier works).
+
 Demo auth header:
 
 - Teacher: `x-user-id: t-1`
@@ -72,6 +75,7 @@ curl -H 'x-user-id: s-1' http://localhost:3001/courses
    - call the API `/health` endpoint to confirm the backend is live
    - use the demo `x-user-id` values above to test authenticated API routes
    - set frontend env var `VITE_API_BASE_URL` to your deployed API URL so frontend can call backend endpoints
+   - set backend env var `JUDGE0_API_KEY` so coding activities can run code
 6. If you see `Route GET:/ not found` on Render, see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for service URL expectations and full deployment checks.
 
 ### Render behavior

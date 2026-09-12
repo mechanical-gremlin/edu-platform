@@ -76,3 +76,25 @@ test('GET /me returns the authenticated user', async () => {
 
   await app.close()
 })
+
+test('POST /execute returns actionable config error when Judge0 key is missing', async () => {
+  const app = await buildApp({ prisma: prismaStub })
+  const response = await app.inject({
+    method: 'POST',
+    url: '/execute',
+    headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+    payload: {
+      language: 'javascript',
+      code: 'console.log("hello")',
+    },
+  })
+
+  assert.equal(response.statusCode, 503)
+  assert.deepEqual(response.json(), {
+    statusCode: 503,
+    error: 'Service Unavailable',
+    message: 'Code execution is not configured. Set JUDGE0_API_KEY in backend environment variables.',
+  })
+
+  await app.close()
+})
