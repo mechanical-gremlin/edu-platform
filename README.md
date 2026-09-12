@@ -14,11 +14,17 @@ Educational platform prototype with a React frontend for teacher/student workflo
 - The frontend currently runs from local mock data for the teacher/student demo flows.
 - The backend exposes seeded REST endpoints for users, courses, progress, and grades.
 - Coding activities execute through backend `POST /execute` using Judge0 (RapidAPI free tier or self-hosted Judge0 URL).
+- The Monaco-based coding editor has been smoke-tested end-to-end with JavaScript and Python sample programs.
 - Render deployment provisions:
   - a static frontend
   - a Node API service
   - a PostgreSQL database
 - The API seeds demo data automatically on first boot so the deployed environment is immediately testable.
+
+## Coding editor roadmap
+
+- Next: let teachers choose the starter language for a coding activity and optionally lock that language so students cannot switch away from it.
+- Next: add a multi-file project workspace with a VS Code-style file tree and a show/hide toggle for the file manager.
 
 ## Local development
 

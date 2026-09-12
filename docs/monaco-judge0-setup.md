@@ -3,6 +3,15 @@
 This document explains how to configure the embedded Monaco editor and Judge0
 code execution service for the edu-platform coding activity workflow.
 
+## Current Status
+
+- JavaScript and Python have been smoke-tested in the live editor flow and are currently the verified working languages.
+- Additional language options remain available in the UI/backend mapping, but they still need end-to-end validation before being treated as confirmed classroom-ready.
+- Planned follow-up work:
+  - let teachers choose the starter language for each coding activity
+  - optionally lock that language so students cannot change it
+  - add a multi-file project workspace with a VS Code-style file tree and collapsible file manager
+
 ---
 
 ## Overview
@@ -26,7 +35,7 @@ loads but run requests return a clear configuration error from the backend.
 
 ---
 
-## Supported Languages
+## Available Language Options
 
 | Language   | Judge0 ID |
 |------------|-----------|
@@ -44,6 +53,8 @@ loads but run requests return a clear configuration error from the backend.
 | Rust | 73 |
 | Swift | 83 |
 | Kotlin | 78 |
+
+> Verified today: **JavaScript** and **Python**. Treat the remaining options as provisional until each one is tested through the full browser → backend → Judge0 flow.
 
 ---
 
