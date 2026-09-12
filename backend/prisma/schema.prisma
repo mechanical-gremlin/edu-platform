@@ -32,6 +32,11 @@ enum SubmissionStatus {
   submitted
 }
 
+enum GradeSource {
+  manual
+  autograder
+}
+
 model User {
   id          String       @id @default(cuid())
   name        String
@@ -100,27 +105,33 @@ model Lesson {
 }
 
 model Activity {
-  id             String       @id @default(cuid())
-  lessonId       String
-  title          String
-  type           ActivityType
-  description    String
-  directions     String?
-  language       String?
-  languageLocked Boolean      @default(false)
-  starterCode    String?
-  starterFiles   Json?
-  expectedOutput String?
-  resourceUrl    String?
-  visible        Boolean      @default(true)
-  dueAt          DateTime?
-  pointsPossible Int
-  position       Int
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  lesson         Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  submissions    Submission[]
-  grades         Grade[]
+  id                          String       @id @default(cuid())
+  lessonId                    String
+  title                       String
+  type                        ActivityType
+  description                 String
+  directions                  String?
+  language                    String?
+  languageLocked              Boolean      @default(false)
+  starterCode                 String?
+  starterFiles                Json?
+  expectedOutput              String?
+  autograderEnabled           Boolean      @default(false)
+  autograderReferenceSolution String?
+  autograderReferenceOutput   String?
+  autograderCodeMatch         Boolean      @default(false)
+  autograderOutputMatch       Boolean      @default(false)
+  autograderTestCases         Json?
+  resourceUrl                 String?
+  visible                     Boolean      @default(true)
+  dueAt                       DateTime?
+  pointsPossible              Int
+  position                    Int
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @updatedAt
+  lesson                      Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions                 Submission[]
+  grades                      Grade[]
 
   @@index([lessonId, position])
   @@index([visible])
@@ -143,18 +154,20 @@ model Submission {
 }
 
 model Grade {
-  id           String    @id @default(cuid())
-  studentId    String
-  activityId   String
-  pointsEarned Int?
-  comment      String?
-  gradedById   String?
-  gradedAt     DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  student      User      @relation("StudentGrades", fields: [studentId], references: [id], onDelete: Cascade)
-  activity     Activity  @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  gradedBy     User?     @relation("GradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
+  id               String      @id @default(cuid())
+  studentId        String
+  activityId       String
+  pointsEarned     Int?
+  comment          String?
+  gradingSource    GradeSource @default(manual)
+  autograderResult Json?
+  gradedById       String?
+  gradedAt         DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  student          User        @relation("StudentGrades", fields: [studentId], references: [id], onDelete: Cascade)
+  activity         Activity    @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  gradedBy         User?       @relation("GradedBy", fields: [gradedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, activityId])
   @@index([activityId])

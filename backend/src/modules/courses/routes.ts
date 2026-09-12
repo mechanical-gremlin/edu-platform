@@ -3,6 +3,15 @@ import type { FastifyPluginAsync } from 'fastify'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { AppError, iso, requireRole, requireUser } from '../../lib.js'
+import {
+  autogradeCodingSubmission,
+  autograderTestCaseSchema,
+  buildAutograderComment,
+  getAutograderPoints,
+  isAutograderLanguageSupported,
+  parseAutograderTestCases,
+} from '../autograder/service.js'
+import { executeWithJudge0 } from '../execute/judge0.js'
 
 const activityTypeSchema = z.enum(['video', 'coding', 'quiz', 'project', 'godot'])
 const namedEntitySchema = z.object({
@@ -25,10 +34,66 @@ const createActivityBodySchema = z.object({
   starterCode: z.string().trim().max(50_000).optional().nullable(),
   starterFiles: z.array(starterFileSchema).max(20).optional().nullable(),
   expectedOutput: z.string().trim().max(4096).optional().nullable(),
+  autograderEnabled: z.boolean().optional(),
+  autograderReferenceSolution: z.string().trim().max(50_000).optional().nullable(),
+  autograderReferenceOutput: z.string().trim().max(4096).optional().nullable(),
+  autograderCodeMatch: z.boolean().optional(),
+  autograderOutputMatch: z.boolean().optional(),
+  autograderTestCases: z.array(autograderTestCaseSchema).max(10).optional().nullable(),
   dueAt: z.iso.datetime().optional().nullable(),
   pointsPossible: z.int().min(0).max(1000),
   resourceUrl: z.url().optional().nullable(),
   visible: z.boolean().optional(),
+}).superRefine((value, context) => {
+  if (!value.autograderEnabled) {
+    return
+  }
+
+  if (value.type !== 'coding') {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['autograderEnabled'],
+      message: 'Autograder is only available for coding activities',
+    })
+  }
+
+  if (!isAutograderLanguageSupported(value.language)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['language'],
+      message: 'Autograder currently supports executable Judge0 languages only',
+    })
+  }
+
+  if (!value.autograderReferenceSolution?.trim()) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['autograderReferenceSolution'],
+      message: 'Suggested solution is required when autograder is enabled',
+    })
+  }
+
+  const hasAnyCheck = Boolean(
+    value.autograderCodeMatch
+    || value.autograderOutputMatch
+    || (value.autograderTestCases?.length ?? 0) > 0,
+  )
+
+  if (!hasAnyCheck) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['autograderEnabled'],
+      message: 'Select at least one autograder check',
+    })
+  }
+
+  if (value.autograderOutputMatch && !value.autograderReferenceOutput?.trim()) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['autograderReferenceOutput'],
+      message: 'Reference output is required when output matching is enabled',
+    })
+  }
 })
 const visibilitySchema = z.object({
   visible: z.boolean(),
@@ -99,6 +164,7 @@ const courseTreeSchema = z.object({
               starterCode: z.string().nullable(),
               starterFiles: z.array(starterFileSchema).nullable(),
               expectedOutput: z.string().nullable(),
+              autograderEnabled: z.boolean(),
               resourceUrl: z.string().nullable(),
               visible: z.boolean(),
               dueAt: z.string().nullable(),
@@ -128,6 +194,7 @@ const activityResponseSchema = z.object({
   starterCode: z.string().nullable(),
   starterFiles: z.array(starterFileSchema).nullable(),
   expectedOutput: z.string().nullable(),
+  autograderEnabled: z.boolean(),
   resourceUrl: z.string().nullable(),
   visible: z.boolean(),
   dueAt: z.string().nullable(),
@@ -412,6 +479,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
                 starterCode: activity.starterCode,
                 starterFiles: (activity.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
                 expectedOutput: activity.expectedOutput,
+                autograderEnabled: activity.autograderEnabled,
                 resourceUrl: activity.resourceUrl,
                 visible: activity.visible,
                 dueAt: iso(activity.dueAt),
@@ -542,6 +610,14 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           starterCode: payload.starterCode ?? null,
           starterFiles: payload.starterFiles ? (payload.starterFiles as Prisma.InputJsonValue) : Prisma.JsonNull,
           expectedOutput: payload.expectedOutput ?? null,
+          autograderEnabled: payload.autograderEnabled ?? false,
+          autograderReferenceSolution: payload.autograderEnabled ? payload.autograderReferenceSolution ?? null : null,
+          autograderReferenceOutput: payload.autograderEnabled ? payload.autograderReferenceOutput ?? null : null,
+          autograderCodeMatch: payload.autograderEnabled ? payload.autograderCodeMatch ?? false : false,
+          autograderOutputMatch: payload.autograderEnabled ? payload.autograderOutputMatch ?? false : false,
+          autograderTestCases: payload.autograderEnabled && payload.autograderTestCases
+            ? (payload.autograderTestCases as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
           dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
           pointsPossible: payload.pointsPossible,
           resourceUrl: payload.resourceUrl ?? null,
@@ -562,6 +638,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         starterCode: activity.starterCode,
         starterFiles: (activity.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
         expectedOutput: activity.expectedOutput,
+        autograderEnabled: activity.autograderEnabled,
         resourceUrl: activity.resourceUrl,
         visible: activity.visible,
         dueAt: iso(activity.dueAt),
@@ -604,6 +681,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         starterCode: updated.starterCode,
         starterFiles: (updated.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
         expectedOutput: updated.expectedOutput,
+        autograderEnabled: updated.autograderEnabled,
         resourceUrl: updated.resourceUrl,
         visible: updated.visible,
         dueAt: iso(updated.dueAt),
@@ -659,7 +737,16 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         where: { id: activityId },
         select: {
           id: true,
+          type: true,
+          language: true,
           visible: true,
+          pointsPossible: true,
+          autograderEnabled: true,
+          autograderReferenceSolution: true,
+          autograderReferenceOutput: true,
+          autograderCodeMatch: true,
+          autograderOutputMatch: true,
+          autograderTestCases: true,
           lesson: { select: { unit: { select: { courseId: true } } } },
         },
       })
@@ -709,13 +796,112 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       })
 
       reply.code(201)
-      return {
+      const response = {
         id: submission.id,
         studentId: submission.studentId,
         activityId: submission.activityId,
         status: submission.status,
         submittedAt: iso(submission.submittedAt),
       }
+      const submissionText = Reflect.get(payload.content ?? {}, 'responseText')
+      const submissionFiles = Reflect.get(payload.content ?? {}, 'submissionFiles')
+      const hasFileBasedSubmission = Array.isArray(submissionFiles) && submissionFiles.length > 0
+
+      if (
+        activity.type === 'coding'
+        && activity.autograderEnabled
+        && isAutograderLanguageSupported(activity.language)
+        && typeof submissionText === 'string'
+        && !hasFileBasedSubmission
+      ) {
+        const submissionCode = submissionText.trim()
+        const testCases = parseAutograderTestCases(activity.autograderTestCases)
+
+        if (
+          submissionCode
+          && activity.autograderReferenceSolution?.trim()
+          && (activity.autograderCodeMatch || activity.autograderOutputMatch || testCases.length > 0)
+        ) {
+          try {
+            const autograderResult = await autogradeCodingSubmission({
+              language: activity.language!,
+              submissionCode,
+              referenceSolution: activity.autograderReferenceSolution,
+              referenceOutput: activity.autograderReferenceOutput,
+              outputMatch: activity.autograderOutputMatch,
+              codeMatch: activity.autograderCodeMatch,
+              testCases,
+              execute: executeWithJudge0,
+            })
+
+            const existingGrade = await app.prisma.grade.findUnique({
+              where: {
+                studentId_activityId: {
+                  studentId: user.id,
+                  activityId,
+                },
+              },
+              select: {
+                id: true,
+                gradingSource: true,
+                comment: true,
+              },
+            })
+
+            const autograderPayload = {
+              autograderResult: autograderResult as Prisma.InputJsonValue,
+            }
+
+            if (existingGrade?.gradingSource === 'manual') {
+              await app.prisma.grade.update({
+                where: { id: existingGrade.id },
+                data: autograderPayload,
+              })
+            } else {
+              await app.prisma.grade.upsert({
+                where: {
+                  studentId_activityId: {
+                    studentId: user.id,
+                    activityId,
+                  },
+                },
+                update: {
+                  pointsEarned: getAutograderPoints(autograderResult.score, activity.pointsPossible),
+                  comment: buildAutograderComment(autograderResult),
+                  gradingSource: 'autograder',
+                  gradedById: null,
+                  gradedAt: new Date(),
+                  ...autograderPayload,
+                },
+                create: {
+                  id: randomUUID(),
+                  studentId: user.id,
+                  activityId,
+                  pointsEarned: getAutograderPoints(autograderResult.score, activity.pointsPossible),
+                  comment: buildAutograderComment(autograderResult),
+                  gradingSource: 'autograder',
+                  gradedById: null,
+                  gradedAt: new Date(),
+                  ...autograderPayload,
+                },
+              })
+            }
+          } catch (error) {
+            app.log.warn({
+              activityId,
+              studentId: user.id,
+              error: error instanceof Error ? error.message : 'Unknown autograder error',
+            }, 'Autograder failed after submission was saved')
+          }
+        }
+      } else if (activity.type === 'coding' && activity.autograderEnabled && hasFileBasedSubmission) {
+        app.log.warn({
+          activityId,
+          studentId: user.id,
+        }, 'Skipping autograder for file-based coding submission')
+      }
+
+      return response
     },
   )
 }

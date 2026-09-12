@@ -49,6 +49,8 @@ interface ExecuteResult {
 interface MonacoEditorProps {
   /** Initial code value. Changing this prop resets the editor only on first mount. */
   defaultValue?: string
+  /** Controlled code value for externally managed editors */
+  value?: string
   /** Controlled language selection */
   language: string
   /** Whether to show the language selector */
@@ -61,12 +63,17 @@ interface MonacoEditorProps {
   userId?: string
   /** Expected output for automatic pass/fail feedback */
   expectedOutput?: string | null
+  stdin?: string
+  showStdinField?: boolean
+  onStdinChange?: (stdin: string) => void
+  onExecutionComplete?: (result: ExecuteResult) => void
   readOnly?: boolean
   minHeight?: string
 }
 
 export const MonacoEditor = ({
   defaultValue = '',
+  value,
   language,
   showLanguageSelector = false,
   onLanguageChange,
@@ -74,6 +81,10 @@ export const MonacoEditor = ({
   executeUrl,
   userId,
   expectedOutput,
+  stdin = '',
+  showStdinField = false,
+  onStdinChange,
+  onExecutionComplete,
   readOnly = false,
   minHeight = '400px',
 }: MonacoEditorProps) => {
@@ -98,6 +109,12 @@ export const MonacoEditor = ({
     }
   }, [defaultValue])
 
+  useEffect(() => {
+    if (value !== undefined) {
+      setCode(value)
+    }
+  }, [value])
+
   const handleChange = (value: string | undefined) => {
     const next = value ?? ''
     setCode(next)
@@ -118,7 +135,7 @@ export const MonacoEditor = ({
       const response = await fetch(executeUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ language, code }),
+        body: JSON.stringify({ language, code, stdin }),
       })
 
       if (!response.ok) {
@@ -136,6 +153,7 @@ export const MonacoEditor = ({
       else if (stderrText) displayOutput = `${stdoutText}\n[Error]\n${stderrText}`.trim()
 
       setOutput(displayOutput || `(${result.status.description} — no output)`)
+      onExecutionComplete?.(result)
 
       if (expectedOutput) {
         setPassed(stdoutText === expectedOutput.trim())
@@ -165,6 +183,18 @@ export const MonacoEditor = ({
           </select>
         </div>
       )}
+      {showExecution && showStdinField && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">Program input (stdin)</label>
+          <textarea
+            className="h-20 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs"
+            placeholder="Optional input to send to the program"
+            value={stdin}
+            onChange={(event) => onStdinChange?.(event.target.value)}
+            readOnly={readOnly}
+          />
+        </div>
+      )}
 
       <div className="flex gap-3" style={{ height: minHeight }}>
         {/* Editor panel */}
@@ -172,7 +202,7 @@ export const MonacoEditor = ({
           <MonacoEditorReact
             height={minHeight}
             language={MONACO_LANGUAGE_MAP[language] ?? language}
-            value={code}
+            value={value ?? code}
             onChange={handleChange}
             theme="vs-dark"
             options={{

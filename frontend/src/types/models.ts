@@ -16,6 +16,34 @@ export interface StarterFile {
   content: string
 }
 
+export interface AutograderTestCase {
+  input: string
+  expectedOutput: string
+}
+
+export interface AutograderResultCase extends AutograderTestCase {
+  actualOutput: string | null
+  passed: boolean
+  status: string
+}
+
+export interface AutograderResult {
+  score: 0 | 50 | 100
+  summary: string
+  matchedChecks: number
+  totalChecks: number
+  codeMatch?: {
+    passed: boolean
+  } | null
+  outputMatch?: {
+    passed: boolean
+    expectedOutput: string
+    actualOutput: string | null
+    status: string
+  } | null
+  inputOutputCases?: AutograderResultCase[]
+}
+
 export interface Activity {
   id: string
   title: string
@@ -29,6 +57,7 @@ export interface Activity {
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   expectedOutput?: string | null
+  autograderEnabled?: boolean
   resourceUrl?: string | null
   visible?: boolean
 }
@@ -68,10 +97,12 @@ export interface GradebookEntry {
   pointsPossible: number
   submitted?: boolean
   comment?: string | null
+  gradingSource?: 'manual' | 'autograder' | null
   gradedAt?: string | null
   submittedAt?: string | null
   submissionText?: string | null
   submissionFiles?: StarterFile[] | null
+  autograderResult?: AutograderResult | null
 }
 
 export interface CreateActivityInput {
@@ -84,6 +115,12 @@ export interface CreateActivityInput {
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   expectedOutput?: string | null
+  autograderEnabled?: boolean
+  autograderReferenceSolution?: string | null
+  autograderReferenceOutput?: string | null
+  autograderCodeMatch?: boolean
+  autograderOutputMatch?: boolean
+  autograderTestCases?: AutograderTestCase[] | null
   dueAt?: string | null
   pointsPossible: number
   resourceUrl?: string | null

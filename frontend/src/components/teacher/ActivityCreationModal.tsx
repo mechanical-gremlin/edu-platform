@@ -8,6 +8,8 @@ interface ActivityCreationModalProps {
   open: boolean
   onClose: () => void
   onSave: (input: CreateActivityInput) => Promise<void>
+  executeUrl?: string
+  runUserId?: string
 }
 
 const suggestedResourceUrls: Record<ActivityType, string> = {
@@ -18,7 +20,13 @@ const suggestedResourceUrls: Record<ActivityType, string> = {
   godot: 'https://editor.godotengine.org/releases/latest/',
 }
 
-export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreationModalProps) => {
+export const ActivityCreationModal = ({
+  open,
+  onClose,
+  onSave,
+  executeUrl,
+  runUserId,
+}: ActivityCreationModalProps) => {
   const [step, setStep] = useState(1)
   const [type, setType] = useState<ActivityType>('video')
   const [title, setTitle] = useState('')
@@ -35,6 +43,13 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const [starterCode, setStarterCode] = useState('')
   const [starterFiles, setStarterFiles] = useState<StarterFile[] | null>(null)
   const [expectedOutput, setExpectedOutput] = useState('')
+  const [autograderEnabled, setAutograderEnabled] = useState(false)
+  const [autograderReferenceSolution, setAutograderReferenceSolution] = useState('')
+  const [autograderReferenceOutput, setAutograderReferenceOutput] = useState('')
+  const [autograderCodeMatch, setAutograderCodeMatch] = useState(false)
+  const [autograderOutputMatch, setAutograderOutputMatch] = useState(true)
+  const [autograderRunInput, setAutograderRunInput] = useState('')
+  const [autograderTestCases, setAutograderTestCases] = useState([{ input: '', expectedOutput: '' }])
 
   const totalSteps = type === 'coding' ? 4 : 3
 
@@ -56,6 +71,13 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
       setStarterCode('')
       setStarterFiles(null)
       setExpectedOutput('')
+      setAutograderEnabled(false)
+      setAutograderReferenceSolution('')
+      setAutograderReferenceOutput('')
+      setAutograderCodeMatch(false)
+      setAutograderOutputMatch(true)
+      setAutograderRunInput('')
+      setAutograderTestCases([{ input: '', expectedOutput: '' }])
     }
   }, [open])
 
@@ -66,6 +88,24 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const points = Number(pointsPossible)
   const detailsValid = title.trim() && description.trim() && Number.isInteger(points) && points >= 0
   const modalWidthClass = step === 4 && type === 'coding' ? 'max-w-6xl' : 'max-w-3xl'
+  const autograderSupported = type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
+  const activeAutograderCases = autograderTestCases.filter(
+    (testCase) => testCase.input.trim() || testCase.expectedOutput.trim(),
+  )
+  const autograderCasesValid = activeAutograderCases.every(
+    (testCase) => testCase.expectedOutput.trim(),
+  )
+  const autograderValid = !autograderEnabled || (
+    autograderSupported
+    && autograderReferenceSolution.trim()
+    && (
+      autograderCodeMatch
+      || autograderOutputMatch
+      || activeAutograderCases.length > 0
+    )
+    && (!autograderOutputMatch || autograderReferenceOutput.trim())
+    && autograderCasesValid
+  )
 
   const computedResourceUrl = (): string | null => {
     if (resourceUrl.trim()) return resourceUrl.trim()
@@ -174,9 +214,13 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                 className="rounded border border-slate-200 px-2 py-1 text-sm"
                 value={starterLanguage}
                 onChange={(e) => {
-                  setStarterLanguage(e.target.value)
+                  const nextLanguage = e.target.value
+                  setStarterLanguage(nextLanguage)
                   setStarterCode('')
                   setStarterFiles(null)
+                  if (nextLanguage === 'web' || nextLanguage === 'html') {
+                    setAutograderEnabled(false)
+                  }
                 }}
               >
                 {CODING_LANGUAGES.map((lang) => (
@@ -231,6 +275,165 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                     </p>
                   )}
                 </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={autograderEnabled}
+                          onChange={(event) => setAutograderEnabled(event.target.checked)}
+                          disabled={!autograderSupported}
+                        />
+                        Enable autograder
+                      </label>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Save time with automatic 100 / 50 / 0 grading, then override manually if needed.
+                      </p>
+                    </div>
+                    {!autograderSupported && (
+                      <p className="max-w-sm text-xs text-amber-700">
+                        Autograder currently supports executable Judge0 languages only. HTML and Web Development Kit activities still require manual grading.
+                      </p>
+                    )}
+                  </div>
+                  {autograderEnabled && autograderSupported && (
+                    <div className="mt-4 space-y-4">
+                      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between gap-3">
+                            <label className="font-medium text-slate-700">Suggested solution</label>
+                            <span className="text-xs text-slate-500">
+                              Teachers can run this code below and use the result as the reference output.
+                            </span>
+                          </div>
+                          <MonacoEditor
+                            value={autograderReferenceSolution}
+                            language={starterLanguage}
+                            onChange={setAutograderReferenceSolution}
+                            executeUrl={executeUrl}
+                            userId={runUserId}
+                            stdin={autograderRunInput}
+                            showStdinField
+                            onStdinChange={setAutograderRunInput}
+                            onExecutionComplete={(result) => {
+                              const stdoutText = result.stdout?.trim() ?? ''
+                              const stderrText = result.stderr?.trim() ?? ''
+                              const compileText = result.compile_output?.trim() ?? ''
+                              const nextOutput = compileText || stdoutText || stderrText
+                              if (nextOutput) {
+                                setAutograderReferenceOutput(nextOutput)
+                              }
+                            }}
+                            minHeight="320px"
+                          />
+                        </div>
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Checks</p>
+                            <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={autograderCodeMatch}
+                                onChange={(event) => setAutograderCodeMatch(event.target.checked)}
+                              />
+                              Match the code structure (normalized exact match)
+                            </label>
+                            <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                              <input
+                                type="checkbox"
+                                checked={autograderOutputMatch}
+                                onChange={(event) => setAutograderOutputMatch(event.target.checked)}
+                              />
+                              Match the no-input program output
+                            </label>
+                            <div className="mt-3">
+                              <label className="mb-1 block text-xs font-medium text-slate-600">
+                                Reference output for no-input runs
+                              </label>
+                              <textarea
+                                className="h-24 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs"
+                                placeholder="Run the suggested solution to populate this, or type the expected stdout."
+                                value={autograderReferenceOutput}
+                                onChange={(event) => setAutograderReferenceOutput(event.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-slate-200 bg-white p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Input/output checks</p>
+                                <p className="mt-1 text-xs text-slate-500">
+                                  Each case needs an expected output. Leave input blank if the program should run with empty stdin.
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                onClick={() =>
+                                  setAutograderTestCases((current) => [...current, { input: '', expectedOutput: '' }])
+                                }
+                              >
+                                + Add case
+                              </button>
+                            </div>
+                            <div className="mt-3 space-y-3">
+                              {autograderTestCases.map((testCase, index) => (
+                                <div key={`autograder-case-${index}`} className="rounded-lg border border-slate-200 p-3">
+                                  <div className="mb-2 flex items-center justify-between gap-3">
+                                    <p className="text-xs font-medium text-slate-700">Case {index + 1}</p>
+                                    {autograderTestCases.length > 1 && (
+                                      <button
+                                        type="button"
+                                        className="text-xs font-medium text-rose-600 hover:underline"
+                                        onClick={() =>
+                                          setAutograderTestCases((current) => current.filter((_, currentIndex) => currentIndex !== index))
+                                        }
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </div>
+                                  <label className="mb-1 block text-xs font-medium text-slate-600">Input</label>
+                                  <textarea
+                                    className="h-16 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs"
+                                    placeholder="stdin for this test case"
+                                    value={testCase.input}
+                                    onChange={(event) =>
+                                      setAutograderTestCases((current) =>
+                                        current.map((item, currentIndex) =>
+                                          currentIndex === index ? { ...item, input: event.target.value } : item,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <label className="mb-1 mt-3 block text-xs font-medium text-slate-600">Expected output</label>
+                                  <textarea
+                                    className="h-16 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs"
+                                    placeholder="stdout expected for this input"
+                                    value={testCase.expectedOutput}
+                                    onChange={(event) =>
+                                      setAutograderTestCases((current) =>
+                                        current.map((item, currentIndex) =>
+                                          currentIndex === index ? { ...item, expectedOutput: event.target.value } : item,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      {!autograderValid && (
+                        <p className="text-xs text-rose-600">
+                          Add a suggested solution, choose at least one check, and fill every expected-output field before saving.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -248,7 +451,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
           </button>
           <button
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={(step === 2 && !detailsValid) || saving}
+            disabled={(step === 2 && !detailsValid) || (step === 4 && type === 'coding' && !autograderValid) || saving}
             onClick={async () => {
               if (step < totalSteps) {
                 setStep(step + 1)
@@ -268,6 +471,28 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                   starterCode: type === 'coding' && starterLanguage !== 'web' ? (starterCode.trim() || null) : null,
                   starterFiles: type === 'coding' && starterLanguage === 'web' ? (starterFiles ?? null) : null,
                   expectedOutput: type === 'coding' && starterLanguage !== 'web' ? (expectedOutput.trim() || null) : null,
+                  autograderEnabled: type === 'coding' && autograderEnabled && autograderSupported,
+                  autograderReferenceSolution:
+                    type === 'coding' && autograderEnabled && autograderSupported
+                      ? (autograderReferenceSolution.trim() || null)
+                      : null,
+                  autograderReferenceOutput:
+                    type === 'coding' && autograderEnabled && autograderSupported && autograderOutputMatch
+                      ? (autograderReferenceOutput.trim() || null)
+                      : null,
+                  autograderCodeMatch:
+                    type === 'coding' && autograderEnabled && autograderSupported ? autograderCodeMatch : false,
+                  autograderOutputMatch:
+                    type === 'coding' && autograderEnabled && autograderSupported ? autograderOutputMatch : false,
+                  autograderTestCases:
+                    type === 'coding' && autograderEnabled && autograderSupported
+                      ? activeAutograderCases
+                          .filter((testCase) => testCase.expectedOutput.trim())
+                          .map((testCase) => ({
+                            input: testCase.input,
+                            expectedOutput: testCase.expectedOutput.trim(),
+                          }))
+                      : null,
                   dueAt: dueDate ? new Date(`${dueDate}T23:59:00`).toISOString() : null,
                   pointsPossible: points,
                   resourceUrl: computedResourceUrl(),

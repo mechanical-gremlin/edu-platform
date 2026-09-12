@@ -16,7 +16,7 @@ This list is ordered by implementation priority for LMS viability.
 - [x] **Checkpoint history + reset for coding drafts** — students can save a few local checkpoints, restore one, or reset back to the starter template.
 - [x] **Restore submitted code into the editor** — reopening a coding assignment now reloads the last submitted code/files instead of resetting to the starter template.
 - [x] **HTML preview support** — HTML coding activities now render a preview pane so the standalone HTML option has an in-app visual result.
-- [ ] **Simple Autograder** - Autograding feature take a suggested solution from teacher and matches student code to the sample code and/or the output of the code to grade automatically.
+- [x] **Simple Autograder** — coding activities can now optionally store a teacher reference solution, compare normalized code and/or runtime output, run teacher-defined input/output checks, and auto-apply 100/50/0 grades that teachers can override.
 
 ---
 
@@ -37,7 +37,7 @@ This list is ordered by implementation priority for LMS viability.
 - [ ] **Accessibility hardening** — complete a11y audit and fix critical findings.
 - [ ] **Backend-synced coding drafts** — move draft/checkpoint persistence from browser-local storage into the backend so students can resume work on any device.
 - [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.
-- [ ] **Teacher suggested-solution runner** — let teachers execute a reference solution and promote its output into the expected-output grader.
+- [ ] **Hidden/weighted autograder checks** — separate teacher-only hidden tests from student-visible checks and allow weighted scoring instead of the current coarse 100/50/0 buckets.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
 
 ___

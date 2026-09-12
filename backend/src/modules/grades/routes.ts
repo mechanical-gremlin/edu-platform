@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { AppError, iso, requireRole } from '../../lib.js'
+import { autograderResultSchema, parseAutograderResult } from '../autograder/service.js'
 
 const starterFileSchema = z.object({
   name: z.string(),
@@ -37,10 +38,12 @@ const gradebookResponseSchema = z.object({
           pointsEarned: z.int().nullable(),
           pointsPossible: z.int(),
           comment: z.string().nullable(),
+          gradingSource: z.enum(['manual', 'autograder']).nullable(),
           gradedAt: z.string().nullable(),
           submittedAt: z.string().nullable(),
           submissionText: z.string().nullable(),
           submissionFiles: z.array(starterFileSchema).nullable(),
+          autograderResult: autograderResultSchema.nullable(),
         }),
       ),
     }),
@@ -52,6 +55,8 @@ const gradeResponseSchema = z.object({
   activityId: z.string(),
   pointsEarned: z.int().nullable(),
   comment: z.string().nullable(),
+  gradingSource: z.enum(['manual', 'autograder']),
+  autograderResult: autograderResultSchema.nullable(),
   gradedById: z.string().nullable(),
   gradedAt: z.string().nullable(),
 })
@@ -67,10 +72,12 @@ const meGradesResponseSchema = z.array(
     pointsPossible: z.int(),
     submitted: z.boolean(),
     comment: z.string().nullable(),
+    gradingSource: z.enum(['manual', 'autograder']).nullable(),
     gradedAt: z.string().nullable(),
     submittedAt: z.string().nullable(),
     submissionText: z.string().nullable(),
     submissionFiles: z.array(starterFileSchema).nullable(),
+    autograderResult: autograderResultSchema.nullable(),
   }),
 )
 
@@ -206,10 +213,12 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
               pointsEarned: grade?.pointsEarned ?? null,
               pointsPossible: activity.pointsPossible,
               comment: grade?.comment ?? null,
+              gradingSource: grade?.gradingSource ?? null,
               gradedAt: iso(grade?.gradedAt),
               submittedAt: iso(submission?.submittedAt),
               submissionText: getSubmissionText(submission?.content),
               submissionFiles: getSubmissionFiles(submission?.content),
+              autograderResult: parseAutograderResult(grade?.autograderResult),
             }
           }),
         })),
@@ -273,6 +282,7 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
         update: {
           pointsEarned: payload.pointsEarned,
           comment: payload.comment ?? null,
+          gradingSource: 'manual',
           gradedById: user.id,
           gradedAt: new Date(),
         },
@@ -281,6 +291,7 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
           activityId: payload.activityId,
           pointsEarned: payload.pointsEarned,
           comment: payload.comment ?? null,
+          gradingSource: 'manual',
           gradedById: user.id,
           gradedAt: new Date(),
         },
@@ -291,6 +302,8 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
         activityId: grade.activityId,
         pointsEarned: grade.pointsEarned,
         comment: grade.comment,
+        gradingSource: grade.gradingSource,
+        autograderResult: parseAutograderResult(grade.autograderResult),
         gradedById: grade.gradedById,
         gradedAt: iso(grade.gradedAt),
       }
@@ -357,10 +370,12 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
                   pointsPossible: activity.pointsPossible,
                   submitted: submission?.status === 'submitted',
                   comment: grade?.comment ?? null,
+                  gradingSource: grade?.gradingSource ?? null,
                   gradedAt: iso(grade?.gradedAt),
                   submittedAt: iso(submission?.submittedAt),
                   submissionText: getSubmissionText(submission?.content),
                   submissionFiles: getSubmissionFiles(submission?.content),
+                  autograderResult: parseAutograderResult(grade?.autograderResult),
                 }
               }),
             ),

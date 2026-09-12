@@ -4,6 +4,8 @@ import { RosterModal } from '../components/teacher/RosterModal'
 import { CourseHierarchy } from '../components/hierarchy/CourseHierarchy'
 import type { Course, CreateActivityInput, GradebookEntry, User } from '../types/models'
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
+
 interface CoursePageProps {
   user: User
   course: Course
@@ -72,6 +74,8 @@ export const CoursePage = ({
       <ActivityCreationModal
         open={activityModalLessonId !== null && user.role === 'teacher'}
         onClose={() => setActivityModalLessonId(null)}
+        executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
+        runUserId={user.id}
         onSave={async (input) => {
           if (!activityModalLessonId) return
           await onCreateActivity(activityModalLessonId, input)
