@@ -359,9 +359,13 @@ test('student resubmission preserves manual grade while refreshing autograder de
 
     assert.equal(response.statusCode, 201)
     assert.ok(capturedGradeUpdate)
-    const updatedGrade = capturedGradeUpdate as { autograderResult: { score?: number } }
-    assert.deepEqual(Object.keys(updatedGrade), ['autograderResult'])
+    const updatedGrade = capturedGradeUpdate as {
+      autograderResult: { score?: number }
+      comment: string
+    }
+    assert.deepEqual(Object.keys(updatedGrade).sort(), ['autograderResult', 'comment'])
     assert.equal(updatedGrade.autograderResult.score, 50)
+    assert.match(updatedGrade.comment, /New submission received after teacher override/)
   } finally {
     await app.close()
     globalThis.fetch = originalFetch

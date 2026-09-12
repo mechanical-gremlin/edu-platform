@@ -212,7 +212,7 @@ export const GradingPanel = ({
             {autograderResult.inputOutputCases && autograderResult.inputOutputCases.length > 0 && (
               <div className="mt-2 space-y-1">
                 {autograderResult.inputOutputCases.map((testCase, index) => (
-                  <p key={`${activeStudent.studentId}-case-${index}`} className="text-xs text-slate-700">
+                  <p key={`${current?.studentId ?? activeStudent.studentId ?? 'student'}-case-${index}`} className="text-xs text-slate-700">
                     Case {index + 1}: {testCase.passed ? 'match' : 'no match'} ({testCase.status})
                   </p>
                 ))}

@@ -803,14 +803,18 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         status: submission.status,
         submittedAt: iso(submission.submittedAt),
       }
+      const submissionText = Reflect.get(payload.content ?? {}, 'responseText')
+      const submissionFiles = Reflect.get(payload.content ?? {}, 'submissionFiles')
+      const hasFileBasedSubmission = Array.isArray(submissionFiles) && submissionFiles.length > 0
 
       if (
         activity.type === 'coding'
         && activity.autograderEnabled
         && isAutograderLanguageSupported(activity.language)
-        && typeof Reflect.get(payload.content ?? {}, 'responseText') === 'string'
+        && typeof submissionText === 'string'
+        && !hasFileBasedSubmission
       ) {
-        const submissionCode = String(Reflect.get(payload.content ?? {}, 'responseText')).trim()
+        const submissionCode = submissionText.trim()
         const testCases = parseAutograderTestCases(activity.autograderTestCases)
 
         if (
@@ -850,7 +854,10 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
             if (existingGrade?.gradingSource === 'manual') {
               await app.prisma.grade.update({
                 where: { id: existingGrade.id },
-                data: autograderPayload,
+                data: {
+                  ...autograderPayload,
+                  comment: `New submission received after teacher override. ${buildAutograderComment(autograderResult)}`,
+                },
               })
             } else {
               await app.prisma.grade.upsert({
@@ -889,6 +896,11 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
             }, 'Autograder failed after submission was saved')
           }
         }
+      } else if (activity.type === 'coding' && activity.autograderEnabled && hasFileBasedSubmission) {
+        app.log.warn({
+          activityId,
+          studentId: user.id,
+        }, 'Skipping autograder for file-based coding submission')
       }
 
       return response
