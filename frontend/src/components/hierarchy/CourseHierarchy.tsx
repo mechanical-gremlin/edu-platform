@@ -421,7 +421,7 @@ export const CourseHierarchy = ({
                           {openLessons[lesson.id] && (
                             <div className="space-y-2 border-t border-slate-100 p-3">
                               {lesson.activities
-                                .filter((activity) => isTeacher || activity.visible)
+                                .filter((activity) => isTeacher || activity.visible !== false)
                                 .map((activity, activityIndex) => (
                                   <div
                                     key={activity.id}

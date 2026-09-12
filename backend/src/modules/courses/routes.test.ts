@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import { buildApp } from '../../app.js'
 
 const buildCoursePrismaStub = () => {
+  const unitPositionUpdates: Array<{ id: string; position?: number; data: Record<string, unknown> }> = []
+  const lessonPositionUpdates: Array<{ id: string; position?: number; data: Record<string, unknown> }> = []
   const activityUpdates: Array<{ id: string; position?: number; data: Record<string, unknown> }> = []
   let unitUpdateData: Record<string, unknown> | null = null
   let activityPatchData: Record<string, unknown> | null = null
@@ -11,6 +13,8 @@ const buildCoursePrismaStub = () => {
   let lessonBulkUpdate: { where: Record<string, unknown>; data: Record<string, unknown> } | null = null
   let unitVisibilityUpdate: { where: Record<string, unknown>; data: Record<string, unknown> } | null = null
   let deletedUnitId: string | null = null
+  let deletedLessonId: string | null = null
+  let deletedActivityId: string | null = null
   const stub: any = {
     user: {
       findUnique: async ({ where }: { where: { id: string } }) => {
@@ -41,9 +45,21 @@ const buildCoursePrismaStub = () => {
           return { id: 'u-1', title: 'Unit 1', description: 'Original unit', courseId: 'c-1', visible: true }
         }
 
+        if (where.id === 'u-2') {
+          return { id: 'u-2', title: 'Unit 2', description: 'Second unit', courseId: 'c-1', visible: true }
+        }
+
         return null
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        if ('position' in data) {
+          unitPositionUpdates.push({
+            id: where.id,
+            position: data.position as number,
+            data,
+          })
+          return { id: where.id }
+        }
         if ('visible' in data) {
           unitVisibilityUpdate = { where, data }
         }
@@ -76,9 +92,28 @@ const buildCoursePrismaStub = () => {
           }
         }
 
+        if (where.id === 'l-2') {
+          return {
+            id: 'l-2',
+            title: 'Lesson 2',
+            description: 'Second lesson',
+            unitId: 'u-1',
+            visible: true,
+            unit: { courseId: 'c-1' },
+          }
+        }
+
         return null
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        if ('position' in data) {
+          lessonPositionUpdates.push({
+            id: where.id,
+            position: data.position as number,
+            data,
+          })
+          return { id: where.id }
+        }
         lessonRecordUpdate = { where, data }
         return {
           id: where.id,
@@ -86,9 +121,17 @@ const buildCoursePrismaStub = () => {
           description: (data.description as string | null | undefined) ?? null,
         }
       },
+      findMany: async () => [
+        { id: 'l-1', position: 0 },
+        { id: 'l-2', position: 1 },
+      ],
       updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         lessonBulkUpdate = { where, data }
         return { count: 2 }
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        deletedLessonId = where.id
+        return { id: where.id }
       },
     },
     activity: {
@@ -152,6 +195,10 @@ const buildCoursePrismaStub = () => {
         { id: 'a-1', position: 0 },
         { id: 'a-2', position: 1 },
       ],
+      delete: async ({ where }: { where: { id: string } }) => {
+        deletedActivityId = where.id
+        return { id: where.id }
+      },
     },
     $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(stub),
     $disconnect: async () => undefined,
@@ -160,13 +207,17 @@ const buildCoursePrismaStub = () => {
   return {
     stub,
     getUnitUpdateData: () => unitUpdateData,
+    getUnitPositionUpdates: () => unitPositionUpdates,
     getActivityPatchData: () => activityPatchData,
     getLessonVisibilityUpdate: () => lessonVisibilityUpdate,
     getLessonRecordUpdate: () => lessonRecordUpdate,
     getLessonBulkUpdate: () => lessonBulkUpdate,
+    getLessonPositionUpdates: () => lessonPositionUpdates,
     getUnitVisibilityUpdate: () => unitVisibilityUpdate,
     getActivityUpdates: () => activityUpdates,
     getDeletedUnitId: () => deletedUnitId,
+    getDeletedLessonId: () => deletedLessonId,
+    getDeletedActivityId: () => deletedActivityId,
   }
 }
 
@@ -355,6 +406,58 @@ test('PATCH /activities/:activityId/move swaps adjacent activity positions', asy
   }
 })
 
+test('PATCH /units/:unitId/move swaps adjacent unit positions', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/units/u-2/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        direction: 'up',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'u-2' })
+    assert.deepEqual(prisma.getUnitPositionUpdates(), [
+      { id: 'u-2', position: -1, data: { position: -1 } },
+      { id: 'u-1', position: 1, data: { position: 1 } },
+      { id: 'u-2', position: 0, data: { position: 0 } },
+    ])
+  } finally {
+    await app.close()
+  }
+})
+
+test('PATCH /lessons/:lessonId/move swaps adjacent lesson positions', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/lessons/l-2/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        direction: 'up',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'l-2' })
+    assert.deepEqual(prisma.getLessonPositionUpdates(), [
+      { id: 'l-2', position: -1, data: { position: -1 } },
+      { id: 'l-1', position: 1, data: { position: 1 } },
+      { id: 'l-2', position: 0, data: { position: 0 } },
+    ])
+  } finally {
+    await app.close()
+  }
+})
+
 test('PATCH /activities/:activityId/move is a no-op at the boundary', async () => {
   const prisma = buildCoursePrismaStub()
   const app = await buildApp({ prisma: prisma.stub })
@@ -390,6 +493,42 @@ test('DELETE /units/:unitId deletes the full unit tree', async () => {
 
     assert.equal(response.statusCode, 204)
     assert.equal(prisma.getDeletedUnitId(), 'u-1')
+  } finally {
+    await app.close()
+  }
+})
+
+test('DELETE /lessons/:lessonId deletes the lesson tree', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/lessons/l-1',
+      headers: { 'x-user-id': 't-1' },
+    })
+
+    assert.equal(response.statusCode, 204)
+    assert.equal(prisma.getDeletedLessonId(), 'l-1')
+  } finally {
+    await app.close()
+  }
+})
+
+test('DELETE /activities/:activityId deletes the assignment', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'DELETE',
+      url: '/activities/a-1',
+      headers: { 'x-user-id': 't-1' },
+    })
+
+    assert.equal(response.statusCode, 204)
+    assert.equal(prisma.getDeletedActivityId(), 'a-1')
   } finally {
     await app.close()
   }
