@@ -15,7 +15,7 @@ interface ActivityFullScreenProps {
   onClose: () => void
   onNavigate: (activityId: string) => void
   onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
-  onSubmitActivity?: (activityId: string, responseText: string) => Promise<void>
+  onSubmitActivity?: (activityId: string, responseText: string, submissionFiles?: StarterFile[] | null) => Promise<void>
   onUpdateActivityDirections?: (
     activityId: string,
     input: UpdateActivityDirectionsInput,
@@ -449,7 +449,11 @@ export const ActivityFullScreen = ({
                     } else {
                       textToSubmit = submissionText.trim()
                     }
-                    await onSubmitActivity?.(activity.id, textToSubmit)
+                    await onSubmitActivity?.(
+                      activity.id,
+                      textToSubmit,
+                      activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
+                    )
                   } catch (saveError) {
                     setSubmissionError(
                       saveError instanceof Error ? saveError.message : 'Failed to submit activity',

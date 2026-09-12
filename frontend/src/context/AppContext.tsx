@@ -38,7 +38,7 @@ interface AppContextValue {
   createLesson: (unitId: string, title: string, description: string) => Promise<string>
   createActivity: (lessonId: string, input: CreateActivityInput) => Promise<string>
   toggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
-  submitActivity: (activityId: string, responseText: string) => Promise<void>
+  submitActivity: (activityId: string, responseText: string, submissionFiles?: CreateActivityInput['starterFiles']) => Promise<void>
   updateGradebookEntry: (
     studentId: string,
     activityId: string,
@@ -138,6 +138,7 @@ interface ApiTeacherGradebook {
       gradedAt: string | null
       submittedAt: string | null
       submissionText: string | null
+      submissionFiles: Array<{ name: string; language: string; content: string }> | null
     }>
   }>
 }
@@ -155,6 +156,7 @@ interface ApiStudentGrade {
   gradedAt: string | null
   submittedAt: string | null
   submissionText: string | null
+  submissionFiles: Array<{ name: string; language: string; content: string }> | null
 }
 
 interface MutationResponse {
@@ -242,6 +244,7 @@ const mapTeacherGradebookEntries = (
       gradedAt: grade.gradedAt,
       submittedAt: grade.submittedAt,
       submissionText: grade.submissionText,
+      submissionFiles: grade.submissionFiles,
     })),
   )
 }
@@ -266,6 +269,7 @@ const mapStudentGradebookEntries = (
     gradedAt: grade.gradedAt,
     submittedAt: grade.submittedAt,
     submissionText: grade.submissionText,
+    submissionFiles: grade.submissionFiles,
   }))
 
 export const AppContext = createContext<AppContextValue | undefined>(undefined)
@@ -596,6 +600,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               gradedAt: null,
               submittedAt: null,
               submissionText: null,
+              submissionFiles: null,
             })),
           ]
         })
@@ -622,10 +627,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   )
 
   const submitActivity = useCallback(
-    async (activityId: string, responseText: string) => {
+    async (activityId: string, responseText: string, submissionFiles?: CreateActivityInput['starterFiles']) => {
       await request(`/activities/${activityId}/submissions`, {
         method: 'POST',
-        body: JSON.stringify({ content: { responseText } }),
+        body: JSON.stringify({ content: { responseText, submissionFiles: submissionFiles ?? null } }),
       })
       setGradebookEntries((previous) =>
         previous.map((entry) =>
@@ -635,6 +640,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 submitted: true,
                 submittedAt: new Date().toISOString(),
                 submissionText: responseText,
+                submissionFiles: submissionFiles ?? null,
               }
             : entry,
         ),

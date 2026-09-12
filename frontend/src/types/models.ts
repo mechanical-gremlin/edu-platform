@@ -71,6 +71,7 @@ export interface GradebookEntry {
   gradedAt?: string | null
   submittedAt?: string | null
   submissionText?: string | null
+  submissionFiles?: StarterFile[] | null
 }
 
 export interface CreateActivityInput {

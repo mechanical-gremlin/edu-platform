@@ -170,13 +170,15 @@ export const WebProjectEditor = ({
               <div className="border-b border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Explorer
               </div>
-              <div className="flex-1 overflow-auto px-2 py-2">
+              <ul className="flex-1 overflow-auto px-2 py-2" role="listbox" aria-label="Project files">
                 {files.map((file, index) => {
                   const depth = Math.max(0, file.name.split('/').length - 1)
                   const label = file.name.split('/').at(-1) || file.name
                   return (
-                    <div
+                    <li
                       key={file.name}
+                      role="option"
+                      aria-selected={index === activeIndex}
                       className={`mb-1 flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs ${
                         index === activeIndex ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'
                       }`}
@@ -202,10 +204,10 @@ export const WebProjectEditor = ({
                           ×
                         </button>
                       )}
-                    </div>
+                    </li>
                   )
                 })}
-              </div>
+              </ul>
               {!readOnly && (
                 <div className="border-t border-slate-700 p-2">
                   {!addingFile ? (
