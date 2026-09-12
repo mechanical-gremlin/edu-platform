@@ -163,9 +163,9 @@ export const MonacoEditor = ({
         </div>
       )}
 
-      <div className="flex gap-3" style={{ minHeight }}>
+      <div className="flex gap-3" style={{ height: minHeight }}>
         {/* Editor panel */}
-        <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
+        <div className={`overflow-hidden rounded-xl border border-slate-200 ${executeUrl ? 'flex-1' : 'w-full'}`}>
           <MonacoEditorReact
             height={minHeight}
             language={MONACO_LANGUAGE_MAP[language] ?? language}

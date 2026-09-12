@@ -149,7 +149,7 @@ export const ActivityFullScreen = ({
         return (
           <WebProjectEditor
             key={activity.id}
-            defaultFiles={webFiles.length > 0 ? webFiles : (activity.starterFiles ?? null)}
+            defaultFiles={activity.starterFiles ?? null}
             onChange={(files) => {
               setWebFiles(files)
               if (currentUser.role === 'student') {

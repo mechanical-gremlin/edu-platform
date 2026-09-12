@@ -23,22 +23,44 @@ function langForFile(name: string): string {
 }
 
 function buildSrcdoc(files: StarterFile[]): string {
-  const html = files.find((f) => f.name.endsWith('.html'))?.content ?? '<p>No HTML file found.</p>'
+  const htmlFile = files.find((f) => f.name.endsWith('.html'))
   const cssList = files.filter((f) => f.name.endsWith('.css'))
   const jsList = files.filter((f) => f.name.endsWith('.js'))
 
   const cssBlocks = cssList.map((f) => `<style>/* ${f.name} */\n${f.content}\n</style>`).join('\n')
-  const jsBlocks = jsList.map((f) => `<script>/* ${f.name} */\n${f.content}\n</script>`).join('\n')
+  const jsBlocks = jsList.map((f) => `<script>\n${f.content}\n</script>`).join('\n')
 
-  // Inject CSS and JS into the HTML source by replacing <link> / <script src> with inline blocks.
-  // Simpler approach: append inline blocks just before </body> so any existing HTML is preserved.
-  const injected = html
-    .replace(/<link[^>]+rel=["']stylesheet["'][^>]*>/gi, '')
-    .replace(/<script[^>]+src=["'][^"']*["'][^>]*><\/script>/gi, '')
-    .replace(/<\/head>/i, `${cssBlocks}\n</head>`)
-    .replace(/<\/body>/i, `${jsBlocks}\n</body>`)
+  // If the student has an HTML file, inject CSS and JS by appending them into a wrapper
+  // rather than using regex-based patching, which avoids incomplete sanitization issues.
+  // We wrap the HTML content verbatim inside a full document and append style/script blocks.
+  if (htmlFile) {
+    // Strip any <link rel="stylesheet"> and external <script src="…"> tags
+    // using DOMParser so we handle all valid tag forms correctly.
+    // Since we're running in the browser, we can use it safely here.
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(htmlFile.content, 'text/html')
+    doc.querySelectorAll('link[rel="stylesheet"]').forEach((el) => el.remove())
+    doc.querySelectorAll('script[src]').forEach((el) => el.remove())
 
-  return injected
+    // Append inline CSS blocks to <head>
+    if (cssBlocks) {
+      const wrapper = doc.createElement('template')
+      wrapper.innerHTML = cssBlocks
+      doc.head.appendChild(wrapper.content)
+    }
+
+    // Append inline JS blocks to <body>
+    if (jsBlocks) {
+      const wrapper = doc.createElement('template')
+      wrapper.innerHTML = jsBlocks
+      doc.body.appendChild(wrapper.content)
+    }
+
+    return doc.documentElement.outerHTML
+  }
+
+  // No HTML file — build a minimal document
+  return `<!DOCTYPE html><html><head>${cssBlocks}</head><body>${jsBlocks}</body></html>`
 }
 
 interface WebProjectEditorProps {
@@ -216,7 +238,7 @@ export const WebProjectEditor = ({
             key={previewKey}
             title="Web project preview"
             srcDoc={srcdoc}
-            sandbox="allow-scripts"
+            sandbox="allow-scripts allow-same-origin"
             className="flex-1 rounded-xl border border-slate-200 bg-white"
           />
         </div>
