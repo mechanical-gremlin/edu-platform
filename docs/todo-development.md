@@ -38,3 +38,10 @@ This list is ordered by implementation priority for LMS viability.
 - [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.
 - [ ] **Teacher suggested-solution runner** — let teachers execute a reference solution and promote its output into the expected-output grader.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
+
+___
+## Potential Post-Production
+- [ ] Advanced autograder feature utilizing hosted AI.  AI gets context from objective and requirements and analyzes student code and results against objectives and requirements.
+- [ ] Support for other LMS login criteria
+- [ ] Additional Computer Science tools and open source programs for further learning.
+- [ ] Investigate Virtual Machine setup for Cybersecurity programs.
