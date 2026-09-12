@@ -143,7 +143,7 @@ export const ActivityFullScreen = ({
 
   const renderWorkspace = () => {
     if (activity.type === 'coding') {
-      const isWeb = (activity.language ?? monacoLanguage) === 'web'
+      const isWeb = activity.language === 'web'
 
       if (isWeb) {
         return (
@@ -434,7 +434,7 @@ export const ActivityFullScreen = ({
               <button
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 disabled={submitting || (activity.type === 'coding'
-                  ? ((activity.language ?? monacoLanguage) === 'web' ? webFiles.length === 0 : monacoCode.trim().length === 0)
+                  ? (activity.language === 'web' ? webFiles.length === 0 : monacoCode.trim().length === 0)
                   : submissionText.trim().length === 0)}
                 onClick={async () => {
                   try {
@@ -442,7 +442,7 @@ export const ActivityFullScreen = ({
                     setSubmissionError(null)
                     let textToSubmit: string
                     if (activity.type === 'coding') {
-                      textToSubmit = (activity.language ?? monacoLanguage) === 'web'
+                      textToSubmit = activity.language === 'web'
                         ? JSON.stringify(webFiles)
                         : monacoCode
                     } else {

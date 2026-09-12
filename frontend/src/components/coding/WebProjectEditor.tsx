@@ -77,13 +77,16 @@ export const WebProjectEditor = ({
   readOnly = false,
   height = '500px',
 }: WebProjectEditorProps) => {
-  const initialFiles = defaultFiles && defaultFiles.length > 0 ? defaultFiles : DEFAULT_FILES
-  const [files, setFiles] = useState<StarterFile[]>(initialFiles)
+  // Resolve initial files once at mount time; further prop changes are handled by the useEffect below.
+  const initialFilesRef = useRef<StarterFile[]>(
+    defaultFiles && defaultFiles.length > 0 ? defaultFiles : DEFAULT_FILES,
+  )
+  const [files, setFiles] = useState<StarterFile[]>(initialFilesRef.current)
   const [activeIndex, setActiveIndex] = useState(0)
   const [newFileName, setNewFileName] = useState('')
   const [addingFile, setAddingFile] = useState(false)
   const [previewKey, setPreviewKey] = useState(0)
-  const [srcdoc, setSrcdoc] = useState(() => buildSrcdoc(initialFiles))
+  const [srcdoc, setSrcdoc] = useState(() => buildSrcdoc(initialFilesRef.current))
   const prevDefaultRef = useRef(defaultFiles)
 
   // Reset when defaultFiles prop changes (new activity loaded)
