@@ -231,7 +231,7 @@ export const MonacoEditor = ({
               title="HTML preview"
               srcDoc={code}
               sandbox=""
-              className="flex-1 rounded-xl border border-slate-200 bg-white"
+              className="min-h-[220px] flex-1 rounded-xl border border-slate-200 bg-white"
             />
           </div>
         )}

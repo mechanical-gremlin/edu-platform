@@ -278,13 +278,32 @@ export const ActivityFullScreen = ({
         : activity.starterFiles ?? DEFAULT_WEB_FILE
       setWebFiles(nextFiles)
       setSubmissionText(snapshot.submissionText || serializeSubmissionFiles(nextFiles))
+      if (currentUser.role === 'student') {
+        const savedDraft = saveCodingDraft({
+          activityId: activity.id,
+          history: draftHistory,
+          language: 'web',
+          submissionFiles: nextFiles,
+          submissionText: snapshot.submissionText || serializeSubmissionFiles(nextFiles),
+          userId: currentUser.id,
+        })
+        setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+      }
     } else {
       setMonacoLanguage(snapshot.language)
       setMonacoCode(snapshot.submissionText)
       setSubmissionText(snapshot.submissionText)
+      if (currentUser.role === 'student') {
+        const savedDraft = saveCodingDraft({
+          activityId: activity.id,
+          history: draftHistory,
+          language: snapshot.language,
+          submissionText: snapshot.submissionText,
+          userId: currentUser.id,
+        })
+        setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+      }
     }
-
-    setDraftSavedAt(snapshot.savedAt)
   }
 
   const handleResetWorkspace = () => {
