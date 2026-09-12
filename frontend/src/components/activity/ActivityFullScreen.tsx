@@ -298,15 +298,17 @@ export const ActivityFullScreen = ({
         : DEFAULT_WEB_FILE
       setWebFiles(nextFiles)
       setSubmissionText(serializeSubmissionFiles(nextFiles))
-      const savedDraft = saveCodingDraft({
-        activityId: activity.id,
-        history: draftHistory,
-        language: 'web',
-        submissionFiles: nextFiles,
-        submissionText: serializeSubmissionFiles(nextFiles),
-        userId: currentUser.id,
-      })
-      setDraftSavedAt(savedDraft?.updatedAt ?? null)
+      if (currentUser.role === 'student') {
+        const savedDraft = saveCodingDraft({
+          activityId: activity.id,
+          history: draftHistory,
+          language: 'web',
+          submissionFiles: nextFiles,
+          submissionText: serializeSubmissionFiles(nextFiles),
+          userId: currentUser.id,
+        })
+        setDraftSavedAt(savedDraft?.updatedAt ?? null)
+      }
       return
     }
 
@@ -315,14 +317,16 @@ export const ActivityFullScreen = ({
     setMonacoLanguage(nextLanguage)
     setMonacoCode(nextCode)
     setSubmissionText(nextCode)
-    const savedDraft = saveCodingDraft({
-      activityId: activity.id,
-      history: draftHistory,
-      language: nextLanguage,
-      submissionText: nextCode,
-      userId: currentUser.id,
-    })
-    setDraftSavedAt(savedDraft?.updatedAt ?? null)
+    if (currentUser.role === 'student') {
+      const savedDraft = saveCodingDraft({
+        activityId: activity.id,
+        history: draftHistory,
+        language: nextLanguage,
+        submissionText: nextCode,
+        userId: currentUser.id,
+      })
+      setDraftSavedAt(savedDraft?.updatedAt ?? null)
+    }
   }
 
   const renderWorkspace = () => {

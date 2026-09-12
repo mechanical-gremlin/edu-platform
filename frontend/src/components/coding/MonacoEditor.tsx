@@ -230,7 +230,7 @@ export const MonacoEditor = ({
             <iframe
               title="HTML preview"
               srcDoc={code}
-              sandbox="allow-scripts"
+              sandbox=""
               className="flex-1 rounded-xl border border-slate-200 bg-white"
             />
           </div>
