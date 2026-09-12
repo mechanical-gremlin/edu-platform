@@ -64,3 +64,26 @@ Open the frontend URL in a browser to verify the UI loads and connects to the AP
 - The start command runs outstanding Prisma migrations and seeds demo data only when the database is empty.
 - `JUDGE0_API_KEY` is marked `sync: false` in `render.yaml` and must never be committed to the repository. Set it directly in the Render dashboard under the API service's Environment settings.
 - If you see `Route GET:/ not found` when hitting the API root directly, this is expected — the Fastify API does not serve the frontend. Open the frontend static site URL instead.
+
+---
+
+## Backend deploy troubleshooting
+
+### Prisma migration failures on Render
+
+Render runs the backend start command below on every deploy:
+
+```bash
+npm run prisma:migrate:deploy && npm run prisma:seed:if-empty && npm run start
+```
+
+Because of that, every committed Prisma migration must be a single incremental step. Do **not** add a second `init` migration or any migration that re-creates tables or enums that already exist in production.
+
+If the backend deploy fails during `prisma migrate deploy` with errors about existing tables, enums, or constraints:
+
+1. Compare the newest migration directory with the earlier migrations in `backend/prisma/migrations`.
+2. Remove any duplicate baseline/init migration from the repository and keep only the incremental migration that introduces the new schema change.
+3. Commit the migration fix and trigger a new Render deploy.
+4. Leave the Render service configuration unchanged unless the build/start commands themselves were intentionally updated in the repo.
+
+For this project, the Render platform settings do **not** need a special change for the autograder release; the deploy issue was caused by a duplicate Prisma migration being committed, not by a Render dashboard misconfiguration.

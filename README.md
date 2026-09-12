@@ -91,11 +91,13 @@ curl -H 'x-user-id: s-1' http://localhost:3001/courses
    - set frontend env var `VITE_API_BASE_URL` to your deployed API URL so frontend can call backend endpoints
    - if using RapidAPI Judge0, set backend env var `JUDGE0_API_KEY` so coding activities can run code (self-hosted Judge0 does not require it)
 6. If you see `Route GET:/ not found` on Render, see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for service URL expectations and full deployment checks.
+7. If the backend deploy fails during `prisma migrate deploy`, verify that each Prisma migration directory is incremental and unique before retrying; see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for the recovery checklist.
 
 ### Render behavior
 
 - The API build installs dependencies, generates Prisma client code, and compiles TypeScript.
 - The API start command applies Prisma migrations and seeds demo data only when the database is empty.
+- Render deploys will fail if a duplicate Prisma migration is committed, because `prisma migrate deploy` replays every migration that is missing from the database history.
 - The frontend is published as a static single-page app with a rewrite to `index.html`.
 
 ## Project structure highlights
