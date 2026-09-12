@@ -106,14 +106,15 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
       const run = result.run
       const compile = result.compile
 
-      const accepted = run.code === 0
+      const accepted = run.code === 0 && !compile?.code
+      const compileError = compile !== undefined && compile.code !== 0
       return {
         stdout: run.stdout || null,
         stderr: run.stderr || null,
         compile_output: compile?.stderr || null,
         status: {
-          id: accepted ? 3 : 11,
-          description: accepted ? 'Accepted' : 'Runtime Error',
+          id: compileError ? 6 : accepted ? 3 : 11,
+          description: compileError ? 'Compilation Error' : accepted ? 'Accepted' : 'Runtime Error',
         },
         time: null,
         memory: null,
