@@ -12,7 +12,6 @@ import { LoginPage } from './pages/LoginPage'
 import type { User } from './types/models'
 
 const STORAGE_KEYS = {
-  selectedNav: 'edu-platform.selected-nav',
   apiDebugVisible: 'edu-platform.api-debug-visible',
 } as const
 
@@ -51,15 +50,24 @@ function App() {
     createCourse,
     createLesson,
     createUnit,
+    deleteActivity,
+    deleteLesson,
+    deleteUnit,
+    moveActivity,
+    moveLesson,
+    moveUnit,
     submitActivity,
+    toggleLessonVisibility,
+    toggleUnitVisibility,
     toggleActivityVisibility,
+    updateActivity,
     updateActivityDirections,
     updateGradebookEntry,
+    updateLesson,
+    updateUnit,
   } = useAppContext()
 
-  const [selectedNav, setSelectedNav] = useState<NavKey>(() =>
-    readStoredValue<NavKey>(STORAGE_KEYS.selectedNav, 'dashboard'),
-  )
+  const [selectedNav, setSelectedNav] = useState<NavKey>('dashboard')
   const [healthStatus, setHealthStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
   const [healthMessage, setHealthMessage] = useState('Not checked')
   const [meStatus, setMeStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle')
@@ -162,16 +170,27 @@ function App() {
       return
     }
 
-    window.localStorage.setItem(STORAGE_KEYS.selectedNav, JSON.stringify(selectedNav))
-  }, [selectedNav])
+    window.localStorage.setItem(STORAGE_KEYS.apiDebugVisible, JSON.stringify(apiDebugVisible))
+  }, [apiDebugVisible])
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return
     }
 
-    window.localStorage.setItem(STORAGE_KEYS.apiDebugVisible, JSON.stringify(apiDebugVisible))
-  }, [apiDebugVisible])
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted || !currentUser) {
+        return
+      }
+
+      setSelectedNav('dashboard')
+      setSelectedCourseId(null)
+      setSelectedActivityId(null)
+    }
+
+    window.addEventListener('pageshow', handlePageShow)
+    return () => window.removeEventListener('pageshow', handlePageShow)
+  }, [currentUser, setSelectedActivityId, setSelectedCourseId])
 
   const selectedCourse = useMemo(
     () => courses.find((course) => course.id === selectedCourseId) ?? null,
@@ -303,6 +322,17 @@ function App() {
             onCreateUnit={createUnit}
             onCreateLesson={createLesson}
             onCreateActivity={createActivity}
+            onUpdateUnit={updateUnit}
+            onUpdateLesson={updateLesson}
+            onUpdateActivity={updateActivity}
+            onDeleteUnit={deleteUnit}
+            onDeleteLesson={deleteLesson}
+            onDeleteActivity={deleteActivity}
+            onMoveUnit={moveUnit}
+            onMoveLesson={moveLesson}
+            onMoveActivity={moveActivity}
+            onToggleUnitVisibility={toggleUnitVisibility}
+            onToggleLessonVisibility={toggleLessonVisibility}
             onToggleActivityVisibility={toggleActivityVisibility}
             onBack={() => setSelectedCourseId(null)}
             onAddEnrollment={

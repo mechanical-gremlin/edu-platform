@@ -66,6 +66,7 @@ export interface Lesson {
   id: string
   title: string
   description?: string | null
+  visible?: boolean
   activities: Activity[]
 }
 
@@ -73,6 +74,7 @@ export interface Unit {
   id: string
   title: string
   description?: string | null
+  visible?: boolean
   lessons: Lesson[]
 }
 
@@ -140,4 +142,13 @@ export interface AddEnrollmentInput {
 
 export interface UpdateActivityDirectionsInput {
   directions?: string | null
+}
+
+export interface UpdateActivityInput {
+  title: string
+  description: string
+  directions?: string | null
+  dueAt?: string | null
+  pointsPossible: number
+  resourceUrl?: string | null
 }

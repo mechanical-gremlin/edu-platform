@@ -81,6 +81,7 @@ model Unit {
   courseId    String
   title       String
   description String?
+  visible     Boolean  @default(true)
   position    Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -95,6 +96,7 @@ model Lesson {
   unitId      String
   title       String
   description String?
+  visible     Boolean    @default(true)
   position    Int
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt

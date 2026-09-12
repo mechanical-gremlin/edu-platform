@@ -98,8 +98,19 @@ const createActivityBodySchema = z.object({
 const visibilitySchema = z.object({
   visible: z.boolean(),
 })
+const moveSchema = z.object({
+  direction: z.enum(['up', 'down']),
+})
 const directionsSchema = z.object({
   directions: z.string().trim().max(20000).optional().nullable(),
+})
+const updateActivityBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  description: z.string().trim().min(1).max(5000),
+  directions: z.string().trim().max(20000).optional().nullable(),
+  dueAt: z.iso.datetime().optional().nullable(),
+  pointsPossible: z.int().min(0).max(1000),
+  resourceUrl: z.url().optional().nullable(),
 })
 const submissionBodySchema = z.object({
   content: z.record(z.string(), z.unknown()).optional().nullable(),
@@ -147,11 +158,13 @@ const courseTreeSchema = z.object({
       id: z.string(),
       title: z.string(),
       description: z.string().nullable(),
+      visible: z.boolean(),
       lessons: z.array(
         z.object({
           id: z.string(),
           title: z.string(),
           description: z.string().nullable(),
+          visible: z.boolean(),
           activities: z.array(
             z.object({
               id: z.string(),
@@ -204,6 +217,9 @@ const activityResponseSchema = z.object({
 const visibilityResponseSchema = z.object({
   id: z.string(),
   visible: z.boolean(),
+})
+const reorderResponseSchema = z.object({
+  id: z.string(),
 })
 
 const submissionResponseSchema = z.object({
@@ -311,6 +327,69 @@ const findTeacherActivity = async (app: Parameters<FastifyPluginAsync>[0], activ
   }
 
   return activity
+}
+
+const serializeActivity = (
+  activity: {
+    id: string
+    title: string
+    type: z.infer<typeof activityTypeSchema>
+    description: string
+    directions: string | null
+    language: string | null
+    languageLocked: boolean
+    starterCode: string | null
+    starterFiles: Prisma.JsonValue | null
+    expectedOutput: string | null
+    autograderEnabled: boolean
+    resourceUrl: string | null
+    visible: boolean
+    dueAt: Date | null
+    pointsPossible: number
+  },
+) => ({
+  id: activity.id,
+  title: activity.title,
+  type: activity.type,
+  description: activity.description,
+  directions: activity.directions,
+  language: activity.language,
+  languageLocked: activity.languageLocked,
+  starterCode: activity.starterCode,
+  starterFiles: (activity.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
+  expectedOutput: activity.expectedOutput,
+  autograderEnabled: activity.autograderEnabled,
+  resourceUrl: activity.resourceUrl,
+  visible: activity.visible,
+  dueAt: iso(activity.dueAt),
+  pointsPossible: activity.pointsPossible,
+})
+
+const swapSiblingPositions = async (
+  update: (id: string, position: number) => Promise<unknown>,
+  siblings: Array<{ id: string; position: number }>,
+  currentId: string,
+  direction: z.infer<typeof moveSchema>['direction'],
+) => {
+  const currentIndex = siblings.findIndex((item) => item.id === currentId)
+
+  if (currentIndex === -1) {
+    throw new AppError(404, 'Item not found')
+  }
+
+  const neighborIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+  const neighbor = siblings[neighborIndex]
+  const current = siblings[currentIndex]
+
+  if (!neighbor) {
+    return
+  }
+
+  const tempPosition = Math.min(...siblings.map((item) => item.position)) - 1
+
+  await update(current.id, tempPosition)
+  await update(neighbor.id, current.position)
+  await update(current.id, neighbor.position)
 }
 
 export const courseRoutes: FastifyPluginAsync = async (app) => {
@@ -458,35 +537,27 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         code: course.code,
         description: course.description,
         teacherName: course.enrollments.find((item) => item.role === 'teacher')?.user.name ?? null,
-        units: course.units.map((unit) => ({
-          id: unit.id,
-          title: unit.title,
-          description: unit.description,
-          lessons: unit.lessons.map((lesson) => ({
-            id: lesson.id,
-            title: lesson.title,
-            description: lesson.description,
-            activities: lesson.activities
-              .filter((activity) => isTeacher || activity.visible)
-              .map((activity) => ({
-                id: activity.id,
-                title: activity.title,
-                type: activity.type,
-                description: activity.description,
-                directions: activity.directions,
-                language: activity.language,
-                languageLocked: activity.languageLocked,
-                starterCode: activity.starterCode,
-                starterFiles: (activity.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
-                expectedOutput: activity.expectedOutput,
-                autograderEnabled: activity.autograderEnabled,
-                resourceUrl: activity.resourceUrl,
-                visible: activity.visible,
-                dueAt: iso(activity.dueAt),
-                pointsPossible: activity.pointsPossible,
+        units: course.units
+          .filter((unit) => isTeacher || unit.visible)
+          .map((unit) => ({
+            id: unit.id,
+            title: unit.title,
+            description: unit.description,
+            visible: unit.visible,
+            lessons: unit.lessons
+              .filter((lesson) => isTeacher || lesson.visible)
+              .map((lesson) => ({
+                id: lesson.id,
+                title: lesson.title,
+                description: lesson.description,
+                visible: lesson.visible,
+                activities: lesson.activities
+                  .filter((activity) => isTeacher || activity.visible)
+                  .map((activity) => ({
+                    ...serializeActivity(activity),
+                  })),
               })),
           })),
-        })),
       }
     },
   )
@@ -627,23 +698,109 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       })
 
       reply.code(201)
+      return serializeActivity(activity)
+    },
+  )
+
+  app.patch(
+    '/units/:unitId',
+    {
+      schema: {
+        params: unitParamsSchema,
+        body: namedEntitySchema,
+        response: {
+          200: mutationResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { unitId } = unitParamsSchema.parse(request.params)
+      const payload = namedEntitySchema.parse(request.body)
+      const unit = await findTeacherCourseIdFromUnit(app, unitId)
+      await assertTeacherForCourse(app, unit.courseId, user.id)
+
+      const updated = await app.prisma.unit.update({
+        where: { id: unitId },
+        data: {
+          title: payload.title,
+          description: payload.description ?? null,
+        },
+      })
+
       return {
-        id: activity.id,
-        title: activity.title,
-        type: activity.type,
-        description: activity.description,
-        directions: activity.directions,
-        language: activity.language,
-        languageLocked: activity.languageLocked,
-        starterCode: activity.starterCode,
-        starterFiles: (activity.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
-        expectedOutput: activity.expectedOutput,
-        autograderEnabled: activity.autograderEnabled,
-        resourceUrl: activity.resourceUrl,
-        visible: activity.visible,
-        dueAt: iso(activity.dueAt),
-        pointsPossible: activity.pointsPossible,
+        id: updated.id,
+        title: updated.title,
+        description: updated.description,
       }
+    },
+  )
+
+  app.patch(
+    '/lessons/:lessonId',
+    {
+      schema: {
+        params: lessonParamsSchema,
+        body: namedEntitySchema,
+        response: {
+          200: mutationResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { lessonId } = lessonParamsSchema.parse(request.params)
+      const payload = namedEntitySchema.parse(request.body)
+      const lesson = await findTeacherLesson(app, lessonId)
+      await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
+
+      const updated = await app.prisma.lesson.update({
+        where: { id: lessonId },
+        data: {
+          title: payload.title,
+          description: payload.description ?? null,
+        },
+      })
+
+      return {
+        id: updated.id,
+        title: updated.title,
+        description: updated.description,
+      }
+    },
+  )
+
+  app.patch(
+    '/activities/:activityId',
+    {
+      schema: {
+        params: activityParamsSchema,
+        body: updateActivityBodySchema,
+        response: {
+          200: activityResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { activityId } = activityParamsSchema.parse(request.params)
+      const payload = updateActivityBodySchema.parse(request.body)
+      const activity = await findTeacherActivity(app, activityId)
+      await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
+
+      const updated = await app.prisma.activity.update({
+        where: { id: activityId },
+        data: {
+          title: payload.title,
+          description: payload.description,
+          directions: payload.directions ?? null,
+          dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
+          pointsPossible: payload.pointsPossible,
+          resourceUrl: payload.resourceUrl ?? null,
+        },
+      })
+
+      return serializeActivity(updated)
     },
   )
 
@@ -670,23 +827,95 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         data: { directions: payload.directions ?? null },
       })
 
-      return {
-        id: updated.id,
-        title: updated.title,
-        type: updated.type,
-        description: updated.description,
-        directions: updated.directions,
-        language: updated.language,
-        languageLocked: updated.languageLocked,
-        starterCode: updated.starterCode,
-        starterFiles: (updated.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
-        expectedOutput: updated.expectedOutput,
-        autograderEnabled: updated.autograderEnabled,
-        resourceUrl: updated.resourceUrl,
-        visible: updated.visible,
-        dueAt: iso(updated.dueAt),
-        pointsPossible: updated.pointsPossible,
-      }
+      return serializeActivity(updated)
+    },
+  )
+
+  app.patch(
+    '/units/:unitId/visibility',
+    {
+      schema: {
+        params: unitParamsSchema,
+        body: visibilitySchema,
+        response: {
+          200: visibilityResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { unitId } = unitParamsSchema.parse(request.params)
+      const payload = visibilitySchema.parse(request.body)
+      const unit = await findTeacherCourseIdFromUnit(app, unitId)
+      await assertTeacherForCourse(app, unit.courseId, user.id)
+
+      await app.prisma.$transaction(async (tx) => {
+        await tx.activity.updateMany({
+          where: {
+            lesson: {
+              unitId,
+            },
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.lesson.updateMany({
+          where: {
+            unitId,
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.unit.update({
+          where: { id: unitId },
+          data: {
+            visible: payload.visible,
+          },
+        })
+      })
+
+      return { id: unitId, visible: payload.visible }
+    },
+  )
+
+  app.patch(
+    '/lessons/:lessonId/visibility',
+    {
+      schema: {
+        params: lessonParamsSchema,
+        body: visibilitySchema,
+        response: {
+          200: visibilityResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { lessonId } = lessonParamsSchema.parse(request.params)
+      const payload = visibilitySchema.parse(request.body)
+      const lesson = await findTeacherLesson(app, lessonId)
+      await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
+
+      await app.prisma.$transaction(async (tx) => {
+        await tx.activity.updateMany({
+          where: {
+            lessonId,
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.lesson.update({
+          where: { id: lessonId },
+          data: {
+            visible: payload.visible,
+          },
+        })
+      })
+
+      return { id: lessonId, visible: payload.visible }
     },
   )
 
@@ -714,6 +943,186 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return { id: updated.id, visible: updated.visible }
+    },
+  )
+
+  app.patch(
+    '/units/:unitId/move',
+    {
+      schema: {
+        params: unitParamsSchema,
+        body: moveSchema,
+        response: {
+          200: reorderResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { unitId } = unitParamsSchema.parse(request.params)
+      const payload = moveSchema.parse(request.body)
+      const unit = await findTeacherCourseIdFromUnit(app, unitId)
+      await assertTeacherForCourse(app, unit.courseId, user.id)
+
+      const siblings = await app.prisma.unit.findMany({
+        where: { courseId: unit.courseId },
+        orderBy: { position: 'asc' },
+        select: { id: true, position: true },
+      })
+
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => tx.unit.update({ where: { id }, data: { position } }),
+          siblings,
+          unitId,
+          payload.direction,
+        )
+      })
+
+      return { id: unitId }
+    },
+  )
+
+  app.patch(
+    '/lessons/:lessonId/move',
+    {
+      schema: {
+        params: lessonParamsSchema,
+        body: moveSchema,
+        response: {
+          200: reorderResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { lessonId } = lessonParamsSchema.parse(request.params)
+      const payload = moveSchema.parse(request.body)
+      const lesson = await findTeacherLesson(app, lessonId)
+      await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
+
+      const siblings = await app.prisma.lesson.findMany({
+        where: { unitId: lesson.unitId },
+        orderBy: { position: 'asc' },
+        select: { id: true, position: true },
+      })
+
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => tx.lesson.update({ where: { id }, data: { position } }),
+          siblings,
+          lessonId,
+          payload.direction,
+        )
+      })
+
+      return { id: lessonId }
+    },
+  )
+
+  app.patch(
+    '/activities/:activityId/move',
+    {
+      schema: {
+        params: activityParamsSchema,
+        body: moveSchema,
+        response: {
+          200: reorderResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { activityId } = activityParamsSchema.parse(request.params)
+      const payload = moveSchema.parse(request.body)
+      const activity = await app.prisma.activity.findUnique({
+        where: { id: activityId },
+        select: {
+          id: true,
+          lessonId: true,
+          lesson: { select: { unit: { select: { courseId: true } } } },
+        },
+      })
+
+      if (!activity) {
+        throw new AppError(404, 'Activity not found')
+      }
+
+      await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
+
+      const siblings = await app.prisma.activity.findMany({
+        where: { lessonId: activity.lessonId },
+        orderBy: { position: 'asc' },
+        select: { id: true, position: true },
+      })
+
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => tx.activity.update({ where: { id }, data: { position } }),
+          siblings,
+          activityId,
+          payload.direction,
+        )
+      })
+
+      return { id: activityId }
+    },
+  )
+
+  app.delete(
+    '/units/:unitId',
+    {
+      schema: {
+        params: unitParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const user = requireRole(request, 'teacher')
+      const { unitId } = unitParamsSchema.parse(request.params)
+      const unit = await findTeacherCourseIdFromUnit(app, unitId)
+      await assertTeacherForCourse(app, unit.courseId, user.id)
+
+      await app.prisma.unit.delete({ where: { id: unitId } })
+      reply.code(204)
+      return null
+    },
+  )
+
+  app.delete(
+    '/lessons/:lessonId',
+    {
+      schema: {
+        params: lessonParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const user = requireRole(request, 'teacher')
+      const { lessonId } = lessonParamsSchema.parse(request.params)
+      const lesson = await findTeacherLesson(app, lessonId)
+      await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
+
+      await app.prisma.lesson.delete({ where: { id: lessonId } })
+      reply.code(204)
+      return null
+    },
+  )
+
+  app.delete(
+    '/activities/:activityId',
+    {
+      schema: {
+        params: activityParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const user = requireRole(request, 'teacher')
+      const { activityId } = activityParamsSchema.parse(request.params)
+      const activity = await findTeacherActivity(app, activityId)
+      await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
+
+      await app.prisma.activity.delete({ where: { id: activityId } })
+      reply.code(204)
+      return null
     },
   )
 
