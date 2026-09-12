@@ -177,8 +177,7 @@ export const GradingPanel = ({
                 <WebProjectEditor
                   key={`${activityId}-${activeStudent.studentId}`}
                   defaultFiles={reviewFiles}
-                  onChange={setReviewFiles}
-                  readOnly={false}
+                  readOnly
                   height="360px"
                 />
               ) : (

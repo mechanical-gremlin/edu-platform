@@ -182,7 +182,9 @@ export const WebProjectEditor = ({
                     >
                       <span className="truncate">{label}</span>
                       {!readOnly && files.length > 1 && (
-                        <span
+                        <button
+                          type="button"
+                          aria-label={`Remove ${file.name}`}
                           className="ml-2 text-slate-500 hover:text-rose-400"
                           onClick={(event) => {
                             event.stopPropagation()
@@ -190,7 +192,7 @@ export const WebProjectEditor = ({
                           }}
                         >
                           ×
-                        </span>
+                        </button>
                       )}
                     </button>
                   )
