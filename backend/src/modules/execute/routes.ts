@@ -57,7 +57,7 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
 
       const payload = executeBodySchema.parse(request.body)
 
-      if (!JUDGE0_LANGUAGE_MAP[payload.language]) {
+      if (!(payload.language in JUDGE0_LANGUAGE_MAP)) {
         throw new AppError(400, `Unsupported language: ${payload.language}`)
       }
 
@@ -75,24 +75,56 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
 
       const judge0ApiUrl = process.env.JUDGE0_API_URL?.trim().replace(/\/+$/, '') || DEFAULT_JUDGE0_API_URL
       const judge0ApiKey = process.env.JUDGE0_API_KEY?.trim() || ''
-      const judge0Host = new URL(judge0ApiUrl).hostname
-      const isRapidApiJudge0 = judge0Host.endsWith('rapidapi.com')
+      let judge0Host: string
+      try {
+        judge0Host = new URL(judge0ApiUrl).hostname
+      } catch {
+        throw new AppError(503, 'Code execution is not configured. JUDGE0_API_URL must be a valid URL.', undefined, true)
+      }
+      const isRapidApiJudge0 = /(^|\.)p\.rapidapi\.com$/i.test(judge0Host)
 
       if (isRapidApiJudge0 && !judge0ApiKey) {
-        throw new AppError(503, 'Code execution is not configured. Set JUDGE0_API_KEY in backend environment variables.')
+        throw new AppError(
+          503,
+          'Code execution is not configured. Set JUDGE0_API_KEY in backend environment variables.',
+          undefined,
+          true,
+        )
       }
 
-      const judge0Response = await fetch(`${judge0ApiUrl}/submissions?base64_encoded=false&wait=true`, {
+      const judge0TimeoutMs = Number(process.env.JUDGE0_REQUEST_TIMEOUT_MS ?? 12_000)
+      const pollIntervalMs = Number(process.env.JUDGE0_POLL_INTERVAL_MS ?? 300)
+      const maxPollAttempts = Number(process.env.JUDGE0_MAX_POLL_ATTEMPTS ?? 30)
+      const requestTimeoutMs = Number.isFinite(judge0TimeoutMs) && judge0TimeoutMs > 0 ? judge0TimeoutMs : 12_000
+      const pollDelayMs = Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 300
+      const pollAttempts = Number.isFinite(maxPollAttempts) && maxPollAttempts > 0 ? maxPollAttempts : 30
+
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(isRapidApiJudge0 && judge0ApiKey
+          ? {
+              'X-RapidAPI-Key': judge0ApiKey,
+              'X-RapidAPI-Host': judge0Host,
+            }
+          : {}),
+      }
+      const fetchWithTimeout = async (input: string, init: RequestInit) => {
+        try {
+          return await fetch(input, {
+            ...init,
+            signal: AbortSignal.timeout(requestTimeoutMs),
+          })
+        } catch (error) {
+          if (error instanceof Error && error.name === 'TimeoutError') {
+            throw new AppError(504, 'Code execution timed out. Try again with smaller input.', undefined, true)
+          }
+          throw new AppError(502, 'Unable to reach code execution service.')
+        }
+      }
+
+      const submitResponse = await fetchWithTimeout(`${judge0ApiUrl}/submissions?base64_encoded=false&wait=false`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(judge0ApiKey
-            ? {
-                'X-RapidAPI-Key': judge0ApiKey,
-                'X-RapidAPI-Host': judge0Host,
-              }
-            : {}),
-        },
+        headers,
         body: JSON.stringify({
           source_code: payload.code,
           language_id: JUDGE0_LANGUAGE_MAP[payload.language],
@@ -100,9 +132,15 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
         }),
       })
 
-      if (!judge0Response.ok) {
-        const text = await judge0Response.text().catch(() => '')
-        throw new AppError(502, `Code execution service error: ${judge0Response.status} ${text.slice(0, 200)}`)
+      if (!submitResponse.ok) {
+        const text = await submitResponse.text().catch(() => '')
+        throw new AppError(502, `Code execution service error: ${submitResponse.status} ${text.slice(0, 200)}`)
+      }
+
+      const tokenPayload = (await submitResponse.json()) as { token?: string | null }
+      const token = tokenPayload.token?.trim()
+      if (!token) {
+        throw new AppError(502, 'Code execution service error: missing submission token')
       }
 
       interface Judge0Result {
@@ -117,7 +155,33 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
         memory?: number | null
       }
 
-      const result = (await judge0Response.json()) as Judge0Result
+      const pendingStatus = new Set([1, 2])
+      let result: Judge0Result | null = null
+      for (let attempt = 0; attempt < pollAttempts; attempt += 1) {
+        const pollResponse = await fetchWithTimeout(`${judge0ApiUrl}/submissions/${token}?base64_encoded=false`, {
+          method: 'GET',
+          headers,
+        })
+
+        if (!pollResponse.ok) {
+          const text = await pollResponse.text().catch(() => '')
+          throw new AppError(502, `Code execution service error: ${pollResponse.status} ${text.slice(0, 200)}`)
+        }
+
+        result = (await pollResponse.json()) as Judge0Result
+        const statusId = result.status?.id
+        if (statusId === undefined || !pendingStatus.has(statusId)) {
+          break
+        }
+
+        if (attempt < pollAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, pollDelayMs))
+        }
+      }
+
+      if (!result || pendingStatus.has(result.status?.id ?? -1)) {
+        throw new AppError(504, 'Code execution timed out. Try again with smaller input.', undefined, true)
+      }
       return {
         stdout: result.stdout ?? null,
         stderr: result.stderr ?? null,

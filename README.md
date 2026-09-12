@@ -46,7 +46,9 @@ npm --prefix backend run dev
 
 API default URL: `http://localhost:3001`
 
-> To enable code execution locally, set `JUDGE0_API_KEY` in `backend/.env` (free RapidAPI tier works).
+> To enable code execution locally, either:
+> - use RapidAPI Judge0 (`JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com`) + `JUDGE0_API_KEY`, or
+> - point `JUDGE0_API_URL` to a self-hosted Judge0 instance (no RapidAPI key required).
 
 Demo auth header:
 
@@ -75,7 +77,7 @@ curl -H 'x-user-id: s-1' http://localhost:3001/courses
    - call the API `/health` endpoint to confirm the backend is live
    - use the demo `x-user-id` values above to test authenticated API routes
    - set frontend env var `VITE_API_BASE_URL` to your deployed API URL so frontend can call backend endpoints
-   - set backend env var `JUDGE0_API_KEY` so coding activities can run code
+   - if using RapidAPI Judge0, set backend env var `JUDGE0_API_KEY` so coding activities can run code (self-hosted Judge0 does not require it)
 6. If you see `Route GET:/ not found` on Render, see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for service URL expectations and full deployment checks.
 
 ### Render behavior

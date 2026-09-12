@@ -39,7 +39,7 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
           : 500
     const errorName = error instanceof AppError ? error.error : fastifyError.name || 'Error'
     const message =
-      error instanceof AppError
+      error instanceof AppError && error.expose
         ? error.message
         : statusCode >= 500
           ? 'Internal Server Error'

@@ -54,12 +54,13 @@ loads but run requests return a clear configuration error from the backend.
 ```dotenv
 JUDGE0_API_KEY=your_rapidapi_key_here
 JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com
+JUDGE0_REQUEST_TIMEOUT_MS=12000
 ```
 
 Leave `JUDGE0_API_KEY` blank only if you are pointing `JUDGE0_API_URL` to a
 self-hosted Judge0 instance that does not require RapidAPI authentication.
 
-### 2. Get a free Sulu API key
+### 2. Get a free RapidAPI Judge0 key
 
 Sulu is Judge0's hosted cloud service available through RapidAPI:
 
