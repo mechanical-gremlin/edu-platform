@@ -15,6 +15,7 @@ const PISTON_LANGUAGE_MAP: Record<string, string> = {
   cpp:        'c++',
   csharp:     'csharp',
   html:       'html',     // short-circuited below — never sent to Piston
+  web:        'web',      // short-circuited below — never sent to Piston
   php:        'php',
   ruby:       'ruby',
   go:         'go',
@@ -61,10 +62,10 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
         throw new AppError(400, `Unsupported language: ${payload.language}`)
       }
 
-      // HTML is rendered client-side; no server execution needed.
-      if (payload.language === 'html') {
+      // HTML and web projects are rendered client-side; no server execution needed.
+      if (payload.language === 'html' || payload.language === 'web') {
         return {
-          stdout: '(HTML is rendered in the browser preview — no server execution needed)',
+          stdout: '(Web project is rendered in the browser preview — no server execution needed)',
           stderr: null,
           compile_output: null,
           status: { id: 3, description: 'Accepted' },

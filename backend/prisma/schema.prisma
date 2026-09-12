@@ -106,7 +106,9 @@ model Activity {
   type           ActivityType
   description    String
   directions     String?
+  language       String?
   starterCode    String?
+  starterFiles   Json?
   expectedOutput String?
   resourceUrl    String?
   visible        Boolean      @default(true)

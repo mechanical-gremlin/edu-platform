@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
 import { DirectionsEditor } from '../teacher/DirectionsEditor'
 import { MonacoEditor } from '../coding/MonacoEditor'
-import type { Activity, GradebookEntry, UpdateActivityDirectionsInput, User } from '../../types/models'
+import { WebProjectEditor } from '../coding/WebProjectEditor'
+import type { Activity, GradebookEntry, StarterFile, UpdateActivityDirectionsInput, User } from '../../types/models'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
 
@@ -113,8 +114,9 @@ export const ActivityFullScreen = ({
   const [submissionText, setSubmissionText] = useState('')
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [monacoLanguage, setMonacoLanguage] = useState('javascript')
+  const [monacoLanguage, setMonacoLanguage] = useState(activity.language ?? 'javascript')
   const [monacoCode, setMonacoCode] = useState(activity.starterCode ?? '')
+  const [webFiles, setWebFiles] = useState<StarterFile[]>(activity.starterFiles ?? [])
   const currentIndex = allActivities.findIndex((currentActivity) => currentActivity.id === activity.id)
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
@@ -129,8 +131,10 @@ export const ActivityFullScreen = ({
     setDirectionsError(null)
     setSubmissionText(gradeEntry?.submissionText ?? '')
     setSubmissionError(null)
+    setMonacoLanguage(activity.language ?? 'javascript')
     setMonacoCode(activity.starterCode ?? '')
-  }, [activity.directions, activity.id, activity.starterCode, currentUser.role, gradeEntry?.submissionText])
+    setWebFiles(activity.starterFiles ?? [])
+  }, [activity.directions, activity.id, activity.language, activity.starterCode, activity.starterFiles, currentUser.role, gradeEntry?.submissionText])
 
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
   const isSubmitted = Boolean(gradeEntry?.submitted)
@@ -139,6 +143,25 @@ export const ActivityFullScreen = ({
 
   const renderWorkspace = () => {
     if (activity.type === 'coding') {
+      const isWeb = activity.language === 'web'
+
+      if (isWeb) {
+        return (
+          <WebProjectEditor
+            key={activity.id}
+            defaultFiles={activity.starterFiles ?? null}
+            onChange={(files) => {
+              setWebFiles(files)
+              if (currentUser.role === 'student') {
+                setSubmissionText(JSON.stringify(files))
+              }
+            }}
+            readOnly={false}
+            height="500px"
+          />
+        )
+      }
+
       return (
         <MonacoEditor
           key={activity.id}
@@ -155,7 +178,7 @@ export const ActivityFullScreen = ({
           executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
           userId={currentUser.id}
           expectedOutput={activity.expectedOutput}
-          minHeight="450px"
+          minHeight="500px"
         />
       )
     }
@@ -410,12 +433,21 @@ export const ActivityFullScreen = ({
               </p>
               <button
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                disabled={submitting || (activity.type === 'coding' ? monacoCode.trim().length === 0 : submissionText.trim().length === 0)}
+                disabled={submitting || (activity.type === 'coding'
+                  ? (activity.language === 'web' ? webFiles.length === 0 : monacoCode.trim().length === 0)
+                  : submissionText.trim().length === 0)}
                 onClick={async () => {
                   try {
                     setSubmitting(true)
                     setSubmissionError(null)
-                    const textToSubmit = activity.type === 'coding' ? monacoCode : submissionText.trim()
+                    let textToSubmit: string
+                    if (activity.type === 'coding') {
+                      textToSubmit = activity.language === 'web'
+                        ? JSON.stringify(webFiles)
+                        : monacoCode
+                    } else {
+                      textToSubmit = submissionText.trim()
+                    }
                     await onSubmitActivity?.(activity.id, textToSubmit)
                   } catch (saveError) {
                     setSubmissionError(
