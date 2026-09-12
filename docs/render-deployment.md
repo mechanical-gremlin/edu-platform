@@ -1,62 +1,66 @@
 # Render Deployment Guide
 
-## Why you are seeing `Route GET:/ not found`
+## Current deployment setup
 
-The backend is a Fastify API service. If you open the API service URL directly at `/`, Fastify returns a route-not-found error unless a root route exists.
+The live environment was set up manually through the Render dashboard — **not** via the `render.yaml` Blueprint. The three services were created individually:
 
-Also, this repository is designed to run as **two Render services**:
+- `edu-platform-frontend` — Static Site
+- `edu-platform-api` — Web Service (Node)
+- `edu-platform-db` — PostgreSQL database
 
-- `edu-platform-frontend` (static site) for the demo UI
-- `edu-platform-api` (Node web service) for API endpoints like `/health`, `/me`, `/courses`
+The `render.yaml` file in the repo root reflects the intended Blueprint configuration and can be used as a reference, but the live services were provisioned by hand.
 
-If you deploy only one web service from `backend`, visiting `/` will not show the frontend app.
+---
 
-## Correct deployment steps (Blueprint)
+## Service configuration reference
 
-1. In Render, choose **New +** → **Blueprint**.
-2. Connect `mechanical-gremlin/edu-platform`.
-3. Deploy using `/home/runner/work/edu-platform/edu-platform/render.yaml`.
-4. Confirm Render creates:
-   - `edu-platform-frontend` (Static Site)
-   - `edu-platform-api` (Web Service)
-   - `edu-platform-db` (PostgreSQL)
-5. After deploy:
-   - Open the **frontend URL** for the demo product experience.
-   - Use the API URL for API checks (`/health`, `/me`, etc.).
+### Backend web service (`edu-platform-api`)
 
-## Expected URLs and checks
+| Setting | Value |
+|---|---|
+| Root directory | `backend` |
+| Build command | `npm ci && npm run prisma:generate && npm run build` |
+| Start command | `npm run prisma:migrate:deploy && npm run prisma:seed:if-empty && npm run start` |
+| Health check path | `/health` |
+| `DATABASE_URL` | from the linked `edu-platform-db` Postgres instance |
+| `JUDGE0_API_KEY` | set manually in Render dashboard — never commit to repo |
+| `JUDGE0_API_URL` | `https://judge0-ce.p.rapidapi.com` |
 
-- Frontend: open service root `/`
-- API health: `GET /health` should return:
-  ```json
-  { "status": "ok" }
-  ```
-- API root: `GET /` now returns service metadata.
+### Frontend static site (`edu-platform-frontend`)
 
-## Important Render settings
+| Setting | Value |
+|---|---|
+| Root directory | `frontend` |
+| Build command | `npm ci && npm run build` |
+| Publish directory | `dist` |
+| `VITE_API_BASE_URL` | `https://<your-api-service>.onrender.com` |
+| SPA rewrite | `/* → /index.html` |
+| `Cross-Origin-Opener-Policy` | `same-origin` |
+| `Cross-Origin-Embedder-Policy` | `credentialless` |
 
-- API service root directory: `backend`
-- API build command: `npm ci && npm run prisma:generate && npm run build`
-- API start command: `npm run prisma:migrate:deploy && npm run prisma:seed:if-empty && npm run start`
-- API health check path: `/health`
-- Frontend static publish path: `dist`
-- Frontend rewrite: `/* -> /index.html`
-- Frontend environment variable: `VITE_API_BASE_URL=https://<your-api-service>.onrender.com`
+---
 
-## Manual setup (no Blueprint)
+## Verifying the deployment
 
-If you are deploying for free and not using Blueprint:
+After a deploy:
 
-### Backend web service
-- Root directory: `backend`
-- Build command: `npm ci && npm run prisma:generate && npm run build`
-- Start command: `npm run prisma:migrate:deploy && npm run prisma:seed:if-empty && npm run start`
-- Health check path: `/health`
-- Environment variable: `DATABASE_URL` from your Render Postgres instance
+```bash
+# Backend health
+curl https://<api-url>.onrender.com/health
+# Expected: { "status": "ok" }
 
-### Frontend static site
-- Root directory: leave blank
-- Build command: `npm --prefix frontend ci && npm --prefix frontend run build`
-- Publish directory: `frontend/dist`
-- Environment variable: `VITE_API_BASE_URL=https://<your-api-service>.onrender.com`
-- Add SPA rewrite rule in Static Site settings: `/* -> /index.html`
+# Authenticated check
+curl -H 'x-user-id: t-1' https://<api-url>.onrender.com/me
+curl -H 'x-user-id: s-1' https://<api-url>.onrender.com/courses
+```
+
+Open the frontend URL in a browser to verify the UI loads and connects to the API.
+
+---
+
+## Notes
+
+- The API build installs dependencies, generates the Prisma client, and compiles TypeScript.
+- The start command runs outstanding Prisma migrations and seeds demo data only when the database is empty.
+- `JUDGE0_API_KEY` is marked `sync: false` in `render.yaml` and must never be committed to the repository. Set it directly in the Render dashboard under the API service's Environment settings.
+- If you see `Route GET:/ not found` when hitting the API root directly, this is expected — the Fastify API does not serve the frontend. Open the frontend static site URL instead.
