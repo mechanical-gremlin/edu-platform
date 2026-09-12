@@ -21,8 +21,8 @@ Browser (Monaco editor)
     → output displayed in editor panel
 ```
 
-If no Judge0 API key is configured, the Monaco editor still works fully as a code
-editor — the Run button is simply not shown to users.
+If no Judge0 API key is configured for the RapidAPI endpoint, the editor still
+loads but run requests return a clear configuration error from the backend.
 
 ---
 
@@ -54,11 +54,13 @@ editor — the Run button is simply not shown to users.
 ```dotenv
 JUDGE0_API_KEY=your_rapidapi_key_here
 JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com
+JUDGE0_REQUEST_TIMEOUT_MS=12000
 ```
 
-Leave `JUDGE0_API_KEY` blank to run without code execution (editor still works).
+Leave `JUDGE0_API_KEY` blank only if you are pointing `JUDGE0_API_URL` to a
+self-hosted Judge0 instance that does not require RapidAPI authentication.
 
-### 2. Get a free Sulu API key
+### 2. Get a free RapidAPI Judge0 key
 
 Sulu is Judge0's hosted cloud service available through RapidAPI:
 
@@ -177,5 +179,5 @@ The starter code and expected output are stored in the database (`activities.sta
   same structure already used by other activity types. No schema change was required.
 - The Monaco editor component lives at `frontend/src/components/coding/MonacoEditor.tsx`
   and can be reused for any future code-editing surface in the platform.
-- If `JUDGE0_API_KEY` is not set, the backend returns HTTP 503 and the frontend hides
-  the Run button entirely — the editor degrades gracefully.
+- If `JUDGE0_API_KEY` is missing while using the RapidAPI URL, the backend returns
+  HTTP 503 with a configuration message so the failure is actionable.

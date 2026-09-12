@@ -2,26 +2,25 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { AppError, requireUser } from '../../lib.js'
 
-const PISTON_API_URL = 'https://emkc.org/api/v2/piston/execute'
+const DEFAULT_JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com'
 
-// Maps our internal language keys to Piston runtime language slugs.
-// Full list: GET https://emkc.org/api/v2/piston/runtimes
-const PISTON_LANGUAGE_MAP: Record<string, string> = {
-  javascript: 'javascript',
-  typescript: 'typescript',
-  python:     'python',
-  java:       'java',
-  c:          'c',
-  cpp:        'c++',
-  csharp:     'csharp',
-  html:       'html',     // short-circuited below — never sent to Piston
-  web:        'web',      // short-circuited below — never sent to Piston
-  php:        'php',
-  ruby:       'ruby',
-  go:         'go',
-  rust:       'rust',
-  swift:      'swift',
-  kotlin:     'kotlin',
+// Maps our internal language keys to Judge0 language IDs.
+const JUDGE0_LANGUAGE_MAP: Record<string, number> = {
+  javascript: 93,
+  typescript: 94,
+  python: 92,
+  java: 91,
+  c: 104,
+  cpp: 105,
+  csharp: 51,
+  html: -1, // short-circuited below — never sent to Judge0
+  web: -1, // short-circuited below — never sent to Judge0
+  php: 68,
+  ruby: 72,
+  go: 95,
+  rust: 73,
+  swift: 83,
+  kotlin: 78,
 }
 
 const executeBodySchema = z.object({
@@ -58,7 +57,7 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
 
       const payload = executeBodySchema.parse(request.body)
 
-      if (!PISTON_LANGUAGE_MAP[payload.language]) {
+      if (!(payload.language in JUDGE0_LANGUAGE_MAP)) {
         throw new AppError(400, `Unsupported language: ${payload.language}`)
       }
 
@@ -74,51 +73,125 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      // Submit to Piston (no API key required).
-      const pistonResponse = await fetch(PISTON_API_URL, {
+      const judge0ApiUrl = process.env.JUDGE0_API_URL?.trim().replace(/\/+$/, '') || DEFAULT_JUDGE0_API_URL
+      const judge0ApiKey = process.env.JUDGE0_API_KEY?.trim() || ''
+      let judge0Host: string
+      try {
+        judge0Host = new URL(judge0ApiUrl).hostname
+      } catch {
+        throw new AppError(503, 'Code execution is not configured. JUDGE0_API_URL must be a valid URL.', undefined, true)
+      }
+      const isRapidApiJudge0 = /(^|\.)p\.rapidapi\.com$/i.test(judge0Host)
+
+      if (isRapidApiJudge0 && !judge0ApiKey) {
+        throw new AppError(
+          503,
+          'Code execution is not configured. Set JUDGE0_API_KEY in backend environment variables.',
+          undefined,
+          true,
+        )
+      }
+
+      const judge0TimeoutMs = Number(process.env.JUDGE0_REQUEST_TIMEOUT_MS ?? 12_000)
+      const pollIntervalMs = Number(process.env.JUDGE0_POLL_INTERVAL_MS ?? 300)
+      const maxPollAttempts = Number(process.env.JUDGE0_MAX_POLL_ATTEMPTS ?? 30)
+      const requestTimeoutMs = Number.isFinite(judge0TimeoutMs) && judge0TimeoutMs > 0 ? judge0TimeoutMs : 12_000
+      const pollDelayMs = Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 300
+      const pollAttempts = Number.isFinite(maxPollAttempts) && maxPollAttempts > 0 ? maxPollAttempts : 30
+
+      const headers = {
+        'Content-Type': 'application/json',
+        ...(isRapidApiJudge0 && judge0ApiKey
+          ? {
+              'X-RapidAPI-Key': judge0ApiKey,
+              'X-RapidAPI-Host': judge0Host,
+            }
+          : {}),
+      }
+      const fetchWithTimeout = async (input: string, init: RequestInit) => {
+        try {
+          return await fetch(input, {
+            ...init,
+            signal: AbortSignal.timeout(requestTimeoutMs),
+          })
+        } catch (error) {
+          if (error instanceof Error && error.name === 'TimeoutError') {
+            throw new AppError(504, 'Code execution timed out. Try again with smaller input.', undefined, true)
+          }
+          throw new AppError(502, 'Unable to reach code execution service.')
+        }
+      }
+
+      const submitResponse = await fetchWithTimeout(`${judge0ApiUrl}/submissions?base64_encoded=false&wait=false`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
-          language: PISTON_LANGUAGE_MAP[payload.language],
-          version: '*',
-          files: [{ content: payload.code }],
+          source_code: payload.code,
+          language_id: JUDGE0_LANGUAGE_MAP[payload.language],
           stdin: payload.stdin ?? '',
         }),
       })
 
-      if (!pistonResponse.ok) {
-        const text = await pistonResponse.text().catch(() => '')
-        throw new AppError(502, `Code execution service error: ${pistonResponse.status} ${text.slice(0, 200)}`)
+      if (!submitResponse.ok) {
+        const text = await submitResponse.text().catch(() => '')
+        throw new AppError(502, `Code execution service error: ${submitResponse.status} ${text.slice(0, 200)}`)
       }
 
-      interface PistonStage {
-        stdout: string
-        stderr: string
-        code: number | null
-        signal: string | null
-        output: string
-      }
-      interface PistonResult {
-        run: PistonStage
-        compile?: PistonStage
+      const tokenPayload = (await submitResponse.json()) as { token?: string | null }
+      const token = tokenPayload.token?.trim()
+      if (!token) {
+        throw new AppError(502, 'Code execution service error: missing submission token')
       }
 
-      const result = (await pistonResponse.json()) as PistonResult
-      const run = result.run
-      const compile = result.compile
+      interface Judge0Result {
+        stdout: string | null
+        stderr: string | null
+        compile_output: string | null
+        status?: {
+          id: number
+          description: string
+        }
+        time?: string | null
+        memory?: number | null
+      }
 
-      const accepted = run.code === 0 && !compile?.code
-      const compileError = compile !== undefined && compile.code !== 0
+      const pendingStatus = new Set([1, 2])
+      let result: Judge0Result | null = null
+      for (let attempt = 0; attempt < pollAttempts; attempt += 1) {
+        const pollResponse = await fetchWithTimeout(`${judge0ApiUrl}/submissions/${token}?base64_encoded=false`, {
+          method: 'GET',
+          headers,
+        })
+
+        if (!pollResponse.ok) {
+          const text = await pollResponse.text().catch(() => '')
+          throw new AppError(502, `Code execution service error: ${pollResponse.status} ${text.slice(0, 200)}`)
+        }
+
+        result = (await pollResponse.json()) as Judge0Result
+        const statusId = result.status?.id
+        if (statusId === undefined || !pendingStatus.has(statusId)) {
+          break
+        }
+
+        if (attempt < pollAttempts - 1) {
+          await new Promise((resolve) => setTimeout(resolve, pollDelayMs))
+        }
+      }
+
+      if (!result || pendingStatus.has(result.status?.id ?? -1)) {
+        throw new AppError(504, 'Code execution timed out. Try again with smaller input.', undefined, true)
+      }
       return {
-        stdout: run.stdout || null,
-        stderr: run.stderr || null,
-        compile_output: compile?.stderr || null,
-        status: {
-          id: compileError ? 6 : accepted ? 3 : 11,
-          description: compileError ? 'Compilation Error' : accepted ? 'Accepted' : 'Runtime Error',
+        stdout: result.stdout ?? null,
+        stderr: result.stderr ?? null,
+        compile_output: result.compile_output ?? null,
+        status: result.status ?? {
+          id: 11,
+          description: 'Runtime Error',
         },
-        time: null,
-        memory: null,
+        time: result.time ?? null,
+        memory: result.memory ?? null,
       }
     },
   )

@@ -7,6 +7,7 @@ export class AppError extends Error {
     public readonly statusCode: number,
     message: string,
     public readonly error = STATUS_CODES[statusCode] ?? 'Error',
+    public readonly expose = statusCode < 500,
   ) {
     super(message)
   }
