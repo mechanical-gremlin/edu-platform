@@ -93,7 +93,7 @@ export const ActivityCreationModal = ({
     (testCase) => testCase.input.trim() || testCase.expectedOutput.trim(),
   )
   const autograderCasesValid = activeAutograderCases.every(
-    (testCase) => testCase.input.length > 0 && testCase.expectedOutput.trim(),
+    (testCase) => testCase.expectedOutput.trim(),
   )
   const autograderValid = !autograderEnabled || (
     autograderSupported
@@ -361,7 +361,7 @@ export const ActivityCreationModal = ({
                               <div>
                                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Input/output checks</p>
                                 <p className="mt-1 text-xs text-slate-500">
-                                  Each case needs both input and expected output. Use the separate output check for no-input programs.
+                                  Each case needs an expected output. Leave input blank if the program should run with empty stdin.
                                 </p>
                               </div>
                               <button
@@ -426,7 +426,6 @@ export const ActivityCreationModal = ({
                       {!autograderValid && (
                         <p className="text-xs text-rose-600">
                           Add a suggested solution, choose at least one check, and fill every expected-output field before saving.
-                          Input/output cases must include both fields.
                         </p>
                       )}
                     </div>
@@ -485,7 +484,7 @@ export const ActivityCreationModal = ({
                   autograderTestCases:
                     type === 'coding' && autograderEnabled && autograderSupported
                       ? activeAutograderCases
-                          .filter((testCase) => testCase.input.length > 0 && testCase.expectedOutput.trim())
+                          .filter((testCase) => testCase.expectedOutput.trim())
                           .map((testCase) => ({
                             input: testCase.input,
                             expectedOutput: testCase.expectedOutput.trim(),

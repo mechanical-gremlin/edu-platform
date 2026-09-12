@@ -844,6 +844,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
               select: {
                 id: true,
                 gradingSource: true,
+                comment: true,
               },
             })
 
@@ -854,10 +855,12 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
             if (existingGrade?.gradingSource === 'manual') {
               await app.prisma.grade.update({
                 where: { id: existingGrade.id },
-                data: {
-                  ...autograderPayload,
-                  comment: `New submission received after teacher override. ${buildAutograderComment(autograderResult)}`,
-                },
+                data: existingGrade.comment?.trim()
+                  ? autograderPayload
+                  : {
+                      ...autograderPayload,
+                      comment: buildAutograderComment(autograderResult),
+                    },
               })
             } else {
               await app.prisma.grade.upsert({
