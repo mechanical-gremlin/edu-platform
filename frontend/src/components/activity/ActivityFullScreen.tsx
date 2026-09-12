@@ -1,11 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
 import { DirectionsEditor } from '../teacher/DirectionsEditor'
 import { MonacoEditor } from '../coding/MonacoEditor'
 import { WebProjectEditor } from '../coding/WebProjectEditor'
 import type { Activity, GradebookEntry, StarterFile, UpdateActivityDirectionsInput, User } from '../../types/models'
+import {
+  parseSubmissionFiles,
+  readCodingDraft,
+  saveCodingDraft,
+  saveCodingDraftCheckpoint,
+  serializeSubmissionFiles,
+  type CodingDraftSnapshot,
+} from '../../utils/codingDrafts'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
+const DEFAULT_WEB_FILE: StarterFile[] = [{ name: 'index.html', language: 'html', content: '' }]
+
+const formatSavedAt = (value: string | null) => {
+  if (!value) {
+    return 'Not saved yet'
+  }
+
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? 'Saved' : `Saved ${parsed.toLocaleString()}`
+}
 
 interface ActivityFullScreenProps {
   activity: Activity
@@ -24,7 +42,7 @@ interface ActivityFullScreenProps {
 
 const typeCopy: Record<Activity['type'], string> = {
   video: 'Use the embedded player or launch the demo link, then submit a short reflection.',
-  coding: 'Write and run your code in the embedded editor below. When finished, copy your code into the submission box and submit.',
+  coding: 'Write and run your code in the embedded editor below. Drafts auto-save on this device so you can come back and keep working later.',
   quiz: 'Respond in the workspace below and submit when complete.',
   project: 'Use the linked tool or your own workspace, then submit a summary or share link.',
   godot: 'Launch the browser Godot editor and submit the project link or build notes.',
@@ -117,12 +135,21 @@ export const ActivityFullScreen = ({
   const [monacoLanguage, setMonacoLanguage] = useState(activity.language ?? 'javascript')
   const [monacoCode, setMonacoCode] = useState(activity.starterCode ?? '')
   const [webFiles, setWebFiles] = useState<StarterFile[]>(activity.starterFiles ?? [])
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
+  const [draftHistory, setDraftHistory] = useState<CodingDraftSnapshot[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [webEditorResetKey, setWebEditorResetKey] = useState(0)
+  const savedDraftSignatureRef = useRef<string | null>(null)
+  const draftHistoryRef = useRef<CodingDraftSnapshot[]>([])
+  const historyPanelId = useId()
   const currentIndex = allActivities.findIndex((currentActivity) => currentActivity.id === activity.id)
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
   const gradeEntry = gradebookEntries.find(
     (entry) => entry.activityId === activity.id && entry.studentId === currentUser.id,
   )
+  const isCodingActivity = activity.type === 'coding'
+  const isWebActivity = isCodingActivity && activity.language === 'web'
 
   useEffect(() => {
     setDirectionsOpen(Boolean(activity.directions) || currentUser.role === 'teacher')
@@ -131,30 +158,234 @@ export const ActivityFullScreen = ({
     setDirectionsError(null)
     setSubmissionText(gradeEntry?.submissionText ?? '')
     setSubmissionError(null)
-    setMonacoLanguage(activity.language ?? 'javascript')
-    setMonacoCode(activity.starterCode ?? '')
-    setWebFiles(activity.starterFiles ?? [])
-  }, [activity.directions, activity.id, activity.language, activity.starterCode, activity.starterFiles, currentUser.role, gradeEntry?.submissionText])
+    setHistoryOpen(false)
+
+    if (!isCodingActivity) {
+      setDraftSavedAt(null)
+      setDraftHistory([])
+      draftHistoryRef.current = []
+      setMonacoLanguage(activity.language ?? 'javascript')
+      setMonacoCode(activity.starterCode ?? '')
+      setWebFiles(activity.starterFiles ?? [])
+      savedDraftSignatureRef.current = null
+      return
+    }
+
+    const storedDraft =
+      currentUser.role === 'student' ? readCodingDraft(currentUser.id, activity.id) : null
+
+    const fallbackFiles =
+      activity.starterFiles && activity.starterFiles.length > 0 ? activity.starterFiles : DEFAULT_WEB_FILE
+    const submittedFiles =
+      gradeEntry?.submissionFiles && gradeEntry.submissionFiles.length > 0
+        ? gradeEntry.submissionFiles
+        : parseSubmissionFiles(gradeEntry?.submissionText, fallbackFiles)
+
+    if (isWebActivity) {
+      const nextFiles =
+        storedDraft?.submissionFiles && storedDraft.submissionFiles.length > 0
+          ? storedDraft.submissionFiles
+          : gradeEntry?.submitted
+            ? submittedFiles
+            : fallbackFiles
+
+      setMonacoLanguage(activity.language ?? 'web')
+      setMonacoCode('')
+      setWebFiles(nextFiles)
+      setWebEditorResetKey((value) => value + 1)
+      setSubmissionText(storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles))
+      savedDraftSignatureRef.current = `web:${storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles)}`
+    } else {
+      const nextLanguage = storedDraft?.language ?? activity.language ?? 'javascript'
+      const nextCode = storedDraft?.submissionText ?? gradeEntry?.submissionText ?? activity.starterCode ?? ''
+      setMonacoLanguage(nextLanguage)
+      setMonacoCode(nextCode)
+      setWebFiles(activity.starterFiles ?? [])
+      setSubmissionText(nextCode)
+      savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
+    }
+
+    setDraftSavedAt(storedDraft?.updatedAt ?? null)
+    setDraftHistory(storedDraft?.history ?? [])
+    draftHistoryRef.current = storedDraft?.history ?? []
+  }, [
+    activity.directions,
+    activity.id,
+    activity.language,
+    activity.starterCode,
+    activity.starterFiles,
+    currentUser.id,
+    currentUser.role,
+    gradeEntry?.submissionFiles,
+    gradeEntry?.submissionText,
+    gradeEntry?.submitted,
+    isCodingActivity,
+    isWebActivity,
+  ])
 
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
   const isSubmitted = Boolean(gradeEntry?.submitted)
   const embeddedUrl = useMemo(() => getEmbeddedUrl(activity), [activity])
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
   const languageLockedForStudents = Boolean(activity.languageLocked && activity.language)
+  const codingSubmissionText = isWebActivity ? serializeSubmissionFiles(webFiles) : monacoCode
+  const currentDraftSignature = `${isWebActivity ? 'web' : monacoLanguage}:${codingSubmissionText}`
+
+  useEffect(() => {
+    if (
+      currentUser.role !== 'student'
+      || !isCodingActivity
+      || savedDraftSignatureRef.current === currentDraftSignature
+    ) {
+      return
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const savedDraft = saveCodingDraft({
+        activityId: activity.id,
+        history: draftHistoryRef.current,
+        language: isWebActivity ? 'web' : monacoLanguage,
+        submissionFiles: isWebActivity ? webFiles : null,
+        submissionText: codingSubmissionText,
+        userId: currentUser.id,
+      })
+
+      if (savedDraft) {
+        setDraftSavedAt(savedDraft.updatedAt)
+        savedDraftSignatureRef.current = currentDraftSignature
+      }
+    }, 500)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [
+    activity.id,
+    codingSubmissionText,
+    currentDraftSignature,
+    currentUser.id,
+    currentUser.role,
+    isCodingActivity,
+    isWebActivity,
+    monacoLanguage,
+    webFiles,
+  ])
+
+  const handleSaveCheckpoint = () => {
+    if (currentUser.role !== 'student' || !isCodingActivity) {
+      return
+    }
+
+    const savedDraft = saveCodingDraftCheckpoint({
+      activityId: activity.id,
+      language: isWebActivity ? 'web' : monacoLanguage,
+      submissionFiles: isWebActivity ? webFiles : null,
+      submissionText: codingSubmissionText,
+      userId: currentUser.id,
+    })
+
+    if (savedDraft) {
+      setDraftSavedAt(savedDraft.updatedAt)
+      draftHistoryRef.current = savedDraft.history
+      setDraftHistory(savedDraft.history)
+      setHistoryOpen(true)
+    }
+  }
+
+  const handleRestoreSnapshot = (snapshot: CodingDraftSnapshot) => {
+    if (isWebActivity) {
+      const nextFiles = snapshot.submissionFiles && snapshot.submissionFiles.length > 0
+        ? snapshot.submissionFiles
+        : activity.starterFiles ?? DEFAULT_WEB_FILE
+      setWebFiles(nextFiles)
+      setSubmissionText(snapshot.submissionText || serializeSubmissionFiles(nextFiles))
+      if (currentUser.role === 'student') {
+        const savedDraft = saveCodingDraft({
+          activityId: activity.id,
+          history: draftHistoryRef.current,
+          language: 'web',
+          submissionFiles: nextFiles,
+          submissionText: snapshot.submissionText || serializeSubmissionFiles(nextFiles),
+          userId: currentUser.id,
+        })
+        setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+        savedDraftSignatureRef.current = `web:${snapshot.submissionText || serializeSubmissionFiles(nextFiles)}`
+      }
+      setWebEditorResetKey((value) => value + 1)
+    } else {
+      setMonacoLanguage(snapshot.language)
+      setMonacoCode(snapshot.submissionText)
+      setSubmissionText(snapshot.submissionText)
+      if (currentUser.role === 'student') {
+        const savedDraft = saveCodingDraft({
+          activityId: activity.id,
+          history: draftHistoryRef.current,
+          language: snapshot.language,
+          submissionText: snapshot.submissionText,
+          userId: currentUser.id,
+        })
+        setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+        savedDraftSignatureRef.current = `${snapshot.language}:${snapshot.submissionText}`
+      }
+    }
+  }
+
+  const handleResetWorkspace = () => {
+    if (!isCodingActivity) {
+      return
+    }
+
+    if (isWebActivity) {
+      const nextFiles = activity.starterFiles && activity.starterFiles.length > 0
+        ? activity.starterFiles
+        : DEFAULT_WEB_FILE
+      setWebFiles(nextFiles)
+      setSubmissionText(serializeSubmissionFiles(nextFiles))
+      if (currentUser.role === 'student') {
+        const savedDraft = saveCodingDraft({
+          activityId: activity.id,
+          history: draftHistoryRef.current,
+          language: 'web',
+          submissionFiles: nextFiles,
+          submissionText: serializeSubmissionFiles(nextFiles),
+          userId: currentUser.id,
+        })
+        setDraftSavedAt(savedDraft?.updatedAt ?? null)
+        savedDraftSignatureRef.current = `web:${serializeSubmissionFiles(nextFiles)}`
+      }
+      setWebEditorResetKey((value) => value + 1)
+      return
+    }
+
+    const nextLanguage = activity.language ?? 'javascript'
+    const nextCode = activity.starterCode ?? ''
+    setMonacoLanguage(nextLanguage)
+    setMonacoCode(nextCode)
+    setSubmissionText(nextCode)
+    if (currentUser.role === 'student') {
+      const savedDraft = saveCodingDraft({
+        activityId: activity.id,
+        history: draftHistoryRef.current,
+        language: nextLanguage,
+        submissionText: nextCode,
+        userId: currentUser.id,
+      })
+      setDraftSavedAt(savedDraft?.updatedAt ?? null)
+      savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
+    }
+  }
 
   const renderWorkspace = () => {
-    if (activity.type === 'coding') {
-      const isWeb = activity.language === 'web'
+    if (isCodingActivity) {
+      const isWeb = isWebActivity
 
       if (isWeb) {
         return (
           <WebProjectEditor
-            key={activity.id}
-            defaultFiles={activity.starterFiles ?? null}
+            key={`${activity.id}-${webEditorResetKey}`}
+            defaultFiles={webFiles}
             onChange={(files) => {
               setWebFiles(files)
               if (currentUser.role === 'student') {
-                setSubmissionText(JSON.stringify(files))
+                setSubmissionText(serializeSubmissionFiles(files))
               }
             }}
             readOnly={false}
@@ -166,7 +397,7 @@ export const ActivityFullScreen = ({
       return (
         <MonacoEditor
           key={activity.id}
-          defaultValue={activity.starterCode ?? ''}
+          defaultValue={monacoCode}
           language={monacoLanguage}
           showLanguageSelector={currentUser.role === 'teacher' || !languageLockedForStudents}
           onLanguageChange={setMonacoLanguage}
@@ -374,6 +605,75 @@ export const ActivityFullScreen = ({
 
         <p className="max-w-3xl whitespace-pre-wrap text-sm text-slate-600">{activity.description}</p>
 
+        {currentUser.role === 'student' && isCodingActivity && (
+          <section className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">Coding Drafts</h2>
+                <p className="text-xs text-slate-500">
+                  Auto-saved in this browser. Use checkpoints to keep a few rollback versions.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full bg-white px-3 py-1 text-xs text-slate-600 shadow-sm">
+                  {formatSavedAt(draftSavedAt)}
+                </span>
+                <button
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  onClick={handleSaveCheckpoint}
+                >
+                  Save checkpoint
+                </button>
+                <button
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                  onClick={() => setHistoryOpen((open) => !open)}
+                  aria-expanded={historyOpen}
+                  aria-controls={historyPanelId}
+                >
+                  {historyOpen ? 'Hide history' : `Show history (${draftHistory.length})`}
+                </button>
+                <button
+                  className="rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50"
+                  onClick={handleResetWorkspace}
+                >
+                  Reset to starter
+                </button>
+              </div>
+            </div>
+            {historyOpen && (
+              <div id={historyPanelId} className="mt-4 space-y-2">
+                {draftHistory.length > 0 ? (
+                  draftHistory.map((snapshot) => (
+                    <div
+                      key={snapshot.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm font-medium text-slate-800">{formatSavedAt(snapshot.savedAt)}</p>
+                        <p className="text-xs text-slate-500">
+                          {snapshot.language === 'web'
+                            ? `${snapshot.submissionFiles?.length ?? 0} file(s)`
+                            : `${snapshot.submissionText.length} characters`}
+                        </p>
+                      </div>
+                      <button
+                        className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                        onClick={() => handleRestoreSnapshot(snapshot)}
+                      >
+                        Restore
+                      </button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-4 text-xs text-slate-500">
+                    No checkpoints yet. Save one before a big refactor so you can roll back quickly.
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+
         {renderWorkspace()}
         {launchUrl && embeddedUrl && (
           <p className="-mt-1 text-xs text-slate-500">
@@ -397,7 +697,7 @@ export const ActivityFullScreen = ({
                 <h2 className="text-base font-semibold text-slate-900">Student Submission</h2>
                 <p className="text-sm text-slate-500">
                   {activity.type === 'coding'
-                    ? 'Your current code in the editor will be saved when you submit.'
+                    ? 'Your editor stays auto-saved here, and submitting keeps the current draft in the gradebook.'
                     : 'Add a reflection, answer, or share link for the teacher to review.'}
                 </p>
               </div>
@@ -422,7 +722,7 @@ export const ActivityFullScreen = ({
             )}
             {activity.type === 'coding' && (
               <p className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-                ✓ Your code from the editor above will be submitted automatically.
+                ✓ Your code from the editor above is auto-saved locally and submitted automatically.
               </p>
             )}
             {submissionError && <p className="mt-2 text-sm text-rose-600">{submissionError}</p>}
@@ -443,9 +743,7 @@ export const ActivityFullScreen = ({
                     setSubmissionError(null)
                     let textToSubmit: string
                     if (activity.type === 'coding') {
-                      textToSubmit = activity.language === 'web'
-                        ? JSON.stringify(webFiles)
-                        : monacoCode
+                      textToSubmit = codingSubmissionText
                     } else {
                       textToSubmit = submissionText.trim()
                     }
@@ -454,6 +752,19 @@ export const ActivityFullScreen = ({
                       textToSubmit,
                       activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
                     )
+                    if (activity.type === 'coding' && currentUser.role === 'student') {
+                      const savedDraft = saveCodingDraftCheckpoint({
+                        activityId: activity.id,
+                        language: isWebActivity ? 'web' : monacoLanguage,
+                        submissionFiles: isWebActivity ? webFiles : null,
+                        submissionText: textToSubmit,
+                        userId: currentUser.id,
+                      })
+                      setDraftSavedAt(savedDraft?.updatedAt ?? null)
+                      draftHistoryRef.current = savedDraft?.history ?? draftHistoryRef.current
+                      setDraftHistory(savedDraft?.history ?? draftHistory)
+                      savedDraftSignatureRef.current = `${isWebActivity ? 'web' : monacoLanguage}:${textToSubmit}`
+                    }
                   } catch (saveError) {
                     setSubmissionError(
                       saveError instanceof Error ? saveError.message : 'Failed to submit activity',

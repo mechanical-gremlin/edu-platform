@@ -65,6 +65,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
 
   const points = Number(pointsPossible)
   const detailsValid = title.trim() && description.trim() && Number.isInteger(points) && points >= 0
+  const modalWidthClass = step === 4 && type === 'coding' ? 'max-w-6xl' : 'max-w-3xl'
 
   const computedResourceUrl = (): string | null => {
     if (resourceUrl.trim()) return resourceUrl.trim()
@@ -73,7 +74,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
 
   return (
     <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-white p-6 shadow-xl">
+      <div className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-xl ${modalWidthClass}`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900">
             Create Activity • Step {step} of {totalSteps}
@@ -193,11 +194,16 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
             </label>
 
             {starterLanguage === 'web' ? (
-              <WebProjectEditor
-                defaultFiles={starterFiles}
-                onChange={setStarterFiles}
-                height="350px"
-              />
+              <div className="space-y-2">
+                <p className="text-xs text-slate-500">
+                  The file explorer starts collapsed so the editor and preview stay inside this window.
+                </p>
+                <WebProjectEditor
+                  defaultFiles={starterFiles}
+                  onChange={setStarterFiles}
+                  height="350px"
+                />
+              </div>
             ) : (
               <>
                 <MonacoEditor

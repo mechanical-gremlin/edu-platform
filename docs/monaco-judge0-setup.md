@@ -11,9 +11,13 @@ code execution service for the edu-platform coding activity workflow.
   - teacher-selected coding language now transfers end-to-end into the student activity view
   - teachers can lock activity language at setup so students cannot switch languages on locked assignments
   - grading panel now loads submitted coding work into an executable editor so teachers can run/debug while grading
+  - student coding drafts auto-save in browser storage, can be checkpointed/restored, and can be reset back to the starter template
+  - HTML activities now render a preview pane, and the web workspace is labeled **Web Development Kit** with the file explorer collapsed by default
 - Planned follow-up work:
   - add a multi-file project workspace for non-web languages (for example Python + config/data files) with execution packaging
-  - replace tab-only multi-file UX with a VS Code-style sidebar file tree and file manager toggle
+  - move coding draft persistence into backend storage so work follows students across devices
+  - add step/stop debugging controls plus stronger runaway-execution controls around `/execute`
+  - add a teacher reference-solution runner for building expected output from executable code
 
 ---
 
@@ -165,6 +169,7 @@ Estimated cost: **$7–25/month** for a Render Standard instance.
 3. **Step 3** — Write student directions (e.g. "Write a function that returns the sum of two numbers")
 4. **Step 4** — Write starter code in the live Monaco editor
    - Select the programming language from the dropdown
+   - Choose **Web Development Kit** for the bundled HTML/CSS/JS multi-file workspace
    - Write the starter code students will see when they open the activity
    - Optionally set **Expected Output**: if set, students see a ✓/✗ pass/fail indicator when they run their code
    - Click **Save activity**
@@ -178,10 +183,11 @@ The starter code and expected output are stored in the database (`activities.sta
 
 1. Open the coding activity — Monaco editor loads with the teacher's starter code pre-filled
 2. Edit the code in the VS Code-identical environment
-3. Click **▶ Run** — output appears in the panel below the editor
-4. If the teacher set expected output: a green ✓ or red ✗ badge shows whether the output matches
-5. Click **Submit activity** — the current editor code is automatically saved to the backend (no copy-paste required)
-6. Teacher can view the submitted code in the gradebook alongside the grade input
+3. Drafts auto-save in browser storage while the student works; students can also create a few manual checkpoints, restore them, or reset back to the starter template
+4. Click **▶ Run** — output appears in the panel beside the editor (HTML uses an in-app preview pane instead of Judge0 execution)
+5. If the teacher set expected output: a green ✓ or red ✗ badge shows whether the output matches
+6. Click **Submit activity** — the current editor code is automatically saved to the backend (no copy-paste required)
+7. Teacher can view the submitted code in the gradebook alongside the grade input
 
 ---
 
@@ -194,6 +200,7 @@ The starter code and expected output are stored in the database (`activities.sta
 - The Monaco editor component lives at `frontend/src/components/coding/MonacoEditor.tsx`
   and can be reused for any future code-editing surface in the platform.
 - Teacher grading now reuses the same editor components to load and execute student submissions in-context while scoring.
+- Draft/checkpoint persistence is currently browser-local (`localStorage`), so it survives refresh/navigation on the same device but is not yet synchronized across devices.
 - If `JUDGE0_API_KEY` is missing while using the RapidAPI URL, the backend returns
   HTTP 503 with a configuration message so the failure is actionable.
 
