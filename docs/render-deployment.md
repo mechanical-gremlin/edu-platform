@@ -22,6 +22,7 @@ The `render.yaml` file in the repo root reflects the intended Blueprint configur
 | Build command | `npm ci && npm run prisma:generate && npm run build` |
 | Start command | `npm run prisma:migrate:deploy && npm run prisma:seed:if-empty && npm run start` |
 | Health check path | `/health` |
+| Node version | `22` (set this manually in the Render dashboard for the existing hand-created service) |
 | `DATABASE_URL` | from the linked `edu-platform-db` Postgres instance |
 | `JUDGE0_API_KEY` | set manually in Render dashboard — never commit to repo |
 | `JUDGE0_API_URL` | `https://judge0-ce.p.rapidapi.com` |
@@ -87,3 +88,22 @@ If the backend deploy fails during `prisma migrate deploy` with errors about exi
 4. Leave the Render service configuration unchanged unless the build/start commands themselves were intentionally updated in the repo.
 
 For this project, the Render platform settings do **not** need a special change for the autograder release; the deploy issue was caused by a duplicate Prisma migration being committed, not by a Render dashboard misconfiguration.
+
+### One-time recovery after the failed `20260912000000_init` deploy
+
+The production database now has a failed Prisma migration record, so removing the bad migration file from git is necessary but **not sufficient** on its own. Prisma will keep returning `P3009` until that failed migration is resolved in the target database.
+
+For the current Render backend service:
+
+1. Open the **edu-platform-api** service in the Render dashboard.
+2. Open a service shell (or run a one-off command with the same environment and root directory).
+3. Run:
+
+```bash
+npx prisma migrate resolve --rolled-back 20260912000000_init
+```
+
+4. Trigger a new deploy after the command succeeds.
+5. Confirm the next deploy applies only the valid incremental migrations and then starts the API normally.
+
+This is a one-time cleanup for the already-failed production migration entry. Future deploys should not require this command as long as only incremental Prisma migrations are committed.

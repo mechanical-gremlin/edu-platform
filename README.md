@@ -92,6 +92,7 @@ curl -H 'x-user-id: s-1' http://localhost:3001/courses
    - if using RapidAPI Judge0, set backend env var `JUDGE0_API_KEY` so coding activities can run code (self-hosted Judge0 does not require it)
 6. If you see `Route GET:/ not found` on Render, see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for service URL expectations and full deployment checks.
 7. If the backend deploy fails during `prisma migrate deploy`, verify that each Prisma migration directory is incremental and unique before retrying; see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for the recovery checklist.
+8. For the current manually created Render services, keep the backend Node version pinned to `22` in the Render dashboard because `render.yaml` values are not applied automatically to those existing services.
 
 ### Render behavior
 
