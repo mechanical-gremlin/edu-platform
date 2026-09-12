@@ -818,67 +818,75 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           && activity.autograderReferenceSolution?.trim()
           && (activity.autograderCodeMatch || activity.autograderOutputMatch || testCases.length > 0)
         ) {
-          const autograderResult = await autogradeCodingSubmission({
-            language: activity.language!,
-            submissionCode,
-            referenceSolution: activity.autograderReferenceSolution,
-            referenceOutput: activity.autograderReferenceOutput,
-            outputMatch: activity.autograderOutputMatch,
-            codeMatch: activity.autograderCodeMatch,
-            testCases,
-            execute: executeWithJudge0,
-          })
-
-          const existingGrade = await app.prisma.grade.findUnique({
-            where: {
-              studentId_activityId: {
-                studentId: user.id,
-                activityId,
-              },
-            },
-            select: {
-              id: true,
-              gradingSource: true,
-            },
-          })
-
-          const autograderPayload = {
-            autograderResult: autograderResult as Prisma.InputJsonValue,
-          }
-
-          if (existingGrade?.gradingSource === 'manual') {
-            await app.prisma.grade.update({
-              where: { id: existingGrade.id },
-              data: autograderPayload,
+          try {
+            const autograderResult = await autogradeCodingSubmission({
+              language: activity.language!,
+              submissionCode,
+              referenceSolution: activity.autograderReferenceSolution,
+              referenceOutput: activity.autograderReferenceOutput,
+              outputMatch: activity.autograderOutputMatch,
+              codeMatch: activity.autograderCodeMatch,
+              testCases,
+              execute: executeWithJudge0,
             })
-          } else {
-            await app.prisma.grade.upsert({
+
+            const existingGrade = await app.prisma.grade.findUnique({
               where: {
                 studentId_activityId: {
                   studentId: user.id,
                   activityId,
                 },
               },
-              update: {
-                pointsEarned: getAutograderPoints(autograderResult.score, activity.pointsPossible),
-                comment: buildAutograderComment(autograderResult),
-                gradingSource: 'autograder',
-                gradedById: null,
-                gradedAt: new Date(),
-                ...autograderPayload,
-              },
-              create: {
-                id: randomUUID(),
-                studentId: user.id,
-                activityId,
-                pointsEarned: getAutograderPoints(autograderResult.score, activity.pointsPossible),
-                comment: buildAutograderComment(autograderResult),
-                gradingSource: 'autograder',
-                gradedById: null,
-                gradedAt: new Date(),
-                ...autograderPayload,
+              select: {
+                id: true,
+                gradingSource: true,
               },
             })
+
+            const autograderPayload = {
+              autograderResult: autograderResult as Prisma.InputJsonValue,
+            }
+
+            if (existingGrade?.gradingSource === 'manual') {
+              await app.prisma.grade.update({
+                where: { id: existingGrade.id },
+                data: autograderPayload,
+              })
+            } else {
+              await app.prisma.grade.upsert({
+                where: {
+                  studentId_activityId: {
+                    studentId: user.id,
+                    activityId,
+                  },
+                },
+                update: {
+                  pointsEarned: getAutograderPoints(autograderResult.score, activity.pointsPossible),
+                  comment: buildAutograderComment(autograderResult),
+                  gradingSource: 'autograder',
+                  gradedById: null,
+                  gradedAt: new Date(),
+                  ...autograderPayload,
+                },
+                create: {
+                  id: randomUUID(),
+                  studentId: user.id,
+                  activityId,
+                  pointsEarned: getAutograderPoints(autograderResult.score, activity.pointsPossible),
+                  comment: buildAutograderComment(autograderResult),
+                  gradingSource: 'autograder',
+                  gradedById: null,
+                  gradedAt: new Date(),
+                  ...autograderPayload,
+                },
+              })
+            }
+          } catch (error) {
+            app.log.warn({
+              activityId,
+              studentId: user.id,
+              error: error instanceof Error ? error.message : 'Unknown autograder error',
+            }, 'Autograder failed after submission was saved')
           }
         }
       }

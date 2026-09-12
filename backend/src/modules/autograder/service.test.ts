@@ -79,3 +79,28 @@ test('autograder returns 0 when every check fails', async () => {
   assert.equal(result.outputMatch?.passed, false)
   assert.equal(result.inputOutputCases?.[0]?.passed, false)
 })
+
+test('autograder treats compile output as a failed output match', async () => {
+  const result = await autogradeCodingSubmission({
+    language: 'javascript',
+    submissionCode: 'console.log("broken")',
+    referenceSolution: 'console.log("hello")',
+    referenceOutput: 'hello',
+    outputMatch: true,
+    codeMatch: false,
+    testCases: [],
+    execute: async () => ({
+      stdout: null,
+      stderr: null,
+      compile_output: 'SyntaxError: Unexpected token',
+      status: { id: 6, description: 'Compilation Error' },
+      time: null,
+      memory: null,
+    }),
+  })
+
+  assert.equal(result.score, 0)
+  assert.equal(result.outputMatch?.passed, false)
+  assert.equal(result.outputMatch?.actualOutput, 'SyntaxError: Unexpected token')
+  assert.equal(result.outputMatch?.status, 'Compilation Error (compile output)')
+})
