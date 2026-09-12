@@ -10,8 +10,9 @@ This list is ordered by implementation priority for LMS viability.
 - [ ] **Execution reliability + limits** — add per-user/per-course rate limits and request timeouts around `/execute`.
 - [ ] **Autosave coding work** — persist in-progress editor state (not only final submission) so students do not lose work.
 - [ ] **Teacher review for coding submissions** — ensure gradebook surfaces the latest submitted code/files for fast teacher grading workflows.
-- [ ] **Multi-file coding for non-web languages** — support multiple files (for example Python + text/config files) and execute them as a project.
-- [ ] **File tree UX** — add file/folder creation and drag-drop organization in the coding workspace.
+- [ ] **Teacher-selected starter language + optional lock** — let teachers choose the initial coding language and optionally prevent students from changing it.
+- [ ] **Multi-file coding projects** — support multiple files (for example Python + text/config files) and run them as a single project workspace.
+- [ ] **VS Code-style file manager UX** — add a side file tree with file/folder creation plus a show/hide toggle for the file manager.
 
 ---
 
