@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 import type { StarterFile } from '../../types/models'
 
@@ -89,6 +89,7 @@ export const WebProjectEditor = ({
   const [previewKey, setPreviewKey] = useState(0)
   const [srcdoc, setSrcdoc] = useState(() => buildSrcdoc(initialFilesRef.current))
   const prevDefaultRef = useRef(defaultFiles)
+  const fileManagerId = useId()
 
   // Reset when defaultFiles prop changes (new activity loaded)
   useEffect(() => {
@@ -147,7 +148,7 @@ export const WebProjectEditor = ({
             className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
             onClick={() => setFileManagerOpen((open) => !open)}
             aria-expanded={fileManagerOpen}
-            aria-controls="web-project-file-manager"
+            aria-controls={fileManagerId}
           >
             {fileManagerOpen ? 'Hide Files' : 'Show Files'}
           </button>
@@ -165,7 +166,7 @@ export const WebProjectEditor = ({
       <div className="flex gap-3" style={{ height }}>
         <div className="flex flex-1 gap-2">
           {fileManagerOpen && (
-            <div id="web-project-file-manager" className="flex w-64 flex-col rounded-b-xl border border-t-0 border-slate-200 bg-slate-900 text-slate-100">
+            <div id={fileManagerId} className="flex w-64 flex-col rounded-b-xl border border-t-0 border-slate-200 bg-slate-900 text-slate-100">
               <div className="border-b border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Explorer
               </div>

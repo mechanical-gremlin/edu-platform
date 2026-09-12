@@ -180,6 +180,7 @@ export const GradingPanel = ({
                 defaultValue={reviewCode}
                 language={activityLanguage ?? 'javascript'}
                 onChange={setReviewCode}
+                readOnly
                 executeUrl={executeUrl}
                 userId={runUserId}
                 minHeight="360px"
