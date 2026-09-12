@@ -1,4 +1,4 @@
-# edu-platform
+# Computer Science LMS
 
 Educational platform prototype with a React frontend for teacher/student workflows and a Fastify + Prisma backend backed by PostgreSQL.
 
