@@ -2,23 +2,25 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { AppError, requireUser } from '../../lib.js'
 
-// Judge0 language IDs for the languages exposed in the UI.
-// Full list: https://ce.judge0.com/languages
-const LANGUAGE_IDS: Record<string, number> = {
-  javascript: 93,  // Node.js 18
-  typescript: 94,  // TypeScript 5
-  python: 92,      // Python 3.11
-  java: 91,        // Java 17
-  c: 104,          // C (GCC 13)
-  cpp: 105,        // C++ (GCC 13)
-  csharp: 51,      // C# Mono
-  html: 87,        // HTML (in-browser preview only)
-  php: 68,
-  ruby: 72,
-  go: 95,
-  rust: 73,
-  swift: 83,
-  kotlin: 78,
+const PISTON_API_URL = 'https://emkc.org/api/v2/piston/execute'
+
+// Maps our internal language keys to Piston runtime language slugs.
+// Full list: GET https://emkc.org/api/v2/piston/runtimes
+const PISTON_LANGUAGE_MAP: Record<string, string> = {
+  javascript: 'javascript',
+  typescript: 'typescript',
+  python:     'python',
+  java:       'java',
+  c:          'c',
+  cpp:        'c++',
+  csharp:     'csharp',
+  html:       'html',     // short-circuited below — never sent to Piston
+  php:        'php',
+  ruby:       'ruby',
+  go:         'go',
+  rust:       'rust',
+  swift:      'swift',
+  kotlin:     'kotlin',
 }
 
 const executeBodySchema = z.object({
@@ -53,21 +55,13 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       requireUser(request)
 
-      const apiKey = process.env.JUDGE0_API_KEY?.trim()
-      const apiUrl = (process.env.JUDGE0_API_URL ?? 'https://judge0-ce.p.rapidapi.com').replace(/\/+$/, '')
-
-      if (!apiKey) {
-        throw new AppError(503, 'Code execution is not configured on this server')
-      }
-
       const payload = executeBodySchema.parse(request.body)
-      const languageId = LANGUAGE_IDS[payload.language]
 
-      if (!languageId) {
+      if (!PISTON_LANGUAGE_MAP[payload.language]) {
         throw new AppError(400, `Unsupported language: ${payload.language}`)
       }
 
-      // HTML is rendered client-side; do not forward to Judge0.
+      // HTML is rendered client-side; no server execution needed.
       if (payload.language === 'html') {
         return {
           stdout: '(HTML is rendered in the browser preview — no server execution needed)',
@@ -79,43 +73,50 @@ export const executeRoutes: FastifyPluginAsync = async (app) => {
         }
       }
 
-      // Submit to Judge0 and wait for result in a single call (wait=true).
-      const submitResponse = await fetch(`${apiUrl}/submissions?base64_encoded=false&wait=true`, {
+      // Submit to Piston (no API key required).
+      const pistonResponse = await fetch(PISTON_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-RapidAPI-Key': apiKey,
-          'X-RapidAPI-Host': new URL(apiUrl).hostname,
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          source_code: payload.code,
-          language_id: languageId,
-          stdin: payload.stdin ?? null,
+          language: PISTON_LANGUAGE_MAP[payload.language],
+          version: '*',
+          files: [{ content: payload.code }],
+          stdin: payload.stdin ?? '',
         }),
       })
 
-      if (!submitResponse.ok) {
-        const text = await submitResponse.text().catch(() => '')
-        throw new AppError(502, `Code execution service error: ${submitResponse.status} ${text.slice(0, 200)}`)
+      if (!pistonResponse.ok) {
+        const text = await pistonResponse.text().catch(() => '')
+        throw new AppError(502, `Code execution service error: ${pistonResponse.status} ${text.slice(0, 200)}`)
       }
 
-      interface Judge0Result {
-        stdout: string | null
-        stderr: string | null
-        compile_output: string | null
-        status: { id: number; description: string }
-        time: string | null
-        memory: number | null
+      interface PistonStage {
+        stdout: string
+        stderr: string
+        code: number | null
+        signal: string | null
+        output: string
+      }
+      interface PistonResult {
+        run: PistonStage
+        compile?: PistonStage
       }
 
-      const result = (await submitResponse.json()) as Judge0Result
+      const result = (await pistonResponse.json()) as PistonResult
+      const run = result.run
+      const compile = result.compile
+
+      const accepted = run.code === 0
       return {
-        stdout: result.stdout,
-        stderr: result.stderr,
-        compile_output: result.compile_output,
-        status: result.status,
-        time: result.time,
-        memory: result.memory,
+        stdout: run.stdout || null,
+        stderr: run.stderr || null,
+        compile_output: compile?.stderr || null,
+        status: {
+          id: accepted ? 3 : 11,
+          description: accepted ? 'Accepted' : 'Runtime Error',
+        },
+        time: null,
+        memory: null,
       }
     },
   )
