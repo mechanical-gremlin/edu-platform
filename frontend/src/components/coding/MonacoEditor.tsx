@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 
 export const CODING_LANGUAGES: { value: string; label: string }[] = [
@@ -83,6 +83,7 @@ export const MonacoEditor = ({
   const [runError, setRunError] = useState<string | null>(null)
   const [passed, setPassed] = useState<boolean | null>(null)
   const initialCodeRef = useRef(defaultValue)
+  const htmlPreviewHelpId = useId()
   const showExecution = Boolean(executeUrl && language !== 'html')
   const showHtmlPreview = language === 'html'
 
@@ -227,8 +228,12 @@ export const MonacoEditor = ({
         {showHtmlPreview && (
           <div className="flex w-2/5 flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
+            <p id={htmlPreviewHelpId} className="text-xs text-slate-500">
+              Rendered output for the HTML in the editor. Scripts stay disabled in this preview.
+            </p>
             <iframe
               title="HTML preview"
+              aria-describedby={htmlPreviewHelpId}
               srcDoc={code}
               sandbox=""
               className="min-h-[220px] flex-1 rounded-xl border border-slate-200 bg-white"

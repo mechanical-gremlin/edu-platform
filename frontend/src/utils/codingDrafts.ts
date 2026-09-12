@@ -71,12 +71,12 @@ export const readCodingDraft = (userId: string, activityId: string): CodingDraft
     return null
   }
 
-  const raw = window.localStorage.getItem(buildCodingDraftKey(userId, activityId))
-  if (!raw) {
-    return null
-  }
-
   try {
+    const raw = window.localStorage.getItem(buildCodingDraftKey(userId, activityId))
+    if (!raw) {
+      return null
+    }
+
     const parsed = JSON.parse(raw) as Partial<CodingDraftRecord>
     if (
       typeof parsed.updatedAt !== 'string'
@@ -133,8 +133,12 @@ export const saveCodingDraft = ({
     history: history.slice(0, HISTORY_LIMIT),
   }
 
-  window.localStorage.setItem(buildCodingDraftKey(userId, activityId), JSON.stringify(nextDraft))
-  return nextDraft
+  try {
+    window.localStorage.setItem(buildCodingDraftKey(userId, activityId), JSON.stringify(nextDraft))
+    return nextDraft
+  } catch {
+    return null
+  }
 }
 
 export const saveCodingDraftCheckpoint = ({

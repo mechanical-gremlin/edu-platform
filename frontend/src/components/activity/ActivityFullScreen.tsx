@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
 import { DirectionsEditor } from '../teacher/DirectionsEditor'
 import { MonacoEditor } from '../coding/MonacoEditor'
@@ -139,6 +139,7 @@ export const ActivityFullScreen = ({
   const [draftHistory, setDraftHistory] = useState<CodingDraftSnapshot[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
   const savedDraftSignatureRef = useRef<string | null>(null)
+  const historyPanelId = useId()
   const currentIndex = allActivities.findIndex((currentActivity) => currentActivity.id === activity.id)
   const prevActivity = currentIndex > 0 ? allActivities[currentIndex - 1] : null
   const nextActivity = currentIndex < allActivities.length - 1 ? allActivities[currentIndex + 1] : null
@@ -619,6 +620,8 @@ export const ActivityFullScreen = ({
                 <button
                   className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
                   onClick={() => setHistoryOpen((open) => !open)}
+                  aria-expanded={historyOpen}
+                  aria-controls={historyPanelId}
                 >
                   {historyOpen ? 'Hide history' : `Show history (${draftHistory.length})`}
                 </button>
@@ -631,7 +634,7 @@ export const ActivityFullScreen = ({
               </div>
             </div>
             {historyOpen && (
-              <div className="mt-4 space-y-2">
+              <div id={historyPanelId} className="mt-4 space-y-2">
                 {draftHistory.length > 0 ? (
                   draftHistory.map((snapshot) => (
                     <div
@@ -743,15 +746,15 @@ export const ActivityFullScreen = ({
                       activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
                     )
                     if (activity.type === 'coding' && currentUser.role === 'student') {
-                      const savedDraft = saveCodingDraft({
+                      const savedDraft = saveCodingDraftCheckpoint({
                         activityId: activity.id,
-                        history: draftHistory,
                         language: isWebActivity ? 'web' : monacoLanguage,
                         submissionFiles: isWebActivity ? webFiles : null,
                         submissionText: textToSubmit,
                         userId: currentUser.id,
                       })
                       setDraftSavedAt(savedDraft?.updatedAt ?? null)
+                      setDraftHistory(savedDraft?.history ?? draftHistory)
                       savedDraftSignatureRef.current = `${isWebActivity ? 'web' : monacoLanguage}:${textToSubmit}`
                     }
                   } catch (saveError) {
