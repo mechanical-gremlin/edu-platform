@@ -36,7 +36,7 @@ const buildCoursePrismaStub = () => {
     unit: {
       findUnique: async ({ where }: { where: { id: string } }) => {
         if (where.id === 'u-1') {
-          return { id: 'u-1', title: 'Unit 1', description: 'Original unit', courseId: 'c-1' }
+          return { id: 'u-1', title: 'Unit 1', description: 'Original unit', courseId: 'c-1', visible: true }
         }
 
         return null
@@ -66,6 +66,7 @@ const buildCoursePrismaStub = () => {
             title: 'Lesson 1',
             description: 'Original lesson',
             unitId: 'u-1',
+            visible: true,
             unit: { courseId: 'c-1' },
           }
         }
@@ -217,6 +218,39 @@ test('PATCH /activities/:activityId updates teacher-editable assignment fields',
   }
 })
 
+test('PATCH /activities/:activityId clears nullable assignment fields', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/activities/a-1',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        title: 'Updated Assignment',
+        description: 'New prompt',
+        directions: null,
+        dueAt: null,
+        pointsPossible: 5,
+        resourceUrl: null,
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(prisma.getActivityPatchData(), {
+      title: 'Updated Assignment',
+      description: 'New prompt',
+      directions: null,
+      dueAt: null,
+      pointsPossible: 5,
+      resourceUrl: null,
+    })
+  } finally {
+    await app.close()
+  }
+})
+
 test('PATCH /lessons/:lessonId/visibility toggles all nested activities', async () => {
   const prisma = buildCoursePrismaStub()
   const app = await buildApp({ prisma: prisma.stub })
@@ -262,6 +296,28 @@ test('PATCH /activities/:activityId/move swaps adjacent activity positions', asy
       { id: 'a-2', position: 0, data: { position: 0 } },
       { id: 'a-1', position: 1, data: { position: 1 } },
     ])
+  } finally {
+    await app.close()
+  }
+})
+
+test('PATCH /activities/:activityId/move is a no-op at the boundary', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/activities/a-1/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        direction: 'up',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'a-1' })
+    assert.deepEqual(prisma.getActivityUpdates(), [])
   } finally {
     await app.close()
   }

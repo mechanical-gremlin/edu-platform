@@ -191,9 +191,6 @@ const NameDescModal = ({
   )
 }
 
-const hasVisibleActivity = (activities: Course['units'][number]['lessons'][number]['activities']) =>
-  activities.some((activity) => activity.visible !== false)
-
 export const CourseHierarchy = ({
   course,
   isTeacher,
@@ -289,7 +286,7 @@ export const CourseHierarchy = ({
                 entry?.submitted || (entry?.pointsEarned !== null && entry?.pointsEarned !== undefined),
               )
             }).length
-            const unitVisible = unitActivities.length === 0 || hasVisibleActivity(unitActivities)
+            const unitVisible = unit.visible !== false
 
             return (
               <div
@@ -307,7 +304,7 @@ export const CourseHierarchy = ({
                   >
                     <span>{openUnits[unit.id] ? '▾' : '▸'}</span>
                     <span>{unit.title}</span>
-                    {isTeacher && !unitVisible && unitActivities.length > 0 && (
+                    {isTeacher && !unitVisible && (
                       <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">Hidden</span>
                     )}
                     {!isTeacher && unitActivities.length > 0 && (
@@ -357,7 +354,7 @@ export const CourseHierarchy = ({
                 {openUnits[unit.id] && (
                   <div className="space-y-2 border-t border-slate-100 p-3">
                     {unit.lessons.map((lesson, lessonIndex) => {
-                      const lessonVisible = lesson.activities.length === 0 || hasVisibleActivity(lesson.activities)
+                      const lessonVisible = lesson.visible !== false
 
                       return (
                         <div
@@ -377,7 +374,7 @@ export const CourseHierarchy = ({
                               }
                             >
                               {openLessons[lesson.id] ? '▾' : '▸'} {lesson.title}
-                              {isTeacher && !lessonVisible && lesson.activities.length > 0 && (
+                              {isTeacher && !lessonVisible && (
                                 <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
                                   Hidden
                                 </span>

@@ -158,11 +158,13 @@ const courseTreeSchema = z.object({
       id: z.string(),
       title: z.string(),
       description: z.string().nullable(),
+      visible: z.boolean(),
       lessons: z.array(
         z.object({
           id: z.string(),
           title: z.string(),
           description: z.string().nullable(),
+          visible: z.boolean(),
           activities: z.array(
             z.object({
               id: z.string(),
@@ -532,21 +534,27 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         code: course.code,
         description: course.description,
         teacherName: course.enrollments.find((item) => item.role === 'teacher')?.user.name ?? null,
-        units: course.units.map((unit) => ({
-          id: unit.id,
-          title: unit.title,
-          description: unit.description,
-          lessons: unit.lessons.map((lesson) => ({
-            id: lesson.id,
-            title: lesson.title,
-            description: lesson.description,
-            activities: lesson.activities
-              .filter((activity) => isTeacher || activity.visible)
-              .map((activity) => ({
-                ...serializeActivity(activity),
+        units: course.units
+          .filter((unit) => isTeacher || unit.visible)
+          .map((unit) => ({
+            id: unit.id,
+            title: unit.title,
+            description: unit.description,
+            visible: unit.visible,
+            lessons: unit.lessons
+              .filter((lesson) => isTeacher || lesson.visible)
+              .map((lesson) => ({
+                id: lesson.id,
+                title: lesson.title,
+                description: lesson.description,
+                visible: lesson.visible,
+                activities: lesson.activities
+                  .filter((activity) => isTeacher || activity.visible)
+                  .map((activity) => ({
+                    ...serializeActivity(activity),
+                  })),
               })),
           })),
-        })),
       }
     },
   )
@@ -848,6 +856,12 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           visible: payload.visible,
         },
       })
+      await app.prisma.unit.update({
+        where: { id: unitId },
+        data: {
+          visible: payload.visible,
+        },
+      })
 
       return { id: unitId, visible: payload.visible }
     },
@@ -875,6 +889,12 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         where: {
           lessonId,
         },
+        data: {
+          visible: payload.visible,
+        },
+      })
+      await app.prisma.lesson.update({
+        where: { id: lessonId },
         data: {
           visible: payload.visible,
         },

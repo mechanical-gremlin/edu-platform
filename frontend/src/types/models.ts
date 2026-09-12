@@ -66,6 +66,7 @@ export interface Lesson {
   id: string
   title: string
   description?: string | null
+  visible?: boolean
   activities: Activity[]
 }
 
@@ -73,6 +74,7 @@ export interface Unit {
   id: string
   title: string
   description?: string | null
+  visible?: boolean
   lessons: Lesson[]
 }
 

@@ -121,10 +121,12 @@ interface ApiCourse {
     id: string
     title: string
     description: string | null
+    visible: boolean
     lessons: Array<{
       id: string
       title: string
       description: string | null
+      visible: boolean
       activities: ApiActivity[]
     }>
   }>
@@ -253,10 +255,12 @@ const mapCourse = (course: ApiCourse): Course => ({
     id: unit.id,
     title: unit.title,
     description: unit.description,
+    visible: unit.visible,
     lessons: unit.lessons.map((lesson) => ({
       id: lesson.id,
       title: lesson.title,
       description: lesson.description,
+      visible: lesson.visible,
       activities: lesson.activities.map((activity) => ({
         id: activity.id,
         title: activity.title,
@@ -513,6 +517,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     id: response.id,
                     title: response.title ?? title,
                     description: response.description ?? (description || null),
+                    visible: true,
                     lessons: [],
                   },
                 ],
@@ -545,6 +550,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                       id: response.id,
                       title: response.title ?? title,
                       description: response.description ?? (description || null),
+                      visible: true,
                       activities: [],
                     },
                   ],
@@ -825,6 +831,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setCourses((previous) =>
         updateCoursesForUnit(previous, unitId, (unit) => ({
           ...unit,
+          visible,
           lessons: unit.lessons.map((lesson) => ({
             ...lesson,
             activities: lesson.activities.map((activity) => ({ ...activity, visible })),
@@ -845,6 +852,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setCourses((previous) =>
         updateCoursesForLesson(previous, lessonId, (lesson) => ({
           ...lesson,
+          visible,
           activities: lesson.activities.map((activity) => ({ ...activity, visible })),
         })),
       )
