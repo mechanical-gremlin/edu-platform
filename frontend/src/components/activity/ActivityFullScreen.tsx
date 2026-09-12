@@ -516,6 +516,11 @@ export const ActivityFullScreen = ({
                 <span className="ml-2 text-sm text-slate-700">
                   <strong>{gradeEntry?.pointsEarned}</strong>/{gradeEntry?.pointsPossible} pts
                 </span>
+                {gradeEntry?.autograderResult && (
+                  <span className="ml-2 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                    {gradeEntry.gradingSource === 'autograder' ? 'Autograded' : 'Teacher override'}
+                  </span>
+                )}
                 {gradeEntry?.comment && (
                   <span className="ml-4 text-xs italic text-slate-500">"{gradeEntry.comment}"</span>
                 )}
@@ -721,9 +726,16 @@ export const ActivityFullScreen = ({
               />
             )}
             {activity.type === 'coding' && (
-              <p className="mt-3 rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
-                ✓ Your code from the editor above is auto-saved locally and submitted automatically.
-              </p>
+              <div className="mt-3 space-y-2">
+                <p className="rounded-lg bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                  ✓ Your code from the editor above is auto-saved locally and submitted automatically.
+                </p>
+                {gradeEntry?.autograderResult && (
+                  <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    Latest autograder result: {gradeEntry.autograderResult.summary}
+                  </p>
+                )}
+              </div>
             )}
             {submissionError && <p className="mt-2 text-sm text-rose-600">{submissionError}</p>}
             <div className="mt-4 flex items-center justify-between">

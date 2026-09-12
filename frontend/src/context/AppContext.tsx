@@ -11,6 +11,7 @@ import {
 import { mockUsers } from '../mocks/data'
 import type {
   AddEnrollmentInput,
+  AutograderResult,
   Course,
   CreateActivityInput,
   CreateCourseInput,
@@ -93,6 +94,7 @@ interface ApiActivity {
   starterCode: string | null
   starterFiles: Array<{ name: string; language: string; content: string }> | null
   expectedOutput: string | null
+  autograderEnabled: boolean
   resourceUrl: string | null
   visible: boolean
   dueAt: string | null
@@ -135,10 +137,12 @@ interface ApiTeacherGradebook {
       pointsEarned: number | null
       pointsPossible: number
       comment: string | null
+      gradingSource: 'manual' | 'autograder' | null
       gradedAt: string | null
       submittedAt: string | null
       submissionText: string | null
       submissionFiles: Array<{ name: string; language: string; content: string }> | null
+      autograderResult: AutograderResult | null
     }>
   }>
 }
@@ -153,10 +157,12 @@ interface ApiStudentGrade {
   pointsPossible: number
   submitted: boolean
   comment: string | null
+  gradingSource: 'manual' | 'autograder' | null
   gradedAt: string | null
   submittedAt: string | null
   submissionText: string | null
   submissionFiles: Array<{ name: string; language: string; content: string }> | null
+  autograderResult: AutograderResult | null
 }
 
 interface MutationResponse {
@@ -212,6 +218,7 @@ const mapCourse = (course: ApiCourse): Course => ({
         starterCode: activity.starterCode,
         starterFiles: activity.starterFiles,
         expectedOutput: activity.expectedOutput,
+        autograderEnabled: activity.autograderEnabled,
         resourceUrl: activity.resourceUrl,
         visible: activity.visible,
         dueDate: withDateOnly(activity.dueAt),
@@ -241,10 +248,12 @@ const mapTeacherGradebookEntries = (
       pointsPossible: grade.pointsPossible,
       submitted: grade.submitted,
       comment: grade.comment,
+      gradingSource: grade.gradingSource,
       gradedAt: grade.gradedAt,
       submittedAt: grade.submittedAt,
       submissionText: grade.submissionText,
       submissionFiles: grade.submissionFiles,
+      autograderResult: grade.autograderResult,
     })),
   )
 }
@@ -266,10 +275,12 @@ const mapStudentGradebookEntries = (
     pointsPossible: grade.pointsPossible,
     submitted: grade.submitted,
     comment: grade.comment,
+    gradingSource: grade.gradingSource,
     gradedAt: grade.gradedAt,
     submittedAt: grade.submittedAt,
     submissionText: grade.submissionText,
     submissionFiles: grade.submissionFiles,
+    autograderResult: grade.autograderResult,
   }))
 
 export const AppContext = createContext<AppContextValue | undefined>(undefined)
@@ -563,6 +574,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     starterCode: response.starterCode,
                     starterFiles: response.starterFiles,
                     expectedOutput: response.expectedOutput,
+                    autograderEnabled: response.autograderEnabled,
                     resourceUrl: response.resourceUrl,
                     visible: response.visible,
                     dueDate: withDateOnly(response.dueAt),
@@ -597,10 +609,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               pointsPossible: response.pointsPossible,
               submitted: false,
               comment: null,
+              gradingSource: null,
               gradedAt: null,
               submittedAt: null,
               submissionText: null,
               submissionFiles: null,
+              autograderResult: null,
             })),
           ]
         })
@@ -668,6 +682,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 ...entry,
                 pointsEarned: Math.trunc(points),
                 comment: comment || null,
+                gradingSource: 'manual',
                 gradedAt: new Date().toISOString(),
               }
             : entry,

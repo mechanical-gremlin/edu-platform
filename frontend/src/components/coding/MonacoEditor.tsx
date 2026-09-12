@@ -61,6 +61,10 @@ interface MonacoEditorProps {
   userId?: string
   /** Expected output for automatic pass/fail feedback */
   expectedOutput?: string | null
+  stdin?: string
+  showStdinField?: boolean
+  onStdinChange?: (stdin: string) => void
+  onExecutionComplete?: (result: ExecuteResult) => void
   readOnly?: boolean
   minHeight?: string
 }
@@ -74,6 +78,10 @@ export const MonacoEditor = ({
   executeUrl,
   userId,
   expectedOutput,
+  stdin = '',
+  showStdinField = false,
+  onStdinChange,
+  onExecutionComplete,
   readOnly = false,
   minHeight = '400px',
 }: MonacoEditorProps) => {
@@ -118,7 +126,7 @@ export const MonacoEditor = ({
       const response = await fetch(executeUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ language, code }),
+        body: JSON.stringify({ language, code, stdin }),
       })
 
       if (!response.ok) {
@@ -136,6 +144,7 @@ export const MonacoEditor = ({
       else if (stderrText) displayOutput = `${stdoutText}\n[Error]\n${stderrText}`.trim()
 
       setOutput(displayOutput || `(${result.status.description} — no output)`)
+      onExecutionComplete?.(result)
 
       if (expectedOutput) {
         setPassed(stdoutText === expectedOutput.trim())
@@ -163,6 +172,18 @@ export const MonacoEditor = ({
               </option>
             ))}
           </select>
+        </div>
+      )}
+      {showExecution && showStdinField && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-600">Program input (stdin)</label>
+          <textarea
+            className="h-20 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-xs"
+            placeholder="Optional input to send to the program"
+            value={stdin}
+            onChange={(event) => onStdinChange?.(event.target.value)}
+            readOnly={readOnly}
+          />
         </div>
       )}
 

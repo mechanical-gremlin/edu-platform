@@ -47,6 +47,8 @@ export const GradingPanel = ({
   const current = students[currentIndex] ?? null
   const currentSubmissionText = current?.submissionText ?? null
   const currentSubmissionFiles = current?.submissionFiles ?? null
+  const autograderResult = current?.autograderResult ?? null
+  const isAutograded = current?.gradingSource === 'autograder'
 
   useEffect(() => {
     if (activityType === 'coding' && activityLanguage === 'web') {
@@ -173,6 +175,51 @@ export const GradingPanel = ({
             </p>
           )}
         </div>
+
+        {autograderResult && (
+          <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Autograder</p>
+                <p className="mt-1 text-sm text-indigo-900">{autograderResult.summary}</p>
+              </div>
+              <span
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  autograderResult.score === 100
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : autograderResult.score === 50
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-rose-100 text-rose-700'
+                }`}
+              >
+                {autograderResult.score}% {isAutograded ? 'auto-applied' : 'recommended'}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-indigo-700">
+              Checks passed: {autograderResult.matchedChecks}/{autograderResult.totalChecks}
+              {!isAutograded && ' • current score was manually overridden by a teacher'}
+            </p>
+            {autograderResult.codeMatch && (
+              <p className="mt-2 text-xs text-slate-700">
+                Code structure: {autograderResult.codeMatch.passed ? 'match' : 'no match'}
+              </p>
+            )}
+            {autograderResult.outputMatch && (
+              <p className="mt-1 text-xs text-slate-700">
+                Output check: {autograderResult.outputMatch.passed ? 'match' : 'no match'} ({autograderResult.outputMatch.status})
+              </p>
+            )}
+            {autograderResult.inputOutputCases && autograderResult.inputOutputCases.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {autograderResult.inputOutputCases.map((testCase, index) => (
+                  <p key={`${activeStudent.studentId}-case-${index}`} className="text-xs text-slate-700">
+                    Case {index + 1}: {testCase.passed ? 'match' : 'no match'} ({testCase.status})
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">
