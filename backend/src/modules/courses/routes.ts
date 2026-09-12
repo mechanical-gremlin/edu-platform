@@ -385,8 +385,11 @@ const swapSiblingPositions = async (
     return
   }
 
-  await update(current.id, neighbor.position)
+  const tempPosition = Math.min(...siblings.map((item) => item.position)) - 1
+
+  await update(current.id, tempPosition)
   await update(neighbor.id, current.position)
+  await update(current.id, neighbor.position)
 }
 
 export const courseRoutes: FastifyPluginAsync = async (app) => {
@@ -856,6 +859,14 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           visible: payload.visible,
         },
       })
+      await app.prisma.lesson.updateMany({
+        where: {
+          unitId,
+        },
+        data: {
+          visible: payload.visible,
+        },
+      })
       await app.prisma.unit.update({
         where: { id: unitId },
         data: {
@@ -955,12 +966,14 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         select: { id: true, position: true },
       })
 
-      await swapSiblingPositions(
-        (id, position) => app.prisma.unit.update({ where: { id }, data: { position } }),
-        siblings,
-        unitId,
-        payload.direction,
-      )
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => tx.unit.update({ where: { id }, data: { position } }),
+          siblings,
+          unitId,
+          payload.direction,
+        )
+      })
 
       return { id: unitId }
     },
@@ -990,12 +1003,14 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         select: { id: true, position: true },
       })
 
-      await swapSiblingPositions(
-        (id, position) => app.prisma.lesson.update({ where: { id }, data: { position } }),
-        siblings,
-        lessonId,
-        payload.direction,
-      )
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => tx.lesson.update({ where: { id }, data: { position } }),
+          siblings,
+          lessonId,
+          payload.direction,
+        )
+      })
 
       return { id: lessonId }
     },
@@ -1037,12 +1052,14 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         select: { id: true, position: true },
       })
 
-      await swapSiblingPositions(
-        (id, position) => app.prisma.activity.update({ where: { id }, data: { position } }),
-        siblings,
-        activityId,
-        payload.direction,
-      )
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => tx.activity.update({ where: { id }, data: { position } }),
+          siblings,
+          activityId,
+          payload.direction,
+        )
+      })
 
       return { id: activityId }
     },

@@ -834,6 +834,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           visible,
           lessons: unit.lessons.map((lesson) => ({
             ...lesson,
+            visible,
             activities: lesson.activities.map((activity) => ({ ...activity, visible })),
           })),
         })),

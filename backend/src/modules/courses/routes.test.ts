@@ -7,9 +7,11 @@ const buildCoursePrismaStub = () => {
   let unitUpdateData: Record<string, unknown> | null = null
   let activityPatchData: Record<string, unknown> | null = null
   let lessonVisibilityUpdate: { where: Record<string, unknown>; data: Record<string, unknown> } | null = null
+  let lessonRecordUpdate: { where: Record<string, unknown>; data: Record<string, unknown> } | null = null
+  let lessonBulkUpdate: { where: Record<string, unknown>; data: Record<string, unknown> } | null = null
+  let unitVisibilityUpdate: { where: Record<string, unknown>; data: Record<string, unknown> } | null = null
   let deletedUnitId: string | null = null
-
-  const stub = {
+  const stub: any = {
     user: {
       findUnique: async ({ where }: { where: { id: string } }) => {
         if (where.id === 't-1') {
@@ -42,6 +44,9 @@ const buildCoursePrismaStub = () => {
         return null
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        if ('visible' in data) {
+          unitVisibilityUpdate = { where, data }
+        }
         unitUpdateData = data
         return {
           id: where.id,
@@ -73,11 +78,18 @@ const buildCoursePrismaStub = () => {
 
         return null
       },
-      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => ({
-        id: where.id,
-        title: String(data.title ?? 'Lesson 1'),
-        description: (data.description as string | null | undefined) ?? null,
-      }),
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        lessonRecordUpdate = { where, data }
+        return {
+          id: where.id,
+          title: String(data.title ?? 'Lesson 1'),
+          description: (data.description as string | null | undefined) ?? null,
+        }
+      },
+      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        lessonBulkUpdate = { where, data }
+        return { count: 2 }
+      },
     },
     activity: {
       findUnique: async ({ where }: { where: { id: string } }) => {
@@ -141,14 +153,18 @@ const buildCoursePrismaStub = () => {
         { id: 'a-2', position: 1 },
       ],
     },
+    $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(stub),
     $disconnect: async () => undefined,
-  } as any
+  }
 
   return {
     stub,
     getUnitUpdateData: () => unitUpdateData,
     getActivityPatchData: () => activityPatchData,
     getLessonVisibilityUpdate: () => lessonVisibilityUpdate,
+    getLessonRecordUpdate: () => lessonRecordUpdate,
+    getLessonBulkUpdate: () => lessonBulkUpdate,
+    getUnitVisibilityUpdate: () => unitVisibilityUpdate,
     getActivityUpdates: () => activityUpdates,
     getDeletedUnitId: () => deletedUnitId,
   }
@@ -271,6 +287,43 @@ test('PATCH /lessons/:lessonId/visibility toggles all nested activities', async 
       where: { lessonId: 'l-1' },
       data: { visible: false },
     })
+    assert.deepEqual(prisma.getLessonRecordUpdate(), {
+      where: { id: 'l-1' },
+      data: { visible: false },
+    })
+  } finally {
+    await app.close()
+  }
+})
+
+test('PATCH /units/:unitId/visibility toggles the unit, lessons, and activities together', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/units/u-1/visibility',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        visible: false,
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'u-1', visible: false })
+    assert.deepEqual(prisma.getLessonVisibilityUpdate(), {
+      where: { lesson: { unitId: 'u-1' } },
+      data: { visible: false },
+    })
+    assert.deepEqual(prisma.getLessonBulkUpdate(), {
+      where: { unitId: 'u-1' },
+      data: { visible: false },
+    })
+    assert.deepEqual(prisma.getUnitVisibilityUpdate(), {
+      where: { id: 'u-1' },
+      data: { visible: false },
+    })
   } finally {
     await app.close()
   }
@@ -293,8 +346,9 @@ test('PATCH /activities/:activityId/move swaps adjacent activity positions', asy
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.json(), { id: 'a-2' })
     assert.deepEqual(prisma.getActivityUpdates(), [
-      { id: 'a-2', position: 0, data: { position: 0 } },
+      { id: 'a-2', position: -1, data: { position: -1 } },
       { id: 'a-1', position: 1, data: { position: 1 } },
+      { id: 'a-2', position: 0, data: { position: 0 } },
     ])
   } finally {
     await app.close()
