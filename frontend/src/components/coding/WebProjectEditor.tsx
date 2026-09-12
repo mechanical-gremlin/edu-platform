@@ -238,7 +238,7 @@ export const WebProjectEditor = ({
             key={previewKey}
             title="Web project preview"
             srcDoc={srcdoc}
-            sandbox="allow-scripts allow-same-origin"
+            sandbox="allow-scripts"
             className="flex-1 rounded-xl border border-slate-200 bg-white"
           />
         </div>
