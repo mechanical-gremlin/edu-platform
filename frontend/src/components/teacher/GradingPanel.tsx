@@ -23,7 +23,7 @@ const parseSubmissionFiles = (submissionText: string | null | undefined): Starte
   try {
     const parsed = JSON.parse(submissionText) as unknown
     if (!Array.isArray(parsed)) {
-      return [{ name: 'submission.txt', language: 'plaintext', content: submissionText }]
+      return [{ name: 'index.html', language: 'html', content: submissionText }]
     }
     const files = parsed.filter(
       (file): file is StarterFile =>
@@ -34,9 +34,9 @@ const parseSubmissionFiles = (submissionText: string | null | undefined): Starte
         && typeof Reflect.get(file, 'content') === 'string',
     )
     if (files.length > 0) return files
-    return [{ name: 'submission.txt', language: 'plaintext', content: submissionText }]
+    return [{ name: 'index.html', language: 'html', content: submissionText }]
   } catch {
-    return [{ name: 'submission.txt', language: 'plaintext', content: submissionText }]
+    return [{ name: 'index.html', language: 'html', content: submissionText }]
   }
 }
 

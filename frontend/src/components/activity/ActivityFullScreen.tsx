@@ -140,6 +140,7 @@ export const ActivityFullScreen = ({
   const isSubmitted = Boolean(gradeEntry?.submitted)
   const embeddedUrl = useMemo(() => getEmbeddedUrl(activity), [activity])
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
+  const languageLockedForStudents = Boolean(activity.languageLocked && activity.language)
 
   const renderWorkspace = () => {
     if (activity.type === 'coding') {
@@ -167,7 +168,7 @@ export const ActivityFullScreen = ({
           key={activity.id}
           defaultValue={activity.starterCode ?? ''}
           language={monacoLanguage}
-          showLanguageSelector={currentUser.role === 'teacher' || !activity.languageLocked}
+          showLanguageSelector={currentUser.role === 'teacher' || !languageLockedForStudents}
           onLanguageChange={setMonacoLanguage}
           onChange={(code) => {
             setMonacoCode(code)
