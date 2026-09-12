@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 import type { StarterFile } from '../../types/models'
 
@@ -85,9 +85,11 @@ export const WebProjectEditor = ({
   const [activeIndex, setActiveIndex] = useState(0)
   const [newFileName, setNewFileName] = useState('')
   const [addingFile, setAddingFile] = useState(false)
+  const [fileManagerOpen, setFileManagerOpen] = useState(true)
   const [previewKey, setPreviewKey] = useState(0)
   const [srcdoc, setSrcdoc] = useState(() => buildSrcdoc(initialFilesRef.current))
   const prevDefaultRef = useRef(defaultFiles)
+  const fileManagerId = useId()
 
   // Reset when defaultFiles prop changes (new activity loaded)
   useEffect(() => {
@@ -140,103 +142,138 @@ export const WebProjectEditor = ({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 overflow-x-auto rounded-t-xl border border-slate-200 bg-slate-800 px-2 pt-2">
-        {files.map((f, i) => (
-          <div
-            key={f.name}
-            className={`group flex items-center gap-1 rounded-t px-3 py-1.5 text-xs font-medium cursor-pointer select-none ${
-              i === activeIndex
-                ? 'bg-slate-900 text-slate-100'
-                : 'text-slate-400 hover:bg-slate-700 hover:text-slate-200'
-            }`}
-            onClick={() => setActiveIndex(i)}
-          >
-            {f.name}
-            {!readOnly && files.length > 1 && (
-              <button
-                className="ml-1 opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleRemoveFile(i)
-                }}
-                aria-label={`Remove ${f.name}`}
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
-        {!readOnly && !addingFile && (
+      <div className="flex items-center justify-between rounded-t-xl border border-slate-200 bg-slate-800 px-3 py-2">
+        <div className="flex items-center gap-2">
           <button
-            className="ml-1 rounded px-2 py-1 text-xs text-slate-400 hover:bg-slate-700 hover:text-slate-200"
-            onClick={() => setAddingFile(true)}
+            className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+            onClick={() => setFileManagerOpen((open) => !open)}
+            aria-expanded={fileManagerOpen}
+            aria-controls={fileManagerId}
           >
-            + Add file
+            {fileManagerOpen ? 'Hide Files' : 'Show Files'}
           </button>
-        )}
-        {!readOnly && addingFile && (
-          <div className="flex items-center gap-1 px-2 pb-1">
-            <input
-              autoFocus
-              className="rounded border border-slate-500 bg-slate-700 px-2 py-0.5 text-xs text-slate-100 outline-none"
-              placeholder="filename.ext"
-              value={newFileName}
-              onChange={(e) => setNewFileName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddFile()
-                if (e.key === 'Escape') { setAddingFile(false); setNewFileName('') }
-              }}
-            />
-            <button
-              className="rounded bg-indigo-600 px-2 py-0.5 text-xs text-white hover:bg-indigo-700"
-              onClick={handleAddFile}
-            >
-              Add
-            </button>
-            <button
-              className="text-xs text-slate-400 hover:text-slate-200"
-              onClick={() => { setAddingFile(false); setNewFileName('') }}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+          <span className="text-xs text-slate-400">{active?.name ?? 'No file selected'}</span>
+        </div>
+        <button
+          className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+          onClick={refreshPreview}
+        >
+          ▶ Refresh
+        </button>
       </div>
 
       {/* Editor + Preview side by side */}
       <div className="flex gap-3" style={{ height }}>
-        {/* Code editor */}
-        <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-slate-200">
-          <MonacoEditorReact
-            height={height}
-            language={active?.language ?? 'html'}
-            value={active?.content ?? ''}
-            onChange={handleCodeChange}
-            theme="vs-dark"
-            options={{
-              readOnly,
-              minimap: { enabled: false },
-              fontSize: 13,
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              wordWrap: 'on',
-              padding: { top: 12, bottom: 12 },
-            }}
-          />
+        <div className="flex flex-1 gap-2">
+          {fileManagerOpen && (
+            <div id={fileManagerId} className="flex w-64 flex-col rounded-b-xl border border-t-0 border-slate-200 bg-slate-900 text-slate-100">
+              <div className="border-b border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                Explorer
+              </div>
+              <ul className="flex-1 overflow-auto px-2 py-2" role="listbox" aria-label="Project files">
+                {files.map((file, index) => {
+                  const depth = Math.max(0, file.name.split('/').length - 1)
+                  const label = file.name.split('/').at(-1) || file.name
+                  return (
+                    <li
+                      key={file.name}
+                      role="option"
+                      aria-selected={index === activeIndex}
+                      className={`mb-1 flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs ${
+                        index === activeIndex ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'
+                      }`}
+                      style={{ paddingLeft: `${8 + depth * 10}px` }}
+                    >
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 truncate text-left"
+                        onClick={() => setActiveIndex(index)}
+                      >
+                        {label}
+                      </button>
+                      {!readOnly && files.length > 1 && (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${file.name}`}
+                          className="ml-2 text-slate-500 hover:text-rose-400"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleRemoveFile(index)
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+              {!readOnly && (
+                <div className="border-t border-slate-700 p-2">
+                  {!addingFile ? (
+                    <button
+                      className="w-full rounded bg-slate-700 px-2 py-1 text-xs text-slate-100 hover:bg-slate-600"
+                      onClick={() => setAddingFile(true)}
+                    >
+                      + New File
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        autoFocus
+                        className="w-full rounded border border-slate-600 bg-slate-800 px-2 py-1 text-xs text-slate-100 outline-none"
+                        placeholder="filename.ext or folder/file.py"
+                        value={newFileName}
+                        onChange={(e) => setNewFileName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleAddFile()
+                          if (e.key === 'Escape') { setAddingFile(false); setNewFileName('') }
+                        }}
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="rounded bg-indigo-600 px-2 py-1 text-xs text-white hover:bg-indigo-700"
+                          onClick={handleAddFile}
+                        >
+                          Add
+                        </button>
+                        <button
+                          className="text-xs text-slate-400 hover:text-slate-200"
+                          onClick={() => { setAddingFile(false); setNewFileName('') }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Code editor */}
+          <div className="flex-1 overflow-hidden rounded-b-xl border border-t-0 border-slate-200">
+            <MonacoEditorReact
+              height={height}
+              language={active?.language ?? 'html'}
+              value={active?.content ?? ''}
+              onChange={handleCodeChange}
+              theme="vs-dark"
+              options={{
+                readOnly,
+                minimap: { enabled: false },
+                fontSize: 13,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                padding: { top: 12, bottom: 12 },
+              }}
+            />
+          </div>
         </div>
 
         {/* Live preview */}
         <div className="flex w-2/5 flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
-            <button
-              className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-              onClick={refreshPreview}
-            >
-              ▶ Refresh
-            </button>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
           <iframe
             key={previewKey}
             title="Web project preview"

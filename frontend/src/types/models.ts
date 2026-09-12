@@ -25,6 +25,7 @@ export interface Activity {
   description: string
   directions?: string | null
   language?: string | null
+  languageLocked?: boolean
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   expectedOutput?: string | null
@@ -70,6 +71,7 @@ export interface GradebookEntry {
   gradedAt?: string | null
   submittedAt?: string | null
   submissionText?: string | null
+  submissionFiles?: StarterFile[] | null
 }
 
 export interface CreateActivityInput {
@@ -78,6 +80,7 @@ export interface CreateActivityInput {
   description: string
   directions?: string | null
   language?: string | null
+  languageLocked?: boolean
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   expectedOutput?: string | null

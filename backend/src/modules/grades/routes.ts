@@ -2,6 +2,12 @@ import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
 import { AppError, iso, requireRole } from '../../lib.js'
 
+const starterFileSchema = z.object({
+  name: z.string(),
+  language: z.string(),
+  content: z.string(),
+})
+
 const courseParamsSchema = z.object({ courseId: z.string().trim().min(1) })
 const putGradeBodySchema = z.object({
   studentId: z.string().trim().min(1),
@@ -34,6 +40,7 @@ const gradebookResponseSchema = z.object({
           gradedAt: z.string().nullable(),
           submittedAt: z.string().nullable(),
           submissionText: z.string().nullable(),
+          submissionFiles: z.array(starterFileSchema).nullable(),
         }),
       ),
     }),
@@ -63,6 +70,7 @@ const meGradesResponseSchema = z.array(
     gradedAt: z.string().nullable(),
     submittedAt: z.string().nullable(),
     submissionText: z.string().nullable(),
+    submissionFiles: z.array(starterFileSchema).nullable(),
   }),
 )
 
@@ -73,6 +81,32 @@ const getSubmissionText = (content: unknown) => {
 
   const responseText = Reflect.get(content, 'responseText')
   return typeof responseText === 'string' && responseText.trim() ? responseText : null
+}
+
+const getSubmissionFiles = (content: unknown) => {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) {
+    return null
+  }
+
+  const submissionFiles = Reflect.get(content, 'submissionFiles')
+  const parsed = z.array(starterFileSchema).safeParse(submissionFiles)
+  if (parsed.success && parsed.data.length > 0) {
+    return parsed.data
+  }
+
+  const responseText = Reflect.get(content, 'responseText')
+  if (typeof responseText !== 'string' || !responseText.trim()) {
+    return null
+  }
+
+  try {
+    const fallbackParsed = z.array(starterFileSchema).safeParse(
+      JSON.parse(responseText),
+    )
+    return fallbackParsed.success && fallbackParsed.data.length > 0 ? fallbackParsed.data : null
+  } catch {
+    return null
+  }
 }
 
 const assertTeacherForCourse = async (app: Parameters<FastifyPluginAsync>[0], courseId: string, userId: string) => {
@@ -175,6 +209,7 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
               gradedAt: iso(grade?.gradedAt),
               submittedAt: iso(submission?.submittedAt),
               submissionText: getSubmissionText(submission?.content),
+              submissionFiles: getSubmissionFiles(submission?.content),
             }
           }),
         })),
@@ -325,6 +360,7 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
                   gradedAt: iso(grade?.gradedAt),
                   submittedAt: iso(submission?.submittedAt),
                   submissionText: getSubmissionText(submission?.content),
+                  submissionFiles: getSubmissionFiles(submission?.content),
                 }
               }),
             ),

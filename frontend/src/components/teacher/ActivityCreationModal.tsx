@@ -31,6 +31,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [starterLanguage, setStarterLanguage] = useState('javascript')
+  const [languageLocked, setLanguageLocked] = useState(false)
   const [starterCode, setStarterCode] = useState('')
   const [starterFiles, setStarterFiles] = useState<StarterFile[] | null>(null)
   const [expectedOutput, setExpectedOutput] = useState('')
@@ -51,6 +52,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
       setError(null)
       setSaving(false)
       setStarterLanguage('javascript')
+      setLanguageLocked(false)
       setStarterCode('')
       setStarterFiles(null)
       setExpectedOutput('')
@@ -181,6 +183,14 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                 ))}
               </select>
             </div>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={languageLocked}
+                onChange={(event) => setLanguageLocked(event.target.checked)}
+              />
+              Lock language for students (sandbox activities can leave this unlocked)
+            </label>
 
             {starterLanguage === 'web' ? (
               <WebProjectEditor
@@ -248,6 +258,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                   description: description.trim(),
                   directions: directions.trim() || null,
                   language: type === 'coding' ? starterLanguage : null,
+                  languageLocked: type === 'coding' ? languageLocked : false,
                   starterCode: type === 'coding' && starterLanguage !== 'web' ? (starterCode.trim() || null) : null,
                   starterFiles: type === 'coding' && starterLanguage === 'web' ? (starterFiles ?? null) : null,
                   expectedOutput: type === 'coding' && starterLanguage !== 'web' ? (expectedOutput.trim() || null) : null,

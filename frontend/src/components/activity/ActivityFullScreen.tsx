@@ -15,7 +15,7 @@ interface ActivityFullScreenProps {
   onClose: () => void
   onNavigate: (activityId: string) => void
   onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
-  onSubmitActivity?: (activityId: string, responseText: string) => Promise<void>
+  onSubmitActivity?: (activityId: string, responseText: string, submissionFiles?: StarterFile[] | null) => Promise<void>
   onUpdateActivityDirections?: (
     activityId: string,
     input: UpdateActivityDirectionsInput,
@@ -140,6 +140,7 @@ export const ActivityFullScreen = ({
   const isSubmitted = Boolean(gradeEntry?.submitted)
   const embeddedUrl = useMemo(() => getEmbeddedUrl(activity), [activity])
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
+  const languageLockedForStudents = Boolean(activity.languageLocked && activity.language)
 
   const renderWorkspace = () => {
     if (activity.type === 'coding') {
@@ -167,7 +168,7 @@ export const ActivityFullScreen = ({
           key={activity.id}
           defaultValue={activity.starterCode ?? ''}
           language={monacoLanguage}
-          showLanguageSelector
+          showLanguageSelector={currentUser.role === 'teacher' || !languageLockedForStudents}
           onLanguageChange={setMonacoLanguage}
           onChange={(code) => {
             setMonacoCode(code)
@@ -448,7 +449,11 @@ export const ActivityFullScreen = ({
                     } else {
                       textToSubmit = submissionText.trim()
                     }
-                    await onSubmitActivity?.(activity.id, textToSubmit)
+                    await onSubmitActivity?.(
+                      activity.id,
+                      textToSubmit,
+                      activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
+                    )
                   } catch (saveError) {
                     setSubmissionError(
                       saveError instanceof Error ? saveError.message : 'Failed to submit activity',
@@ -469,7 +474,11 @@ export const ActivityFullScreen = ({
         <GradingPanel
           activityId={activity.id}
           activityTitle={activity.title}
+          activityType={activity.type}
+          activityLanguage={activity.language}
           entries={gradebookEntries}
+          executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
+          runUserId={currentUser.id}
           onClose={() => setGradingOpen(false)}
           onSave={async (studentId, points, comment) => {
             await onSaveGrade?.(studentId, activity.id, points, comment)
