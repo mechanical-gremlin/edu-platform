@@ -9,6 +9,7 @@ export const CODING_LANGUAGES: { value: string; label: string }[] = [
   { value: 'c', label: 'C' },
   { value: 'cpp', label: 'C++' },
   { value: 'csharp', label: 'C#' },
+  { value: 'web', label: 'Web (HTML/CSS/JS)' },
   { value: 'html', label: 'HTML' },
   { value: 'php', label: 'PHP' },
   { value: 'ruby', label: 'Ruby' },
@@ -162,58 +163,66 @@ export const MonacoEditor = ({
         </div>
       )}
 
-      <div style={{ minHeight }} className="overflow-hidden rounded-xl border border-slate-200">
-        <MonacoEditorReact
-          height={minHeight}
-          language={MONACO_LANGUAGE_MAP[language] ?? language}
-          value={code}
-          onChange={handleChange}
-          theme="vs-dark"
-          options={{
-            readOnly,
-            minimap: { enabled: false },
-            fontSize: 13,
-            lineNumbers: 'on',
-            scrollBeyondLastLine: false,
-            wordWrap: 'on',
-            padding: { top: 12, bottom: 12 },
-          }}
-        />
+      <div className="flex gap-3" style={{ minHeight }}>
+        {/* Editor panel */}
+        <div className="flex-1 overflow-hidden rounded-xl border border-slate-200">
+          <MonacoEditorReact
+            height={minHeight}
+            language={MONACO_LANGUAGE_MAP[language] ?? language}
+            value={code}
+            onChange={handleChange}
+            theme="vs-dark"
+            options={{
+              readOnly,
+              minimap: { enabled: false },
+              fontSize: 13,
+              lineNumbers: 'on',
+              scrollBeyondLastLine: false,
+              wordWrap: 'on',
+              padding: { top: 12, bottom: 12 },
+            }}
+          />
+        </div>
+
+        {/* Output panel */}
+        {executeUrl && (
+          <div className="flex w-2/5 flex-col gap-2">
+            <div className="flex items-center gap-3">
+              <button
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+                disabled={running || !code.trim()}
+                onClick={handleRun}
+              >
+                {running ? '▶ Running…' : '▶ Run'}
+              </button>
+              {passed !== null && (
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    passed
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-rose-100 text-rose-700'
+                  }`}
+                >
+                  {passed ? '✓ Matches' : '✗ No match'}
+                </span>
+              )}
+            </div>
+
+            {runError && (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{runError}</p>
+            )}
+
+            <div className="flex-1 rounded-xl border border-slate-200 bg-slate-900 px-4 py-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Output</p>
+              {output !== null ? (
+                <pre className="whitespace-pre-wrap font-mono text-xs text-slate-100">{output}</pre>
+              ) : (
+                <p className="text-xs text-slate-500">Run your code to see output here.</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-
-      {executeUrl && (
-        <div className="flex items-center gap-3">
-          <button
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-            disabled={running || !code.trim()}
-            onClick={handleRun}
-          >
-            {running ? '▶ Running…' : '▶ Run'}
-          </button>
-          {passed !== null && (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                passed
-                  ? 'bg-emerald-100 text-emerald-700'
-                  : 'bg-rose-100 text-rose-700'
-              }`}
-            >
-              {passed ? '✓ Output matches expected' : '✗ Output does not match expected'}
-            </span>
-          )}
-        </div>
-      )}
-
-      {runError && (
-        <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{runError}</p>
-      )}
-
-      {output !== null && (
-        <div className="rounded-xl border border-slate-200 bg-slate-900 px-4 py-3">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Output</p>
-          <pre className="whitespace-pre-wrap font-mono text-xs text-slate-100">{output}</pre>
-        </div>
-      )}
     </div>
   )
 }

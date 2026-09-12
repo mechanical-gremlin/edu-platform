@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { ActivityType, CreateActivityInput } from '../../types/models'
+import type { ActivityType, CreateActivityInput, StarterFile } from '../../types/models'
 import { DirectionsEditor } from './DirectionsEditor'
-import { MonacoEditor } from '../coding/MonacoEditor'
+import { MonacoEditor, CODING_LANGUAGES } from '../coding/MonacoEditor'
+import { WebProjectEditor } from '../coding/WebProjectEditor'
 
 interface ActivityCreationModalProps {
   open: boolean
@@ -31,6 +32,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
   const [saving, setSaving] = useState(false)
   const [starterLanguage, setStarterLanguage] = useState('javascript')
   const [starterCode, setStarterCode] = useState('')
+  const [starterFiles, setStarterFiles] = useState<StarterFile[] | null>(null)
   const [expectedOutput, setExpectedOutput] = useState('')
 
   const totalSteps = type === 'coding' ? 4 : 3
@@ -50,6 +52,7 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
       setSaving(false)
       setStarterLanguage('javascript')
       setStarterCode('')
+      setStarterFiles(null)
       setExpectedOutput('')
     }
   }, [open])
@@ -159,36 +162,61 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
         {step === 4 && type === 'coding' && (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
-              Write the starter code students will see pre-loaded in their Monaco editor. Optionally
-              set expected output to give students automatic pass/fail feedback when they run their code.
+              Choose a language and write starter code students will see pre-loaded in their editor.
+              {starterLanguage !== 'web' && ' Optionally set expected output for automatic pass/fail feedback.'}
             </p>
-            <MonacoEditor
-              defaultValue={starterCode}
-              language={starterLanguage}
-              showLanguageSelector
-              onLanguageChange={setStarterLanguage}
-              onChange={setStarterCode}
-              minHeight="300px"
-            />
-            <div>
-              <label className="mb-1 block font-medium text-slate-700">
-                Expected Output{' '}
-                <span className="text-xs font-normal text-slate-400">
-                  (optional — exact stdout the student's program should produce)
-                </span>
-              </label>
-              <input
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs"
-                placeholder="e.g. Hello, World!"
-                value={expectedOutput}
-                onChange={(event) => setExpectedOutput(event.target.value)}
-              />
-              {expectedOutput.trim() && (
-                <p className="mt-1 text-xs text-indigo-600">
-                  ✓ Students will see pass/fail feedback when their output matches this.
-                </p>
-              )}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-slate-600">Language</label>
+              <select
+                className="rounded border border-slate-200 px-2 py-1 text-sm"
+                value={starterLanguage}
+                onChange={(e) => {
+                  setStarterLanguage(e.target.value)
+                  setStarterCode('')
+                  setStarterFiles(null)
+                }}
+              >
+                {CODING_LANGUAGES.map((lang) => (
+                  <option key={lang.value} value={lang.value}>{lang.label}</option>
+                ))}
+              </select>
             </div>
+
+            {starterLanguage === 'web' ? (
+              <WebProjectEditor
+                defaultFiles={starterFiles}
+                onChange={setStarterFiles}
+                height="350px"
+              />
+            ) : (
+              <>
+                <MonacoEditor
+                  defaultValue={starterCode}
+                  language={starterLanguage}
+                  onChange={setStarterCode}
+                  minHeight="300px"
+                />
+                <div>
+                  <label className="mb-1 block font-medium text-slate-700">
+                    Expected Output{' '}
+                    <span className="text-xs font-normal text-slate-400">
+                      (optional — exact stdout the student's program should produce)
+                    </span>
+                  </label>
+                  <input
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-xs"
+                    placeholder="e.g. Hello, World!"
+                    value={expectedOutput}
+                    onChange={(event) => setExpectedOutput(event.target.value)}
+                  />
+                  {expectedOutput.trim() && (
+                    <p className="mt-1 text-xs text-indigo-600">
+                      ✓ Students will see pass/fail feedback when their output matches this.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -219,8 +247,10 @@ export const ActivityCreationModal = ({ open, onClose, onSave }: ActivityCreatio
                   type,
                   description: description.trim(),
                   directions: directions.trim() || null,
-                  starterCode: type === 'coding' ? (starterCode.trim() || null) : null,
-                  expectedOutput: type === 'coding' ? (expectedOutput.trim() || null) : null,
+                  language: type === 'coding' ? starterLanguage : null,
+                  starterCode: type === 'coding' && starterLanguage !== 'web' ? (starterCode.trim() || null) : null,
+                  starterFiles: type === 'coding' && starterLanguage === 'web' ? (starterFiles ?? null) : null,
+                  expectedOutput: type === 'coding' && starterLanguage !== 'web' ? (expectedOutput.trim() || null) : null,
                   dueAt: dueDate ? new Date(`${dueDate}T23:59:00`).toISOString() : null,
                   pointsPossible: points,
                   resourceUrl: computedResourceUrl(),

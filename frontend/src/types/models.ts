@@ -10,6 +10,12 @@ export interface User {
   avatarUrl: string
 }
 
+export interface StarterFile {
+  name: string
+  language: string
+  content: string
+}
+
 export interface Activity {
   id: string
   title: string
@@ -18,7 +24,9 @@ export interface Activity {
   points: number
   description: string
   directions?: string | null
+  language?: string | null
   starterCode?: string | null
+  starterFiles?: StarterFile[] | null
   expectedOutput?: string | null
   resourceUrl?: string | null
   visible?: boolean
@@ -69,7 +77,9 @@ export interface CreateActivityInput {
   type: ActivityType
   description: string
   directions?: string | null
+  language?: string | null
   starterCode?: string | null
+  starterFiles?: StarterFile[] | null
   expectedOutput?: string | null
   dueAt?: string | null
   pointsPossible: number
