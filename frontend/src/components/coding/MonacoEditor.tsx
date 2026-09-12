@@ -49,6 +49,8 @@ interface ExecuteResult {
 interface MonacoEditorProps {
   /** Initial code value. Changing this prop resets the editor only on first mount. */
   defaultValue?: string
+  /** Controlled code value for externally managed editors */
+  value?: string
   /** Controlled language selection */
   language: string
   /** Whether to show the language selector */
@@ -71,6 +73,7 @@ interface MonacoEditorProps {
 
 export const MonacoEditor = ({
   defaultValue = '',
+  value,
   language,
   showLanguageSelector = false,
   onLanguageChange,
@@ -105,6 +108,12 @@ export const MonacoEditor = ({
       setPassed(null)
     }
   }, [defaultValue])
+
+  useEffect(() => {
+    if (value !== undefined) {
+      setCode(value)
+    }
+  }, [value])
 
   const handleChange = (value: string | undefined) => {
     const next = value ?? ''
@@ -193,7 +202,7 @@ export const MonacoEditor = ({
           <MonacoEditorReact
             height={minHeight}
             language={MONACO_LANGUAGE_MAP[language] ?? language}
-            value={code}
+            value={value ?? code}
             onChange={handleChange}
             theme="vs-dark"
             options={{

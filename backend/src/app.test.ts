@@ -371,6 +371,127 @@ test('student resubmission preserves manual grade while refreshing autograder de
   }
 })
 
+test('student resubmission keeps commentless manual override unchanged', { concurrency: false }, async () => {
+  const previousUrl = process.env.JUDGE0_API_URL
+  const previousKey = process.env.JUDGE0_API_KEY
+  process.env.JUDGE0_API_URL = 'https://judge0.school.internal'
+  delete process.env.JUDGE0_API_KEY
+
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-override-empty-comment' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(
+      JSON.stringify({
+        stdout: 'Alex: 1500\n',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 1024,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  let capturedGradeUpdate: Record<string, unknown> | null = null
+  const submissionPrismaStub = {
+    user: {
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        if (where.id === 's-1') {
+          return {
+            id: 's-1',
+            name: 'Avery Chen',
+            email: 'student@example.edu',
+            role: 'student',
+          }
+        }
+
+        return null
+      },
+    },
+    activity: {
+      findUnique: async () => ({
+        id: 'a-2',
+        type: 'coding',
+        language: 'javascript',
+        visible: true,
+        pointsPossible: 20,
+        autograderEnabled: true,
+        autograderReferenceSolution: 'const playerName = "Alex"; const score = 1500; console.log(`${playerName}: ${score}`);',
+        autograderReferenceOutput: 'Alex: 1500',
+        autograderCodeMatch: true,
+        autograderOutputMatch: true,
+        autograderTestCases: [],
+        lesson: { unit: { courseId: 'c-1' } },
+      }),
+    },
+    enrollment: {
+      findUnique: async ({ where }: { where: { userId_courseId: { userId: string; courseId: string } } }) => {
+        if (where.userId_courseId.userId === 's-1' && where.userId_courseId.courseId === 'c-1') {
+          return { role: 'student' }
+        }
+        return null
+      },
+    },
+    submission: {
+      upsert: async () => ({
+        id: 'sub-1b',
+        studentId: 's-1',
+        activityId: 'a-2',
+        status: 'submitted',
+        submittedAt: new Date('2026-09-12T00:00:00.000Z'),
+      }),
+    },
+    grade: {
+      findUnique: async () => ({
+        id: 'grade-1b',
+        gradingSource: 'manual',
+        comment: null,
+      }),
+      update: async ({ data }: { data: Record<string, unknown> }) => {
+        capturedGradeUpdate = data
+        return {
+          id: 'grade-1b',
+          ...data,
+        }
+      },
+    },
+    $disconnect: async () => undefined,
+  } as any
+
+  const app = await buildApp({ prisma: submissionPrismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/activities/a-2/submissions',
+      headers: { 'x-user-id': 's-1', 'content-type': 'application/json' },
+      payload: {
+        content: {
+          responseText: 'const name = "Alex";\nconst total = 1500;\nconsole.log(name + ": " + total);',
+        },
+      },
+    })
+
+    assert.equal(response.statusCode, 201)
+    assert.ok(capturedGradeUpdate)
+    const updatedGrade = capturedGradeUpdate as { autograderResult: { score?: number } }
+    assert.deepEqual(Object.keys(updatedGrade), ['autograderResult'])
+    assert.equal(updatedGrade.autograderResult.score, 50)
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    process.env.JUDGE0_API_URL = previousUrl
+    process.env.JUDGE0_API_KEY = previousKey
+  }
+})
+
 test('student submission creates an autograded grade when no manual override exists', { concurrency: false }, async () => {
   const previousUrl = process.env.JUDGE0_API_URL
   const previousKey = process.env.JUDGE0_API_KEY

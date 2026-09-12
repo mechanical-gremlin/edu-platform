@@ -308,7 +308,7 @@ export const ActivityCreationModal = ({
                             </span>
                           </div>
                           <MonacoEditor
-                            defaultValue={autograderReferenceSolution}
+                            value={autograderReferenceSolution}
                             language={starterLanguage}
                             onChange={setAutograderReferenceSolution}
                             executeUrl={executeUrl}
@@ -317,7 +317,10 @@ export const ActivityCreationModal = ({
                             showStdinField
                             onStdinChange={setAutograderRunInput}
                             onExecutionComplete={(result) => {
-                              const nextOutput = result.stdout?.trim() ?? ''
+                              const stdoutText = result.stdout?.trim() ?? ''
+                              const stderrText = result.stderr?.trim() ?? ''
+                              const compileText = result.compile_output?.trim() ?? ''
+                              const nextOutput = compileText || stdoutText || stderrText
                               if (nextOutput) {
                                 setAutograderReferenceOutput(nextOutput)
                               }
