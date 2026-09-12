@@ -13,9 +13,6 @@ CREATE TYPE "ActivityType" AS ENUM ('video', 'coding', 'quiz', 'project', 'godot
 -- CreateEnum
 CREATE TYPE "SubmissionStatus" AS ENUM ('in_progress', 'submitted');
 
--- CreateEnum
-CREATE TYPE "GradeSource" AS ENUM ('manual', 'autograder');
-
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -92,12 +89,6 @@ CREATE TABLE "Activity" (
     "starterCode" TEXT,
     "starterFiles" JSONB,
     "expectedOutput" TEXT,
-    "autograderEnabled" BOOLEAN NOT NULL DEFAULT false,
-    "autograderReferenceSolution" TEXT,
-    "autograderReferenceOutput" TEXT,
-    "autograderCodeMatch" BOOLEAN NOT NULL DEFAULT false,
-    "autograderOutputMatch" BOOLEAN NOT NULL DEFAULT false,
-    "autograderTestCases" JSONB,
     "resourceUrl" TEXT,
     "visible" BOOLEAN NOT NULL DEFAULT true,
     "dueAt" TIMESTAMP(3),
@@ -130,8 +121,6 @@ CREATE TABLE "Grade" (
     "activityId" TEXT NOT NULL,
     "pointsEarned" INTEGER,
     "comment" TEXT,
-    "gradingSource" "GradeSource" NOT NULL DEFAULT 'manual',
-    "autograderResult" JSONB,
     "gradedById" TEXT,
     "gradedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

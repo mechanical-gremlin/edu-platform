@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { ExecuteResponse } from '../execute/judge0.js'
 
 export const autograderTestCaseSchema = z.object({
-  input: z.string().max(4096),
+  input: z.string().min(1).max(4096),
   expectedOutput: z.string().trim().min(1).max(4096),
 })
 
