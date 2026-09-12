@@ -25,6 +25,7 @@ interface CoursePageProps {
   onMoveUnit: (unitId: string, direction: 'up' | 'down') => Promise<void>
   onMoveLesson: (lessonId: string, direction: 'up' | 'down') => Promise<void>
   onMoveActivity: (activityId: string, direction: 'up' | 'down') => Promise<void>
+  onMoveActivityToLesson: (activityId: string, lessonId: string) => Promise<void>
   onToggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
   onToggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   onToggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
@@ -50,6 +51,7 @@ export const CoursePage = ({
   onMoveUnit,
   onMoveLesson,
   onMoveActivity,
+  onMoveActivityToLesson,
   onToggleUnitVisibility,
   onToggleLessonVisibility,
   onToggleActivityVisibility,
@@ -109,6 +111,7 @@ export const CoursePage = ({
         onMoveUnit={onMoveUnit}
         onMoveLesson={onMoveLesson}
         onMoveActivity={onMoveActivity}
+        onMoveActivityToLesson={onMoveActivityToLesson}
         onToggleUnitVisibility={onToggleUnitVisibility}
         onToggleLessonVisibility={onToggleLessonVisibility}
         onToggleActivityVisibility={onToggleActivityVisibility}

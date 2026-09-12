@@ -54,6 +54,7 @@ function App() {
     deleteLesson,
     deleteUnit,
     moveActivity,
+    moveActivityToLesson,
     moveLesson,
     moveUnit,
     submitActivity,
@@ -331,6 +332,7 @@ function App() {
             onMoveUnit={moveUnit}
             onMoveLesson={moveLesson}
             onMoveActivity={moveActivity}
+            onMoveActivityToLesson={moveActivityToLesson}
             onToggleUnitVisibility={toggleUnitVisibility}
             onToggleLessonVisibility={toggleLessonVisibility}
             onToggleActivityVisibility={toggleActivityVisibility}

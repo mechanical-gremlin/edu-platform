@@ -140,12 +140,12 @@ export const GradebookPage = ({ entries, courses, user, onSaveGrade }: Gradebook
   }
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">Gradebook</h2>
-          <p className="text-sm text-slate-600">Click an assignment column to enter grade mode.</p>
-        </div>
+    <section className="min-w-0 space-y-4">
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">Gradebook</h2>
+        <p className="text-sm text-slate-600">Click an assignment column to enter grade mode.</p>
+      </div>
+      <div className="flex justify-end">
         <label className="text-sm text-slate-600">
           <span className="mb-1 block font-medium text-slate-700">Class</span>
           <select
@@ -162,13 +162,15 @@ export const GradebookPage = ({ entries, courses, user, onSaveGrade }: Gradebook
           </select>
         </label>
       </div>
-      <GradebookTable
-        entries={visibleEntries}
-        onActivityClick={(activityId) => {
-          const entry = visibleEntries.find((gradebookEntry) => gradebookEntry.activityId === activityId)
-          if (entry) setGradingActivityId(activityId)
-        }}
-      />
+      <div className="max-w-full">
+        <GradebookTable
+          entries={visibleEntries}
+          onActivityClick={(activityId) => {
+            const entry = visibleEntries.find((gradebookEntry) => gradebookEntry.activityId === activityId)
+            if (entry) setGradingActivityId(activityId)
+          }}
+        />
+      </div>
       {activeGradingActivityId && (
         <GradingPanel
           activityId={activeGradingActivityId}

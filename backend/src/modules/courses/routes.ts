@@ -98,9 +98,17 @@ const createActivityBodySchema = z.object({
 const visibilitySchema = z.object({
   visible: z.boolean(),
 })
-const moveSchema = z.object({
+const moveDirectionSchema = z.object({
   direction: z.enum(['up', 'down']),
 })
+const moveActivitySchema = z.union([
+  z.object({
+    direction: z.enum(['up', 'down']),
+  }),
+  z.object({
+    lessonId: z.string().trim().min(1),
+  }),
+])
 const directionsSchema = z.object({
   directions: z.string().trim().max(20000).optional().nullable(),
 })
@@ -369,7 +377,7 @@ const swapSiblingPositions = async (
   update: (id: string, position: number) => Promise<unknown>,
   siblings: Array<{ id: string; position: number }>,
   currentId: string,
-  direction: z.infer<typeof moveSchema>['direction'],
+  direction: z.infer<typeof moveDirectionSchema>['direction'],
 ) => {
   const currentIndex = siblings.findIndex((item) => item.id === currentId)
 
@@ -951,7 +959,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     {
       schema: {
         params: unitParamsSchema,
-        body: moveSchema,
+        body: moveDirectionSchema,
         response: {
           200: reorderResponseSchema,
         },
@@ -960,7 +968,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = requireRole(request, 'teacher')
       const { unitId } = unitParamsSchema.parse(request.params)
-      const payload = moveSchema.parse(request.body)
+      const payload = moveDirectionSchema.parse(request.body)
       const unit = await findTeacherCourseIdFromUnit(app, unitId)
       await assertTeacherForCourse(app, unit.courseId, user.id)
 
@@ -988,7 +996,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     {
       schema: {
         params: lessonParamsSchema,
-        body: moveSchema,
+        body: moveDirectionSchema,
         response: {
           200: reorderResponseSchema,
         },
@@ -997,7 +1005,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = requireRole(request, 'teacher')
       const { lessonId } = lessonParamsSchema.parse(request.params)
-      const payload = moveSchema.parse(request.body)
+      const payload = moveDirectionSchema.parse(request.body)
       const lesson = await findTeacherLesson(app, lessonId)
       await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
 
@@ -1025,7 +1033,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     {
       schema: {
         params: activityParamsSchema,
-        body: moveSchema,
+        body: moveActivitySchema,
         response: {
           200: reorderResponseSchema,
         },
@@ -1034,7 +1042,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = requireRole(request, 'teacher')
       const { activityId } = activityParamsSchema.parse(request.params)
-      const payload = moveSchema.parse(request.body)
+      const payload = moveActivitySchema.parse(request.body)
       const activity = await app.prisma.activity.findUnique({
         where: { id: activityId },
         select: {
@@ -1050,20 +1058,83 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
 
       await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
 
-      const siblings = await app.prisma.activity.findMany({
-        where: { lessonId: activity.lessonId },
-        orderBy: { position: 'asc' },
-        select: { id: true, position: true },
-      })
+      if ('lessonId' in payload) {
+        const targetLesson = await app.prisma.lesson.findUnique({
+          where: { id: payload.lessonId },
+          select: {
+            id: true,
+            unit: { select: { courseId: true } },
+          },
+        })
 
-      await app.prisma.$transaction(async (tx) => {
-        await swapSiblingPositions(
-          (id, position) => tx.activity.update({ where: { id }, data: { position } }),
-          siblings,
-          activityId,
-          payload.direction,
-        )
-      })
+        if (!targetLesson) {
+          throw new AppError(404, 'Lesson not found')
+        }
+
+        await assertTeacherForCourse(app, targetLesson.unit.courseId, user.id)
+
+        if (targetLesson.id !== activity.lessonId) {
+          await app.prisma.$transaction(async (tx) => {
+            const lessonIdsToLock = [targetLesson.id, activity.lessonId].sort((left, right) =>
+              left.localeCompare(right),
+            )
+            for (const lessonId of lessonIdsToLock) {
+              await tx.$executeRaw`SELECT 1 FROM "Lesson" WHERE id = ${lessonId} FOR UPDATE`
+            }
+            const sourceActivities = await tx.activity.findMany({
+              where: {
+                lessonId: activity.lessonId,
+                id: { not: activityId },
+              },
+              orderBy: { position: 'asc' },
+              select: { id: true },
+            })
+            const destinationActivities = await tx.activity.findMany({
+              where: { lessonId: targetLesson.id },
+              orderBy: { position: 'asc' },
+              select: { id: true },
+            })
+
+            await Promise.all(
+              sourceActivities.map((sourceActivity, index) =>
+                tx.activity.update({
+                  where: { id: sourceActivity.id },
+                  data: { position: index },
+                }),
+              ),
+            )
+
+            await Promise.all(
+              destinationActivities.map((destinationActivity, index) =>
+                tx.activity.update({
+                  where: { id: destinationActivity.id },
+                  data: { position: index },
+                }),
+              ),
+            )
+
+            await tx.activity.update({
+              where: { id: activityId },
+              data: { lessonId: targetLesson.id, position: destinationActivities.length },
+            })
+          })
+        }
+      } else {
+        const siblings = await app.prisma.activity.findMany({
+          where: { lessonId: activity.lessonId },
+          orderBy: { position: 'asc' },
+          select: { id: true, position: true },
+        })
+
+        await app.prisma.$transaction(async (tx) => {
+          await swapSiblingPositions(
+            (id, position) => tx.activity.update({ where: { id }, data: { position } }),
+            siblings,
+            activityId,
+            payload.direction,
+          )
+        })
+      }
 
       return { id: activityId }
     },

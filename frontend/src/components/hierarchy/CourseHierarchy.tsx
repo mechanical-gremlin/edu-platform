@@ -20,6 +20,7 @@ interface CourseHierarchyProps {
   onMoveUnit: (unitId: string, direction: 'up' | 'down') => Promise<void>
   onMoveLesson: (lessonId: string, direction: 'up' | 'down') => Promise<void>
   onMoveActivity: (activityId: string, direction: 'up' | 'down') => Promise<void>
+  onMoveActivityToLesson: (activityId: string, lessonId: string) => Promise<void>
   onToggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
   onToggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   onToggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
@@ -27,7 +28,7 @@ interface CourseHierarchyProps {
 
 interface ActionMenuItem {
   label: string
-  onClick: () => void
+  onClick: () => void | Promise<void>
   disabled?: boolean
   danger?: boolean
 }
@@ -93,6 +94,12 @@ interface NameDescModalProps {
   initialDescription?: string | null
   onClose: () => void
   onConfirm: (name: string, description: string) => Promise<void>
+}
+
+interface MoveActivityModalState {
+  activityId: string
+  activityTitle: string
+  currentLessonId: string
 }
 
 const NameDescModal = ({
@@ -192,6 +199,107 @@ const NameDescModal = ({
   )
 }
 
+interface MoveActivityModalProps {
+  open: boolean
+  activityTitle: string
+  currentLessonId: string
+  lessonOptions: Array<{ unitTitle: string; lessonId: string; lessonTitle: string }>
+  onClose: () => void
+  onConfirm: (lessonId: string) => Promise<void>
+}
+
+const MoveActivityModal = ({
+  open,
+  activityTitle,
+  currentLessonId,
+  lessonOptions,
+  onClose,
+  onConfirm,
+}: MoveActivityModalProps) => {
+  const [targetLessonId, setTargetLessonId] = useState(currentLessonId)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setSaving(false)
+      setError(null)
+      setTargetLessonId(currentLessonId)
+      return
+    }
+    setTargetLessonId(currentLessonId)
+    setSaving(false)
+    setError(null)
+  }, [currentLessonId, open])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 p-4">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">Move Assignment</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-500"
+            aria-label="Close move assignment dialog"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="mb-3 text-sm text-slate-600">{activityTitle}</p>
+        <label htmlFor="move-assignment-target-lesson" className="mb-1 block text-sm font-medium text-slate-700">
+          Destination lesson
+        </label>
+        <select
+          id="move-assignment-target-lesson"
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
+          value={targetLessonId}
+          onChange={(event) => setTargetLessonId(event.target.value)}
+          disabled={saving}
+        >
+          {lessonOptions.map((option) => (
+            <option key={option.lessonId} value={option.lessonId}>
+              {option.unitTitle} → {option.lessonTitle}
+            </option>
+          ))}
+        </select>
+        {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            disabled={saving || targetLessonId === currentLessonId}
+            onClick={async () => {
+              try {
+                setSaving(true)
+                setError(null)
+                await onConfirm(targetLessonId)
+                onClose()
+              } catch (saveError) {
+                setError(saveError instanceof Error ? saveError.message : 'Failed to move assignment')
+              } finally {
+                setSaving(false)
+              }
+            }}
+          >
+            {saving ? 'Moving…' : 'Move'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export const CourseHierarchy = ({
   course,
   isTeacher,
@@ -210,6 +318,7 @@ export const CourseHierarchy = ({
   onMoveUnit,
   onMoveLesson,
   onMoveActivity,
+  onMoveActivityToLesson,
   onToggleUnitVisibility,
   onToggleLessonVisibility,
   onToggleActivityVisibility,
@@ -221,6 +330,8 @@ export const CourseHierarchy = ({
   const [editingUnitId, setEditingUnitId] = useState<string | null>(null)
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
   const [savingActivityId, setSavingActivityId] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [moveActivityModal, setMoveActivityModal] = useState<MoveActivityModalState | null>(null)
 
   useEffect(() => {
     if (!isTeacher) {
@@ -270,12 +381,34 @@ export const CourseHierarchy = ({
   const confirmAction = (message: string) =>
     typeof window === 'undefined' ? true : window.confirm(message)
 
+  const lessonOptions = course.units.flatMap((unit) =>
+    unit.lessons.map((lesson) => ({
+      unitTitle: unit.title,
+      lessonId: lesson.id,
+      lessonTitle: lesson.title,
+    })),
+  )
+
+  const runAction = async (action: () => Promise<void>) => {
+    setActionError(null)
+    try {
+      await action()
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Unable to complete action')
+    }
+  }
+
   return (
     <>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold text-slate-900">{course.title} • Units & Lessons</h3>
         </div>
+        {actionError && (
+          <p className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {actionError}
+          </p>
+        )}
 
         <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
           {course.units.map((unit, unitIndex) => {
@@ -292,7 +425,7 @@ export const CourseHierarchy = ({
               <div
                 key={unit.id}
                 className={`rounded-xl border border-slate-200 ${
-                  isTeacher && !unitVisible ? 'bg-slate-100/80' : 'bg-white'
+                  isTeacher && !unitVisible ? 'bg-slate-200/70 shadow-inner' : 'bg-white'
                 }`}
               >
                 <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
@@ -319,23 +452,23 @@ export const CourseHierarchy = ({
                         ariaLabel={`Actions for unit ${unit.title}`}
                         items={[
                           { label: 'Add lesson', onClick: () => setLessonModalUnit(unit.id) },
-                          { label: 'Edit unit', onClick: () => setEditingUnitId(unit.id) },
+                          { label: 'Edit', onClick: () => setEditingUnitId(unit.id) },
                           {
-                            label: unitVisible ? 'Hide unit from students' : 'Show unit to students',
-                            onClick: () => void onToggleUnitVisibility(unit.id, !unitVisible),
+                            label: unitVisible ? 'Hide' : 'Show',
+                            onClick: () => runAction(() => onToggleUnitVisibility(unit.id, !unitVisible)),
                           },
                           {
-                            label: 'Move unit up',
-                            onClick: () => void onMoveUnit(unit.id, 'up'),
+                            label: 'Move up',
+                            onClick: () => runAction(() => onMoveUnit(unit.id, 'up')),
                             disabled: unitIndex === 0,
                           },
                           {
-                            label: 'Move unit down',
-                            onClick: () => void onMoveUnit(unit.id, 'down'),
+                            label: 'Move down',
+                            onClick: () => runAction(() => onMoveUnit(unit.id, 'down')),
                             disabled: unitIndex === course.units.length - 1,
                           },
                           {
-                            label: 'Delete unit',
+                            label: 'Delete',
                             danger: true,
                             onClick: () => {
                               if (
@@ -343,7 +476,7 @@ export const CourseHierarchy = ({
                                   `Delete "${unit.title}" and all of its lessons and activities? This cannot be undone.`,
                                 )
                               ) {
-                                void onDeleteUnit(unit.id)
+                                void runAction(() => onDeleteUnit(unit.id))
                               }
                             },
                           },
@@ -361,7 +494,7 @@ export const CourseHierarchy = ({
                         <div
                           key={lesson.id}
                           className={`rounded-lg border border-slate-200 ${
-                            isTeacher && !lessonVisible ? 'bg-slate-100/80' : 'bg-white'
+                            isTeacher && !lessonVisible ? 'bg-slate-200/70 shadow-inner' : 'bg-white'
                           }`}
                         >
                           <div className="flex flex-col gap-3 p-2.5 sm:flex-row sm:items-center sm:justify-between">
@@ -386,24 +519,23 @@ export const CourseHierarchy = ({
                                 <ActionMenu
                                   ariaLabel={`Actions for lesson ${lesson.title}`}
                                   items={[
-                                    { label: 'Add activity', onClick: () => onCreateActivity(lesson.id) },
-                                    { label: 'Edit lesson', onClick: () => setEditingLessonId(lesson.id) },
+                                    { label: 'Edit', onClick: () => setEditingLessonId(lesson.id) },
                                     {
-                                      label: lessonVisible ? 'Hide lesson from students' : 'Show lesson to students',
-                                      onClick: () => void onToggleLessonVisibility(lesson.id, !lessonVisible),
+                                      label: lessonVisible ? 'Hide' : 'Show',
+                                      onClick: () => runAction(() => onToggleLessonVisibility(lesson.id, !lessonVisible)),
                                     },
                                     {
-                                      label: 'Move lesson up',
-                                      onClick: () => void onMoveLesson(lesson.id, 'up'),
+                                      label: 'Move up',
+                                      onClick: () => runAction(() => onMoveLesson(lesson.id, 'up')),
                                       disabled: lessonIndex === 0,
                                     },
                                     {
-                                      label: 'Move lesson down',
-                                      onClick: () => void onMoveLesson(lesson.id, 'down'),
+                                      label: 'Move down',
+                                      onClick: () => runAction(() => onMoveLesson(lesson.id, 'down')),
                                       disabled: lessonIndex === unit.lessons.length - 1,
                                     },
                                     {
-                                      label: 'Delete lesson',
+                                      label: 'Delete',
                                       danger: true,
                                       onClick: () => {
                                         if (
@@ -411,7 +543,7 @@ export const CourseHierarchy = ({
                                             `Delete "${lesson.title}" and all of its activities? This cannot be undone.`,
                                           )
                                         ) {
-                                          void onDeleteLesson(lesson.id)
+                                          void runAction(() => onDeleteLesson(lesson.id))
                                         }
                                       },
                                     },
@@ -428,7 +560,9 @@ export const CourseHierarchy = ({
                                   <div
                                     key={activity.id}
                                     className={`rounded-lg p-2.5 ${
-                                      activity.visible === false ? 'bg-slate-100 opacity-80' : 'bg-slate-50'
+                                      activity.visible === false
+                                        ? 'bg-slate-300/60 ring-1 ring-slate-300'
+                                        : 'bg-slate-50'
                                     }`}
                                   >
                                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -458,19 +592,16 @@ export const CourseHierarchy = ({
                                             ariaLabel={`Actions for assignment ${activity.title}`}
                                             items={[
                                               {
-                                                label: 'Edit assignment',
+                                                label: 'Edit',
                                                 onClick: () => onUpdateActivity(activity.id),
                                               },
                                               {
-                                                label: activity.visible === false
-                                                  ? 'Show assignment to students'
-                                                  : 'Hide assignment from students',
+                                                label: activity.visible === false ? 'Show' : 'Hide',
                                                 onClick: async () => {
                                                   try {
                                                     setSavingActivityId(activity.id)
-                                                    await onToggleActivityVisibility(
-                                                      activity.id,
-                                                      activity.visible === false,
+                                                    await runAction(() =>
+                                                      onToggleActivityVisibility(activity.id, activity.visible === false),
                                                     )
                                                   } finally {
                                                     setSavingActivityId(null)
@@ -478,19 +609,29 @@ export const CourseHierarchy = ({
                                                 },
                                               },
                                               {
-                                                label: 'Move assignment up',
-                                                onClick: () => void onMoveActivity(activity.id, 'up'),
+                                                label: 'Move up',
+                                                onClick: () => runAction(() => onMoveActivity(activity.id, 'up')),
                                                 disabled: activityIndex === 0 || savingActivityId === activity.id,
                                               },
                                               {
-                                                label: 'Move assignment down',
-                                                onClick: () => void onMoveActivity(activity.id, 'down'),
+                                                label: 'Move down',
+                                                onClick: () => runAction(() => onMoveActivity(activity.id, 'down')),
                                                 disabled:
                                                   activityIndex === lesson.activities.length - 1
                                                   || savingActivityId === activity.id,
                                               },
                                               {
-                                                label: 'Delete assignment',
+                                                label: 'Move…',
+                                                onClick: () =>
+                                                  setMoveActivityModal({
+                                                    activityId: activity.id,
+                                                    activityTitle: activity.title,
+                                                    currentLessonId: lesson.id,
+                                                  }),
+                                                disabled: lessonOptions.length <= 1 || savingActivityId === activity.id,
+                                              },
+                                              {
+                                                label: 'Delete',
                                                 danger: true,
                                                 onClick: () => {
                                                   if (
@@ -498,7 +639,7 @@ export const CourseHierarchy = ({
                                                       `Delete "${activity.title}"? This cannot be undone.`,
                                                     )
                                                   ) {
-                                                    void onDeleteActivity(activity.id)
+                                                    void runAction(() => onDeleteActivity(activity.id))
                                                   }
                                                 },
                                               },
@@ -603,6 +744,19 @@ export const CourseHierarchy = ({
         onConfirm={async (name, description) => {
           if (!editingLesson) return
           await onUpdateLesson(editingLesson.id, name, description)
+        }}
+      />
+
+      <MoveActivityModal
+        open={moveActivityModal !== null}
+        activityTitle={moveActivityModal?.activityTitle ?? ''}
+        currentLessonId={moveActivityModal?.currentLessonId ?? ''}
+        lessonOptions={lessonOptions}
+        onClose={() => setMoveActivityModal(null)}
+        onConfirm={async (lessonId) => {
+          if (!moveActivityModal) return
+          setActionError(null)
+          await onMoveActivityToLesson(moveActivityModal.activityId, lessonId)
         }}
       />
     </>
