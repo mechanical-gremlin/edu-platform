@@ -16,6 +16,7 @@ This list is ordered by implementation priority for LMS viability.
 - [x] **Checkpoint history + reset for coding drafts** — students can save a few local checkpoints, restore one, or reset back to the starter template.
 - [x] **Restore submitted code into the editor** — reopening a coding assignment now reloads the last submitted code/files instead of resetting to the starter template.
 - [x] **HTML preview support** — HTML coding activities now render a preview pane so the standalone HTML option has an in-app visual result.
+- [ ] **Simple Autograder** - Autograding feature take a suggested solution from teacher and matches student code to the sample code and/or the output of the code to grade automatically.
 
 ---
 
