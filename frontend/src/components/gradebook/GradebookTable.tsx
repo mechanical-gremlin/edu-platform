@@ -27,8 +27,8 @@ export const GradebookTable = ({ entries, onStudentClick, onActivityClick }: Gra
   }
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="overflow-x-auto">
+    <div className="relative w-full max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="w-full overflow-x-auto">
         <table className="min-w-max text-sm">
           <thead className="bg-slate-50">
             <tr>
@@ -103,4 +103,3 @@ export const GradebookTable = ({ entries, onStudentClick, onActivityClick }: Gra
     </div>
   )
 }
-

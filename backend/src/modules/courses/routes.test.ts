@@ -89,6 +89,10 @@ const buildCoursePrismaStub = () => {
             unitId: 'u-1',
             visible: true,
             unit: { courseId: 'c-1' },
+            activities: [
+              { position: 0 },
+              { position: 1 },
+            ],
           }
         }
 
@@ -100,6 +104,7 @@ const buildCoursePrismaStub = () => {
             unitId: 'u-1',
             visible: true,
             unit: { courseId: 'c-1' },
+            activities: [],
           }
         }
 
@@ -400,6 +405,30 @@ test('PATCH /activities/:activityId/move swaps adjacent activity positions', asy
       { id: 'a-2', position: -1, data: { position: -1 } },
       { id: 'a-1', position: 1, data: { position: 1 } },
       { id: 'a-2', position: 0, data: { position: 0 } },
+    ])
+  } finally {
+    await app.close()
+  }
+})
+
+test('PATCH /activities/:activityId/move can move an assignment to another lesson', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/activities/a-2/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        lessonId: 'l-2',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'a-2' })
+    assert.deepEqual(prisma.getActivityUpdates(), [
+      { id: 'a-2', position: 0, data: { lessonId: 'l-2', position: 0 } },
     ])
   } finally {
     await app.close()

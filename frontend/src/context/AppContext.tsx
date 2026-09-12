@@ -48,6 +48,7 @@ interface AppContextValue {
   moveUnit: (unitId: string, direction: 'up' | 'down') => Promise<void>
   moveLesson: (lessonId: string, direction: 'up' | 'down') => Promise<void>
   moveActivity: (activityId: string, direction: 'up' | 'down') => Promise<void>
+  moveActivityToLesson: (activityId: string, lessonId: string) => Promise<void>
   toggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
   toggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   toggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
@@ -822,6 +823,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [refreshData, request],
   )
 
+  const moveActivityToLesson = useCallback(
+    async (activityId: string, lessonId: string) => {
+      await request(`/activities/${activityId}/move`, {
+        method: 'PATCH',
+        body: JSON.stringify({ lessonId }),
+      })
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
   const toggleUnitVisibility = useCallback(
     async (unitId: string, visible: boolean) => {
       await request(`/units/${unitId}/visibility`, {
@@ -974,6 +986,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       moveUnit,
       moveLesson,
       moveActivity,
+      moveActivityToLesson,
       toggleUnitVisibility,
       toggleLessonVisibility,
       toggleActivityVisibility,
@@ -996,6 +1009,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       gradebookEntries,
       loading,
       moveActivity,
+      moveActivityToLesson,
       moveLesson,
       moveUnit,
       refreshData,
