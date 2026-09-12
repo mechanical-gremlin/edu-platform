@@ -471,7 +471,6 @@ export const ActivityFullScreen = ({
           activityTitle={activity.title}
           activityType={activity.type}
           activityLanguage={activity.language}
-          languageLocked={Boolean(activity.languageLocked)}
           entries={gradebookEntries}
           executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
           runUserId={currentUser.id}

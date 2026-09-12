@@ -146,6 +146,8 @@ export const WebProjectEditor = ({
           <button
             className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
             onClick={() => setFileManagerOpen((open) => !open)}
+            aria-expanded={fileManagerOpen}
+            aria-controls="web-project-file-manager"
           >
             {fileManagerOpen ? 'Hide Files' : 'Show Files'}
           </button>
@@ -163,7 +165,7 @@ export const WebProjectEditor = ({
       <div className="flex gap-3" style={{ height }}>
         <div className="flex flex-1 gap-2">
           {fileManagerOpen && (
-            <div className="flex w-64 flex-col rounded-b-xl border border-t-0 border-slate-200 bg-slate-900 text-slate-100">
+            <div id="web-project-file-manager" className="flex w-64 flex-col rounded-b-xl border border-t-0 border-slate-200 bg-slate-900 text-slate-100">
               <div className="border-b border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Explorer
               </div>
@@ -172,15 +174,20 @@ export const WebProjectEditor = ({
                   const depth = Math.max(0, file.name.split('/').length - 1)
                   const label = file.name.split('/').at(-1) || file.name
                   return (
-                    <button
+                    <div
                       key={file.name}
                       className={`mb-1 flex w-full items-center justify-between rounded px-2 py-1 text-left text-xs ${
                         index === activeIndex ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'
                       }`}
                       style={{ paddingLeft: `${8 + depth * 10}px` }}
-                      onClick={() => setActiveIndex(index)}
                     >
-                      <span className="truncate">{label}</span>
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 truncate text-left"
+                        onClick={() => setActiveIndex(index)}
+                      >
+                        {label}
+                      </button>
                       {!readOnly && files.length > 1 && (
                         <button
                           type="button"
@@ -194,7 +201,7 @@ export const WebProjectEditor = ({
                           ×
                         </button>
                       )}
-                    </button>
+                    </div>
                   )
                 })}
               </div>

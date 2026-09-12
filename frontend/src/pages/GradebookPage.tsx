@@ -175,7 +175,6 @@ export const GradebookPage = ({ entries, courses, user, onSaveGrade }: Gradebook
           }
           activityType={gradingActivity?.type ?? 'project'}
           activityLanguage={gradingActivity?.language}
-          languageLocked={Boolean(gradingActivity?.languageLocked)}
           entries={visibleEntries}
           executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
           runUserId={user.id}

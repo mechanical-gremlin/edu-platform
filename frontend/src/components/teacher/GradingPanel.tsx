@@ -8,7 +8,6 @@ interface GradingPanelProps {
   activityTitle: string
   activityType: ActivityType
   activityLanguage: string | null | undefined
-  languageLocked: boolean
   entries: GradebookEntry[]
   executeUrl?: string
   runUserId?: string
@@ -16,12 +15,16 @@ interface GradingPanelProps {
   onSave: (studentId: string, points: number, comment: string) => Promise<void>
 }
 
-const parseSubmissionFiles = (submissionText: string | null | undefined) => {
-  if (!submissionText?.trim()) return null
+const parseSubmissionFiles = (submissionText: string | null | undefined): StarterFile[] => {
+  if (!submissionText?.trim()) {
+    return [{ name: 'index.html', language: 'html', content: '' }]
+  }
 
   try {
     const parsed = JSON.parse(submissionText) as unknown
-    if (!Array.isArray(parsed)) return null
+    if (!Array.isArray(parsed)) {
+      return [{ name: 'submission.txt', language: 'plaintext', content: submissionText }]
+    }
     const files = parsed.filter(
       (file): file is StarterFile =>
         typeof file === 'object'
@@ -30,9 +33,10 @@ const parseSubmissionFiles = (submissionText: string | null | undefined) => {
         && typeof Reflect.get(file, 'language') === 'string'
         && typeof Reflect.get(file, 'content') === 'string',
     )
-    return files.length > 0 ? files : null
+    if (files.length > 0) return files
+    return [{ name: 'submission.txt', language: 'plaintext', content: submissionText }]
   } catch {
-    return null
+    return [{ name: 'submission.txt', language: 'plaintext', content: submissionText }]
   }
 }
 
@@ -41,7 +45,6 @@ export const GradingPanel = ({
   activityTitle,
   activityType,
   activityLanguage,
-  languageLocked,
   entries,
   executeUrl,
   runUserId,
@@ -52,9 +55,8 @@ export const GradingPanel = ({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [reviewLanguage, setReviewLanguage] = useState(activityLanguage ?? 'javascript')
   const [reviewCode, setReviewCode] = useState('')
-  const [reviewFiles, setReviewFiles] = useState<StarterFile[] | null>(null)
+  const [reviewFiles, setReviewFiles] = useState<StarterFile[]>([{ name: 'index.html', language: 'html', content: '' }])
   const [grades, setGrades] = useState<Record<string, { points: string; comment: string }>>(() => {
     const initial: Record<string, { points: string; comment: string }> = {}
     for (const entry of students) {
@@ -70,20 +72,13 @@ export const GradingPanel = ({
   const currentSubmissionText = current?.submissionText ?? null
 
   useEffect(() => {
-    if (!currentSubmissionText && activityType === 'coding' && activityLanguage === 'web') {
-      setReviewFiles(null)
-      setReviewCode('')
-      setReviewLanguage(activityLanguage ?? 'javascript')
-      return
-    }
-    setReviewLanguage(activityLanguage ?? 'javascript')
     if (activityType === 'coding' && activityLanguage === 'web') {
       setReviewFiles(parseSubmissionFiles(currentSubmissionText))
       setReviewCode('')
       return
     }
 
-    setReviewFiles(null)
+    setReviewFiles([{ name: 'index.html', language: 'html', content: '' }])
     setReviewCode(currentSubmissionText ?? '')
   }, [activityLanguage, activityType, current?.studentId, currentSubmissionText])
 
@@ -171,27 +166,19 @@ export const GradingPanel = ({
       <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Submission</p>
-          {activityType === 'coding' && activeStudent.submissionText?.trim() ? (
+          {activityType === 'coding' ? (
             activityLanguage === 'web' ? (
-              reviewFiles ? (
-                <WebProjectEditor
-                  key={`${activityId}-${activeStudent.studentId}`}
-                  defaultFiles={reviewFiles}
-                  readOnly
-                  height="360px"
-                />
-              ) : (
-                <p className="whitespace-pre-wrap text-sm text-slate-700">
-                  Submission format was not recognized as project files.
-                </p>
-              )
+              <WebProjectEditor
+                key={`${activityId}-${activeStudent.studentId}`}
+                defaultFiles={reviewFiles}
+                readOnly
+                height="360px"
+              />
             ) : (
               <MonacoEditor
                 key={`${activityId}-${activeStudent.studentId}`}
                 defaultValue={reviewCode}
-                language={reviewLanguage}
-                showLanguageSelector={!languageLocked}
-                onLanguageChange={setReviewLanguage}
+                language={activityLanguage ?? 'javascript'}
                 onChange={setReviewCode}
                 executeUrl={executeUrl}
                 userId={runUserId}
