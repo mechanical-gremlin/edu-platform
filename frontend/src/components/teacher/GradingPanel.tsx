@@ -67,19 +67,25 @@ export const GradingPanel = ({
   })
   const panelWidthClass = activityType === 'coding' ? 'max-w-6xl' : 'max-w-md'
   const current = students[currentIndex] ?? null
+  const currentSubmissionText = current?.submissionText ?? null
 
   useEffect(() => {
-    if (!current) return
+    if (!currentSubmissionText && activityType === 'coding' && activityLanguage === 'web') {
+      setReviewFiles(null)
+      setReviewCode('')
+      setReviewLanguage(activityLanguage ?? 'javascript')
+      return
+    }
     setReviewLanguage(activityLanguage ?? 'javascript')
     if (activityType === 'coding' && activityLanguage === 'web') {
-      setReviewFiles(parseSubmissionFiles(current.submissionText))
+      setReviewFiles(parseSubmissionFiles(currentSubmissionText))
       setReviewCode('')
       return
     }
 
     setReviewFiles(null)
-    setReviewCode(current.submissionText ?? '')
-  }, [activityLanguage, activityType, current?.studentId, current?.submissionText])
+    setReviewCode(currentSubmissionText ?? '')
+  }, [activityLanguage, activityType, current?.studentId, currentSubmissionText])
 
   if (students.length === 0) {
     return (

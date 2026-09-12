@@ -3,6 +3,8 @@ import { GradebookTable } from '../components/gradebook/GradebookTable'
 import { GradingPanel } from '../components/teacher/GradingPanel'
 import type { Course, GradebookEntry, User } from '../types/models'
 
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
+
 interface GradebookPageProps {
   entries: GradebookEntry[]
   courses: Course[]
@@ -38,6 +40,22 @@ export const GradebookPage = ({ entries, courses, user, onSaveGrade }: Gradebook
     gradingActivityId && visibleEntries.some((entry) => entry.activityId === gradingActivityId)
       ? gradingActivityId
       : null
+  const gradingActivity = useMemo(() => {
+    if (!activeGradingActivityId) return null
+
+    for (const course of courses) {
+      for (const unit of course.units) {
+        for (const lesson of unit.lessons) {
+          const activity = lesson.activities.find((item) => item.id === activeGradingActivityId)
+          if (activity) {
+            return activity
+          }
+        }
+      }
+    }
+
+    return null
+  }, [activeGradingActivityId, courses])
 
   if (!isTeacher) {
     const gradedEntries = visibleEntries.filter((entry) => entry.pointsEarned !== null)
@@ -155,7 +173,12 @@ export const GradebookPage = ({ entries, courses, user, onSaveGrade }: Gradebook
           activityTitle={
             visibleEntries.find((entry) => entry.activityId === activeGradingActivityId)?.activityTitle ?? ''
           }
+          activityType={gradingActivity?.type ?? 'project'}
+          activityLanguage={gradingActivity?.language}
+          languageLocked={Boolean(gradingActivity?.languageLocked)}
           entries={visibleEntries}
+          executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
+          runUserId={user.id}
           onClose={() => setGradingActivityId(null)}
           onSave={async (studentId, points, comment) => {
             await onSaveGrade?.(studentId, activeGradingActivityId, points, comment)
