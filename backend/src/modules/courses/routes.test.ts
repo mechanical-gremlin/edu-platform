@@ -458,6 +458,50 @@ test('PATCH /lessons/:lessonId/move swaps adjacent lesson positions', async () =
   }
 })
 
+test('PATCH /units/:unitId/move is a no-op at the boundary', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/units/u-1/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        direction: 'up',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'u-1' })
+    assert.deepEqual(prisma.getUnitPositionUpdates(), [])
+  } finally {
+    await app.close()
+  }
+})
+
+test('PATCH /lessons/:lessonId/move is a no-op at the boundary', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/lessons/l-1/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        direction: 'up',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'l-1' })
+    assert.deepEqual(prisma.getLessonPositionUpdates(), [])
+  } finally {
+    await app.close()
+  }
+})
+
 test('PATCH /activities/:activityId/move is a no-op at the boundary', async () => {
   const prisma = buildCoursePrismaStub()
   const app = await buildApp({ prisma: prisma.stub })

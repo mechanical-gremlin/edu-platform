@@ -33,10 +33,11 @@ interface ActionMenuItem {
 }
 
 interface ActionMenuProps {
+  ariaLabel: string
   items: ActionMenuItem[]
 }
 
-const ActionMenu = ({ items }: ActionMenuProps) => {
+const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -58,7 +59,7 @@ const ActionMenu = ({ items }: ActionMenuProps) => {
           event.stopPropagation()
           setOpen((value) => !value)
         }}
-        aria-label="Actions"
+        aria-label={ariaLabel}
       >
         ⋮
       </button>
@@ -274,7 +275,6 @@ export const CourseHierarchy = ({
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-lg font-semibold text-slate-900">{course.title} • Units & Lessons</h3>
-          <p className="text-sm text-slate-500">Collapsed sections and scrolling keep larger courses manageable on tablets.</p>
         </div>
 
         <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
@@ -316,6 +316,7 @@ export const CourseHierarchy = ({
                   {isTeacher && (
                     <div className="self-end sm:self-auto">
                       <ActionMenu
+                        ariaLabel={`Actions for unit ${unit.title}`}
                         items={[
                           { label: 'Add lesson', onClick: () => setLessonModalUnit(unit.id) },
                           { label: 'Edit unit', onClick: () => setEditingUnitId(unit.id) },
@@ -383,6 +384,7 @@ export const CourseHierarchy = ({
                             {isTeacher && (
                               <div className="self-end sm:self-auto">
                                 <ActionMenu
+                                  ariaLabel={`Actions for lesson ${lesson.title}`}
                                   items={[
                                     { label: 'Add activity', onClick: () => onCreateActivity(lesson.id) },
                                     { label: 'Edit lesson', onClick: () => setEditingLessonId(lesson.id) },
@@ -453,6 +455,7 @@ export const CourseHierarchy = ({
                                       {isTeacher && (
                                         <div className="self-end sm:self-auto">
                                           <ActionMenu
+                                            ariaLabel={`Actions for assignment ${activity.title}`}
                                             items={[
                                               {
                                                 label: 'Edit assignment',

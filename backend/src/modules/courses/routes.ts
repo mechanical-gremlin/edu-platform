@@ -849,29 +849,31 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const unit = await findTeacherCourseIdFromUnit(app, unitId)
       await assertTeacherForCourse(app, unit.courseId, user.id)
 
-      await app.prisma.activity.updateMany({
-        where: {
-          lesson: {
+      await app.prisma.$transaction(async (tx) => {
+        await tx.activity.updateMany({
+          where: {
+            lesson: {
+              unitId,
+            },
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.lesson.updateMany({
+          where: {
             unitId,
           },
-        },
-        data: {
-          visible: payload.visible,
-        },
-      })
-      await app.prisma.lesson.updateMany({
-        where: {
-          unitId,
-        },
-        data: {
-          visible: payload.visible,
-        },
-      })
-      await app.prisma.unit.update({
-        where: { id: unitId },
-        data: {
-          visible: payload.visible,
-        },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.unit.update({
+          where: { id: unitId },
+          data: {
+            visible: payload.visible,
+          },
+        })
       })
 
       return { id: unitId, visible: payload.visible }
@@ -896,19 +898,21 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const lesson = await findTeacherLesson(app, lessonId)
       await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
 
-      await app.prisma.activity.updateMany({
-        where: {
-          lessonId,
-        },
-        data: {
-          visible: payload.visible,
-        },
-      })
-      await app.prisma.lesson.update({
-        where: { id: lessonId },
-        data: {
-          visible: payload.visible,
-        },
+      await app.prisma.$transaction(async (tx) => {
+        await tx.activity.updateMany({
+          where: {
+            lessonId,
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.lesson.update({
+          where: { id: lessonId },
+          data: {
+            visible: payload.visible,
+          },
+        })
       })
 
       return { id: lessonId, visible: payload.visible }

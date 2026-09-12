@@ -133,7 +133,7 @@ export const ActivityEditModal = ({ open, activity, onClose, onSave }: ActivityE
                   title: title.trim(),
                   description: description.trim(),
                   directions: directions.trim() || null,
-                  dueAt: dueDate ? new Date(`${dueDate}T23:59:00`).toISOString() : null,
+                  dueAt: dueDate ? `${dueDate}T23:59:00.000Z` : null,
                   pointsPossible: points,
                   resourceUrl: resourceUrl.trim() || null,
                 })
