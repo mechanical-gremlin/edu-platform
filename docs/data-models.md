@@ -6,8 +6,8 @@ Defined in `frontend/src/types/models.ts`.
 - `Course`: class metadata and nested `Unit[]`
 - `Unit`: nested `Lesson[]`
 - `Lesson`: nested `Activity[]`
-- `Activity`: type, due date, points, description, status by student
-- `GradebookEntry`: teacher-facing score record by activity
+- `Activity`: type, due date, points, description, starter code/files, and whether optional autograding is enabled
+- `GradebookEntry`: teacher-facing score record by activity, including optional autograder source and result breakdown
 
 ## Mock Data Coverage
 

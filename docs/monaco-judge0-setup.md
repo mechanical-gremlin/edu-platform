@@ -13,11 +13,12 @@ code execution service for the edu-platform coding activity workflow.
   - grading panel now loads submitted coding work into an executable editor so teachers can run/debug while grading
   - student coding drafts auto-save in browser storage, can be checkpointed/restored, and can be reset back to the starter template
   - HTML activities now render a preview pane, and the web workspace is labeled **Web Development Kit** with the file explorer collapsed by default
+  - executable coding activities can optionally enable an autograder with teacher reference code, no-input output checks, and teacher-authored input/output test cases that auto-apply 100/50/0 grades
 - Planned follow-up work:
   - add a multi-file project workspace for non-web languages (for example Python + config/data files) with execution packaging
   - move coding draft persistence into backend storage so work follows students across devices
   - add step/stop debugging controls plus stronger runaway-execution controls around `/execute`
-  - add a teacher reference-solution runner for building expected output from executable code
+  - add hidden tests, weighted checks, and stronger structure analysis than the current normalized exact-code comparison
 
 ---
 
@@ -172,6 +173,11 @@ Estimated cost: **$7–25/month** for a Render Standard instance.
    - Choose **Web Development Kit** for the bundled HTML/CSS/JS multi-file workspace
    - Write the starter code students will see when they open the activity
    - Optionally set **Expected Output**: if set, students see a ✓/✗ pass/fail indicator when they run their code
+   - Optionally enable **Autograder** for executable languages:
+     - paste the teacher's suggested solution into the reference editor
+     - optionally run the reference solution with stdin to capture the expected stdout
+     - choose one or more checks: normalized code match, no-input output match, and/or input/output test cases
+     - saved submissions receive 100%, 50%, or 0% automatically based on whether all, some, or none of the selected checks pass
    - Click **Save activity**
 
 The starter code and expected output are stored in the database (`activities.starter_code` and
@@ -187,7 +193,8 @@ The starter code and expected output are stored in the database (`activities.sta
 4. Click **▶ Run** — output appears in the panel beside the editor (HTML uses an in-app preview pane instead of Judge0 execution)
 5. If the teacher set expected output: a green ✓ or red ✗ badge shows whether the output matches
 6. Click **Submit activity** — the current editor code is automatically saved to the backend (no copy-paste required)
-7. Teacher can view the submitted code in the gradebook alongside the grade input
+7. If the activity uses the autograder, the backend evaluates the submission and stores an auto-grade plus a breakdown of the checks that passed
+8. Teacher can view the submitted code, autograder recommendation, and override the score in the gradebook
 
 ---
 
@@ -195,14 +202,14 @@ The starter code and expected output are stored in the database (`activities.sta
 
 - The `/execute` endpoint is intentionally a backend proxy. The Judge0 API key is
   **never exposed to the browser**.
-- The `submission.content` JSON field stores `{ "responseText": "<code>" }` — the
-  same structure already used by other activity types. No schema change was required.
+- The `submission.content` JSON field stores `{ "responseText": "<code>" }` for code submissions, while activities now also store optional autograder reference configuration and grades can retain the latest autograder breakdown for teacher review.
 - The Monaco editor component lives at `frontend/src/components/coding/MonacoEditor.tsx`
-  and can be reused for any future code-editing surface in the platform.
+  and now also supports optional stdin when teachers run reference solutions while building an autograder.
 - Teacher grading now reuses the same editor components to load and execute student submissions in-context while scoring.
 - Draft/checkpoint persistence is currently browser-local (`localStorage`), so it survives refresh/navigation on the same device but is not yet synchronized across devices.
 - If `JUDGE0_API_KEY` is missing while using the RapidAPI URL, the backend returns
   HTTP 503 with a configuration message so the failure is actionable.
+- HTML and **Web Development Kit** activities still fall back to manual grading because they do not yet execute in the server-side Judge0 pipeline.
 
 ---
 
@@ -213,8 +220,8 @@ The following are high-value, LMS-oriented improvements observed across modern c
 1. **Autosave + revision timeline**
    - Persist work-in-progress every few seconds and allow teachers to inspect revision history during grading.
 
-2. **Built-in teacher test cases and rubric checks**
-   - Allow instructors to define hidden tests and lightweight rubric criteria to speed grading consistency.
+2. **Built-in hidden test cases and weighted rubric checks**
+   - Allow instructors to define teacher-only tests and weighted scoring instead of exposing or equally weighting every check.
 
 3. **Pair-programming and live teacher assist mode**
    - Add optional collaborative sessions where teachers can join a student workspace in real time for intervention.

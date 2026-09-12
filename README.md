@@ -17,6 +17,7 @@ Educational platform prototype with a React frontend for teacher/student workflo
 - The Monaco-based coding editor has been smoke-tested end-to-end with JavaScript and Python sample programs.
 - Student coding drafts now auto-save in browser storage, support manual checkpoints/restore, and can reset back to the teacher starter template.
 - HTML activities render an in-app browser preview, and the web multi-file workspace is labeled **Web Development Kit** with the file explorer collapsed by default.
+- Teachers can optionally enable an autograder for executable coding activities, provide a reference solution, define exact-code/output/input-output checks, and auto-apply 100/50/0 grades that remain teacher-overridable.
 - Render deployment provisions:
   - a static frontend
   - a Node API service
@@ -28,7 +29,8 @@ Educational platform prototype with a React frontend for teacher/student workflo
 - Next: move coding draft persistence from browser-local storage to backend-backed draft sync so work follows students across devices.
 - Next: add multi-file execution packaging for non-web languages (for example Python + config/data files).
 - Next: expand coding controls beyond run-only flows with explicit stop/step/debug affordances and stronger runaway-execution safeguards.
-- Next: add a teacher-facing suggested-solution runner so expected output can be generated from executable reference code.
+- Next: add hidden tests, weighted checks, and richer structural analysis beyond the current normalized exact-code comparison.
+- Next: extend autograding to HTML/Web Development Kit and future multi-file non-web projects once those runtimes can execute server-side.
 
 ## Local development
 

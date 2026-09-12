@@ -19,7 +19,7 @@
 
 ## Activity Views
 - `src/components/activity/ActivityDetail.tsx`: detail renderer with per-type copy
-- `src/components/teacher/ActivityCreationModal.tsx`: teacher-only 3-step modal flow
+- `src/components/teacher/ActivityCreationModal.tsx`: teacher-only activity creation flow with coding starter code, optional expected output, and optional autograder setup
 
 ## Gradebook
 - `src/pages/GradebookPage.tsx`: teacher-only gradebook page
