@@ -107,6 +107,7 @@ model Activity {
   description    String
   directions     String?
   language       String?
+  languageLocked Boolean      @default(false)
   starterCode    String?
   starterFiles   Json?
   expectedOutput String?

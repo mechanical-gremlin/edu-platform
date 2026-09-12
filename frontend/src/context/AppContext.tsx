@@ -88,7 +88,10 @@ interface ApiActivity {
   type: Course['units'][number]['lessons'][number]['activities'][number]['type']
   description: string
   directions: string | null
+  language: string | null
+  languageLocked: boolean
   starterCode: string | null
+  starterFiles: Array<{ name: string; language: string; content: string }> | null
   expectedOutput: string | null
   resourceUrl: string | null
   visible: boolean
@@ -202,7 +205,10 @@ const mapCourse = (course: ApiCourse): Course => ({
         type: activity.type,
         description: activity.description,
         directions: activity.directions,
+        language: activity.language,
+        languageLocked: activity.languageLocked,
         starterCode: activity.starterCode,
+        starterFiles: activity.starterFiles,
         expectedOutput: activity.expectedOutput,
         resourceUrl: activity.resourceUrl,
         visible: activity.visible,
@@ -548,7 +554,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     type: response.type,
                     description: response.description,
                     directions: response.directions,
+                    language: response.language,
+                    languageLocked: response.languageLocked,
                     starterCode: response.starterCode,
+                    starterFiles: response.starterFiles,
                     expectedOutput: response.expectedOutput,
                     resourceUrl: response.resourceUrl,
                     visible: response.visible,

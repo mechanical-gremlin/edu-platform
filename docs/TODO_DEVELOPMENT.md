@@ -9,8 +9,8 @@ This list is ordered by implementation priority for LMS viability.
 - [ ] **Production execution key configured** — set `JUDGE0_API_KEY` on the Render backend service so `/execute` can run student code in production.
 - [ ] **Execution reliability + limits** — add per-user/per-course rate limits and request timeouts around `/execute`.
 - [ ] **Autosave coding work** — persist in-progress editor state (not only final submission) so students do not lose work.
-- [ ] **Teacher review for coding submissions** — ensure gradebook surfaces the latest submitted code/files for fast teacher grading workflows.
-- [ ] **Teacher-selected starter language + optional lock** — let teachers choose the initial coding language and optionally prevent students from changing it.
+- [x] **Teacher review for coding submissions** — gradebook grading panel now loads coding submissions directly into the runnable editor for teacher debugging and feedback.
+- [x] **Teacher-selected starter language + optional lock** — teacher-selected language now reaches student view and optional lock prevents student language switching.
 - [ ] **Multi-file coding projects** — support multiple files (for example Python + text/config files) and run them as a single project workspace.
 - [ ] **VS Code-style file manager UX** — add a side file tree with file/folder creation plus a show/hide toggle for the file manager.
 

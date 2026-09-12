@@ -25,6 +25,7 @@ export interface Activity {
   description: string
   directions?: string | null
   language?: string | null
+  languageLocked?: boolean
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   expectedOutput?: string | null
@@ -78,6 +79,7 @@ export interface CreateActivityInput {
   description: string
   directions?: string | null
   language?: string | null
+  languageLocked?: boolean
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   expectedOutput?: string | null

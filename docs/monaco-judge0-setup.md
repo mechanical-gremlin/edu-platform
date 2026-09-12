@@ -7,10 +7,13 @@ code execution service for the edu-platform coding activity workflow.
 
 - JavaScript and Python have been smoke-tested in the live editor flow and are currently the verified working languages.
 - Additional language options remain available in the UI/backend mapping, but they still need end-to-end validation before being treated as confirmed classroom-ready.
+- Recently implemented:
+  - teacher-selected coding language now transfers end-to-end into the student activity view
+  - teachers can lock activity language at setup so students cannot switch languages on locked assignments
+  - grading panel now loads submitted coding work into an executable editor so teachers can run/debug while grading
 - Planned follow-up work:
-  - let teachers choose the starter language for each coding activity
-  - optionally lock that language so students cannot change it
-  - add a multi-file project workspace with a VS Code-style file tree and collapsible file manager
+  - add a multi-file project workspace for non-web languages (for example Python + config/data files) with execution packaging
+  - replace tab-only multi-file UX with a VS Code-style sidebar file tree and file manager toggle
 
 ---
 
@@ -190,5 +193,27 @@ The starter code and expected output are stored in the database (`activities.sta
   same structure already used by other activity types. No schema change was required.
 - The Monaco editor component lives at `frontend/src/components/coding/MonacoEditor.tsx`
   and can be reused for any future code-editing surface in the platform.
+- Teacher grading now reuses the same editor components to load and execute student submissions in-context while scoring.
 - If `JUDGE0_API_KEY` is missing while using the RapidAPI URL, the backend returns
   HTTP 503 with a configuration message so the failure is actionable.
+
+---
+
+## Editor Feature Suggestions from Other Coding LMS Patterns
+
+The following are high-value, LMS-oriented improvements observed across modern coding-learning workflows and should be considered for roadmap planning:
+
+1. **Autosave + revision timeline**
+   - Persist work-in-progress every few seconds and allow teachers to inspect revision history during grading.
+
+2. **Built-in teacher test cases and rubric checks**
+   - Allow instructors to define hidden tests and lightweight rubric criteria to speed grading consistency.
+
+3. **Pair-programming and live teacher assist mode**
+   - Add optional collaborative sessions where teachers can join a student workspace in real time for intervention.
+
+4. **Plagiarism and paste-detection telemetry**
+   - Track large paste events and suspiciously abrupt solution changes for integrity review.
+
+5. **Containerized per-assignment runtime profiles**
+   - Let teachers pin language/runtime/dependency environments per assignment so all students execute in identical conditions.
