@@ -85,7 +85,7 @@ export const WebProjectEditor = ({
   const [activeIndex, setActiveIndex] = useState(0)
   const [newFileName, setNewFileName] = useState('')
   const [addingFile, setAddingFile] = useState(false)
-  const [fileManagerOpen, setFileManagerOpen] = useState(true)
+  const [fileManagerOpen, setFileManagerOpen] = useState(false)
   const [previewKey, setPreviewKey] = useState(0)
   const [srcdoc, setSrcdoc] = useState(() => buildSrcdoc(initialFilesRef.current))
   const prevDefaultRef = useRef(defaultFiles)

@@ -15,6 +15,8 @@ Educational platform prototype with a React frontend for teacher/student workflo
 - The backend exposes seeded REST endpoints for users, courses, progress, and grades.
 - Coding activities execute through backend `POST /execute` using Judge0 (RapidAPI free tier or self-hosted Judge0 URL).
 - The Monaco-based coding editor has been smoke-tested end-to-end with JavaScript and Python sample programs.
+- Student coding drafts now auto-save in browser storage, support manual checkpoints/restore, and can reset back to the teacher starter template.
+- HTML activities render an in-app browser preview, and the web multi-file workspace is labeled **Web Development Kit** with the file explorer collapsed by default.
 - Render deployment provisions:
   - a static frontend
   - a Node API service
@@ -23,8 +25,10 @@ Educational platform prototype with a React frontend for teacher/student workflo
 
 ## Coding editor roadmap
 
-- Next: let teachers choose the starter language for a coding activity and optionally lock that language so students cannot switch away from it.
-- Next: add a multi-file project workspace with a VS Code-style file tree and a show/hide toggle for the file manager.
+- Next: move coding draft persistence from browser-local storage to backend-backed draft sync so work follows students across devices.
+- Next: add multi-file execution packaging for non-web languages (for example Python + config/data files).
+- Next: expand coding controls beyond run-only flows with explicit stop/step/debug affordances and stronger runaway-execution safeguards.
+- Next: add a teacher-facing suggested-solution runner so expected output can be generated from executable reference code.
 
 ## Local development
 

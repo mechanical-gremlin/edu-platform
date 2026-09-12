@@ -9,7 +9,7 @@ export const CODING_LANGUAGES: { value: string; label: string }[] = [
   { value: 'c', label: 'C' },
   { value: 'cpp', label: 'C++' },
   { value: 'csharp', label: 'C#' },
-  { value: 'web', label: 'Web (HTML/CSS/JS)' },
+  { value: 'web', label: 'Web Development Kit' },
   { value: 'html', label: 'HTML' },
   { value: 'php', label: 'PHP' },
   { value: 'ruby', label: 'Ruby' },
@@ -83,6 +83,8 @@ export const MonacoEditor = ({
   const [runError, setRunError] = useState<string | null>(null)
   const [passed, setPassed] = useState<boolean | null>(null)
   const initialCodeRef = useRef(defaultValue)
+  const showExecution = Boolean(executeUrl && language !== 'html')
+  const showHtmlPreview = language === 'html'
 
   // Only reset editor content when the starterCode prop itself changes (new activity)
   useEffect(() => {
@@ -165,7 +167,7 @@ export const MonacoEditor = ({
 
       <div className="flex gap-3" style={{ height: minHeight }}>
         {/* Editor panel */}
-        <div className={`overflow-hidden rounded-xl border border-slate-200 ${executeUrl ? 'flex-1' : 'w-full'}`}>
+        <div className={`overflow-hidden rounded-xl border border-slate-200 ${showExecution || showHtmlPreview ? 'flex-1' : 'w-full'}`}>
           <MonacoEditorReact
             height={minHeight}
             language={MONACO_LANGUAGE_MAP[language] ?? language}
@@ -185,7 +187,7 @@ export const MonacoEditor = ({
         </div>
 
         {/* Output panel */}
-        {executeUrl && (
+        {showExecution && (
           <div className="flex w-2/5 flex-col gap-2">
             <div className="flex items-center gap-3">
               <button
@@ -220,6 +222,17 @@ export const MonacoEditor = ({
                 <p className="text-xs text-slate-500">Run your code to see output here.</p>
               )}
             </div>
+          </div>
+        )}
+        {showHtmlPreview && (
+          <div className="flex w-2/5 flex-col gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Preview</p>
+            <iframe
+              title="HTML preview"
+              srcDoc={code}
+              sandbox="allow-scripts"
+              className="flex-1 rounded-xl border border-slate-200 bg-white"
+            />
           </div>
         )}
       </div>

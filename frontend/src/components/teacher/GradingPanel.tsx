@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MonacoEditor } from '../coding/MonacoEditor'
 import { WebProjectEditor } from '../coding/WebProjectEditor'
 import type { ActivityType, GradebookEntry, StarterFile } from '../../types/models'
+import { parseSubmissionFiles } from '../../utils/codingDrafts'
 
 interface GradingPanelProps {
   activityId: string
@@ -13,31 +14,6 @@ interface GradingPanelProps {
   runUserId?: string
   onClose: () => void
   onSave: (studentId: string, points: number, comment: string) => Promise<void>
-}
-
-const parseSubmissionFiles = (submissionText: string | null | undefined): StarterFile[] => {
-  if (!submissionText?.trim()) {
-    return [{ name: 'index.html', language: 'html', content: '' }]
-  }
-
-  try {
-    const parsed = JSON.parse(submissionText) as unknown
-    if (!Array.isArray(parsed)) {
-      return [{ name: 'index.html', language: 'html', content: submissionText }]
-    }
-    const files = parsed.filter(
-      (file): file is StarterFile =>
-        typeof file === 'object'
-        && file !== null
-        && typeof Reflect.get(file, 'name') === 'string'
-        && typeof Reflect.get(file, 'language') === 'string'
-        && typeof Reflect.get(file, 'content') === 'string',
-    )
-    if (files.length > 0) return files
-    return [{ name: 'index.html', language: 'html', content: submissionText }]
-  } catch {
-    return [{ name: 'index.html', language: 'html', content: submissionText }]
-  }
 }
 
 export const GradingPanel = ({

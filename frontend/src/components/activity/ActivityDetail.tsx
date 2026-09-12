@@ -6,7 +6,7 @@ interface ActivityDetailProps {
 
 const typeCopy: Record<Activity['type'], string> = {
   video: 'Embedded video player placeholder + completion tracking.',
-  coding: 'Embedded OneCompiler editor with multi-language support, run controls, and starter code pre-loaded by the teacher.',
+  coding: 'Embedded Monaco editor with multi-language support, local draft autosave, and teacher-provided starter code.',
   quiz: 'Auto-grade multiple choice + teacher-reviewed short-answer sections.',
   project: 'Project submission with files/links and teacher rubric feedback area.',
   godot: 'Launch browser Godot editor, save snapshots, and submit project state.',
