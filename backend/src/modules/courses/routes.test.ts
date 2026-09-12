@@ -108,6 +108,18 @@ const buildCoursePrismaStub = () => {
           }
         }
 
+        if (where.id === 'l-3') {
+          return {
+            id: 'l-3',
+            title: 'Lesson 3',
+            description: 'Third lesson',
+            unitId: 'u-1',
+            visible: true,
+            unit: { courseId: 'c-1' },
+            activities: [{ position: 3 }],
+          }
+        }
+
         return null
       },
       update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -196,15 +208,56 @@ const buildCoursePrismaStub = () => {
         lessonVisibilityUpdate = { where, data }
         return { count: 2 }
       },
-      findMany: async () => [
-        { id: 'a-1', position: 0 },
-        { id: 'a-2', position: 1 },
-      ],
+      findMany: async ({
+        where,
+        orderBy,
+        take,
+        select,
+      }: {
+        where?: { lessonId?: string; id?: { not?: string } }
+        orderBy?: { position?: 'asc' | 'desc' }
+        take?: number
+        select?: { id?: boolean; position?: boolean }
+      } = {}) => {
+        if (where?.lessonId === 'l-2') {
+          return []
+        }
+        if (where?.lessonId === 'l-3') {
+          return [{ id: 'a-9', position: 3 }]
+        }
+
+        const rows: Array<{ id: string; position: number }> = [
+          { id: 'a-1', position: 0 },
+          { id: 'a-2', position: 1 },
+        ]
+        const filteredRows = where?.id?.not ? rows.filter((row) => row.id !== where.id?.not) : rows
+
+        if (orderBy?.position === 'desc') {
+          filteredRows.reverse()
+        }
+
+        const selectedRows = filteredRows.map((row) => {
+          if (select?.id && !select?.position) {
+            return { id: row.id }
+          }
+          if (!select?.id && select?.position) {
+            return { position: row.position }
+          }
+          return row
+        })
+
+        if (typeof take === 'number') {
+          return selectedRows.slice(0, take)
+        }
+
+        return selectedRows
+      },
       delete: async ({ where }: { where: { id: string } }) => {
         deletedActivityId = where.id
         return { id: where.id }
       },
     },
+    $executeRaw: async () => 1,
     $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(stub),
     $disconnect: async () => undefined,
   }
@@ -428,7 +481,34 @@ test('PATCH /activities/:activityId/move can move an assignment to another lesso
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.json(), { id: 'a-2' })
     assert.deepEqual(prisma.getActivityUpdates(), [
+      { id: 'a-1', position: 0, data: { position: 0 } },
       { id: 'a-2', position: 0, data: { lessonId: 'l-2', position: 0 } },
+    ])
+  } finally {
+    await app.close()
+  }
+})
+
+test('PATCH /activities/:activityId/move appends when destination lesson already has activities', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/activities/a-2/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        lessonId: 'l-3',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'a-2' })
+    assert.deepEqual(prisma.getActivityUpdates(), [
+      { id: 'a-1', position: 0, data: { position: 0 } },
+      { id: 'a-9', position: 0, data: { position: 0 } },
+      { id: 'a-2', position: 1, data: { lessonId: 'l-3', position: 1 } },
     ])
   } finally {
     await app.close()

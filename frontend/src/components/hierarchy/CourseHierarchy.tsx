@@ -239,13 +239,21 @@ const MoveActivityModal = ({
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900">Move Assignment</h3>
-          <button onClick={onClose} className="text-slate-500">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-slate-500"
+            aria-label="Close move assignment dialog"
+          >
             ✕
           </button>
         </div>
         <p className="mb-3 text-sm text-slate-600">{activityTitle}</p>
-        <label className="mb-1 block text-sm font-medium text-slate-700">Destination lesson</label>
+        <label htmlFor="move-assignment-target-lesson" className="mb-1 block text-sm font-medium text-slate-700">
+          Destination lesson
+        </label>
         <select
+          id="move-assignment-target-lesson"
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700"
           value={targetLessonId}
           onChange={(event) => setTargetLessonId(event.target.value)}
@@ -260,6 +268,7 @@ const MoveActivityModal = ({
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
         <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
+            type="button"
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
             onClick={onClose}
             disabled={saving}
@@ -267,6 +276,7 @@ const MoveActivityModal = ({
             Cancel
           </button>
           <button
+            type="button"
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             disabled={saving || targetLessonId === currentLessonId}
             onClick={async () => {

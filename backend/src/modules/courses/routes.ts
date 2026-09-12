@@ -1064,7 +1064,6 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           select: {
             id: true,
             unit: { select: { courseId: true } },
-            activities: { select: { position: true }, orderBy: { position: 'asc' } },
           },
         })
 
@@ -1075,13 +1074,49 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         await assertTeacherForCourse(app, targetLesson.unit.courseId, user.id)
 
         if (targetLesson.id !== activity.lessonId) {
-          const nextPosition =
-            targetLesson.activities.length > 0
-              ? Math.max(...targetLesson.activities.map((item) => item.position)) + 1
-              : 0
-          await app.prisma.activity.update({
-            where: { id: activityId },
-            data: { lessonId: targetLesson.id, position: nextPosition },
+          await app.prisma.$transaction(async (tx) => {
+            const lessonIdsToLock = [targetLesson.id, activity.lessonId].sort((left, right) =>
+              left.localeCompare(right),
+            )
+            for (const lessonId of lessonIdsToLock) {
+              await tx.$executeRaw`SELECT 1 FROM "Lesson" WHERE id = ${lessonId} FOR UPDATE`
+            }
+            const sourceActivities = await tx.activity.findMany({
+              where: {
+                lessonId: activity.lessonId,
+                id: { not: activityId },
+              },
+              orderBy: { position: 'asc' },
+              select: { id: true },
+            })
+            const destinationActivities = await tx.activity.findMany({
+              where: { lessonId: targetLesson.id },
+              orderBy: { position: 'asc' },
+              select: { id: true },
+            })
+
+            await Promise.all(
+              sourceActivities.map((sourceActivity, index) =>
+                tx.activity.update({
+                  where: { id: sourceActivity.id },
+                  data: { position: index },
+                }),
+              ),
+            )
+
+            await Promise.all(
+              destinationActivities.map((destinationActivity, index) =>
+                tx.activity.update({
+                  where: { id: destinationActivity.id },
+                  data: { position: index },
+                }),
+              ),
+            )
+
+            await tx.activity.update({
+              where: { id: activityId },
+              data: { lessonId: targetLesson.id, position: destinationActivities.length },
+            })
           })
         }
       } else {
