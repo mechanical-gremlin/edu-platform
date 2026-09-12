@@ -17,7 +17,7 @@ This list is ordered by implementation priority for LMS viability.
 - [x] **Restore submitted code into the editor** — reopening a coding assignment now reloads the last submitted code/files instead of resetting to the starter template.
 - [x] **HTML preview support** — HTML coding activities now render a preview pane so the standalone HTML option has an in-app visual result.
 - [x] **Simple Autograder** — coding activities can now optionally store a teacher reference solution, compare normalized code and/or runtime output, run teacher-defined input/output checks, and auto-apply 100/50/0 grades that teachers can override.
-
+- [ ] **CRUD Interface** - make sure menu system has full functionality to edit, delete, hide, etc.
 ---
 
 ## P1 — Production-readiness and security
@@ -41,6 +41,7 @@ This list is ordered by implementation priority for LMS viability.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
 - [ ] **Drag-and-drop hierarchy management** — replace the current move-up/move-down course organizer with direct drag-and-drop reordering and cross-unit / cross-lesson moves.
 - [ ] **Frontend regression coverage for teacher hierarchy tools** — add automated browser coverage for edit/delete/visibility/reorder flows on units, lessons, and activities.
+- [ ] **Indicator Icon** - Integrate icons to indicate states of activities, lessons, and units.
 
 ___
 ## Potential Post-Production
@@ -48,3 +49,4 @@ ___
 - [ ] Support for other LMS login criteria
 - [ ] Additional Computer Science tools and open source programs for further learning.
 - [ ] Investigate Virtual Machine setup for Cybersecurity programs.
+- [ ] ** New Achievement ** - Add achievement system. Pop up message and list in profile.
