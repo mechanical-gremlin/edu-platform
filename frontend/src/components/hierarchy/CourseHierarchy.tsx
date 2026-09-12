@@ -11,14 +11,32 @@ interface CourseHierarchyProps {
   onCreateUnit: (title: string, description: string) => Promise<string>
   onCreateLesson: (unitId: string, title: string, description: string) => Promise<string>
   onCreateActivity: (lessonId: string) => void
+  onUpdateUnit: (unitId: string, title: string, description: string) => Promise<void>
+  onUpdateLesson: (lessonId: string, title: string, description: string) => Promise<void>
+  onUpdateActivity: (activityId: string) => void
+  onDeleteUnit: (unitId: string) => Promise<void>
+  onDeleteLesson: (lessonId: string) => Promise<void>
+  onDeleteActivity: (activityId: string) => Promise<void>
+  onMoveUnit: (unitId: string, direction: 'up' | 'down') => Promise<void>
+  onMoveLesson: (lessonId: string, direction: 'up' | 'down') => Promise<void>
+  onMoveActivity: (activityId: string, direction: 'up' | 'down') => Promise<void>
+  onToggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
+  onToggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   onToggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
 }
 
-interface ActionMenuProps {
-  onAdd?: () => void
+interface ActionMenuItem {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  danger?: boolean
 }
 
-const ActionMenu = ({ onAdd }: ActionMenuProps) => {
+interface ActionMenuProps {
+  items: ActionMenuItem[]
+}
+
+const ActionMenu = ({ items }: ActionMenuProps) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -30,10 +48,12 @@ const ActionMenu = ({ onAdd }: ActionMenuProps) => {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const visibleItems = items.filter((item) => !item.disabled)
+
   return (
     <div ref={ref} className="relative">
       <button
-        className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
         onClick={(event) => {
           event.stopPropagation()
           setOpen((value) => !value)
@@ -42,19 +62,22 @@ const ActionMenu = ({ onAdd }: ActionMenuProps) => {
       >
         ⋮
       </button>
-      {open && (
-        <div className="absolute right-0 z-20 mt-1 min-w-[120px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-          {onAdd && (
+      {open && visibleItems.length > 0 && (
+        <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          {visibleItems.map((item) => (
             <button
-              className="block w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+              key={item.label}
+              className={`block w-full px-4 py-2 text-left text-sm hover:bg-slate-50 ${
+                item.danger ? 'text-rose-600' : 'text-slate-700'
+              }`}
               onClick={() => {
                 setOpen(false)
-                onAdd()
+                item.onClick()
               }}
             >
-              + Add
+              {item.label}
             </button>
-          )}
+          ))}
         </div>
       )}
     </div>
@@ -64,24 +87,41 @@ const ActionMenu = ({ onAdd }: ActionMenuProps) => {
 interface NameDescModalProps {
   open: boolean
   title: string
+  confirmLabel: string
+  initialName?: string
+  initialDescription?: string | null
   onClose: () => void
   onConfirm: (name: string, description: string) => Promise<void>
 }
 
-const NameDescModal = ({ open, title, onClose, onConfirm }: NameDescModalProps) => {
-  const [name, setName] = useState('')
-  const [desc, setDesc] = useState('')
+const NameDescModal = ({
+  open,
+  title,
+  confirmLabel,
+  initialName = '',
+  initialDescription = '',
+  onClose,
+  onConfirm,
+}: NameDescModalProps) => {
+  const [name, setName] = useState(initialName)
+  const [desc, setDesc] = useState(initialDescription ?? '')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) {
-      setName('')
-      setDesc('')
+      setName(initialName)
+      setDesc(initialDescription ?? '')
       setError(null)
       setSaving(false)
+      return
     }
-  }, [open])
+
+    setName(initialName)
+    setDesc(initialDescription ?? '')
+    setError(null)
+    setSaving(false)
+  }, [initialDescription, initialName, open])
 
   if (!open) return null
 
@@ -119,7 +159,7 @@ const NameDescModal = ({ open, title, onClose, onConfirm }: NameDescModalProps) 
           </div>
         </div>
         {error && <p className="mt-4 text-sm text-rose-600">{error}</p>}
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
           <button
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
             onClick={onClose}
@@ -143,13 +183,16 @@ const NameDescModal = ({ open, title, onClose, onConfirm }: NameDescModalProps) 
               }
             }}
           >
-            {saving ? 'Saving…' : 'Create'}
+            {saving ? 'Saving…' : confirmLabel}
           </button>
         </div>
       </div>
     </div>
   )
 }
+
+const hasVisibleActivity = (activities: Course['units'][number]['lessons'][number]['activities']) =>
+  activities.some((activity) => activity.visible !== false)
 
 export const CourseHierarchy = ({
   course,
@@ -160,12 +203,25 @@ export const CourseHierarchy = ({
   onCreateUnit,
   onCreateLesson,
   onCreateActivity,
+  onUpdateUnit,
+  onUpdateLesson,
+  onUpdateActivity,
+  onDeleteUnit,
+  onDeleteLesson,
+  onDeleteActivity,
+  onMoveUnit,
+  onMoveLesson,
+  onMoveActivity,
+  onToggleUnitVisibility,
+  onToggleLessonVisibility,
   onToggleActivityVisibility,
 }: CourseHierarchyProps) => {
   const [openUnits, setOpenUnits] = useState<Record<string, boolean>>({})
   const [openLessons, setOpenLessons] = useState<Record<string, boolean>>({})
   const [lessonModalUnit, setLessonModalUnit] = useState<string | null>(null)
   const [unitModalOpen, setUnitModalOpen] = useState(false)
+  const [editingUnitId, setEditingUnitId] = useState<string | null>(null)
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
   const [savingActivityId, setSavingActivityId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -204,15 +260,28 @@ export const CourseHierarchy = ({
     })
   }, [course.units, isTeacher])
 
+  const editingUnit = editingUnitId ? course.units.find((unit) => unit.id === editingUnitId) ?? null : null
+  const editingLesson =
+    editingLessonId
+      ? course.units.flatMap((unit) => unit.lessons).find((lesson) => lesson.id === editingLessonId) ?? null
+      : null
+
   const getEntry = (activityId: string) =>
     gradebookEntries.find((entry) => entry.activityId === activityId && entry.studentId === currentUserId)
 
+  const confirmAction = (message: string) =>
+    typeof window === 'undefined' ? true : window.confirm(message)
+
   return (
     <>
-      <div className="rounded-2xl border border-slate-200 bg-white p-4">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">{course.title} • Units & Lessons</h3>
-        <div className="space-y-3">
-          {course.units.map((unit) => {
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className="text-lg font-semibold text-slate-900">{course.title} • Units & Lessons</h3>
+          <p className="text-sm text-slate-500">Collapsed sections and scrolling keep larger courses manageable on tablets.</p>
+        </div>
+
+        <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+          {course.units.map((unit, unitIndex) => {
             const unitActivities = unit.lessons.flatMap((lesson) => lesson.activities)
             const completedCount = unitActivities.filter((activity) => {
               const entry = getEntry(activity.id)
@@ -220,110 +289,244 @@ export const CourseHierarchy = ({
                 entry?.submitted || (entry?.pointsEarned !== null && entry?.pointsEarned !== undefined),
               )
             }).length
+            const unitVisible = unitActivities.length === 0 || hasVisibleActivity(unitActivities)
 
             return (
-              <div key={unit.id} className="rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between p-3">
+              <div
+                key={unit.id}
+                className={`rounded-xl border border-slate-200 ${
+                  isTeacher && !unitVisible ? 'bg-slate-100/80' : 'bg-white'
+                }`}
+              >
+                <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between">
                   <button
                     className="flex items-center gap-2 text-left font-medium text-slate-800"
                     onClick={() =>
                       setOpenUnits((previous) => ({ ...previous, [unit.id]: !previous[unit.id] }))
                     }
                   >
-                    {openUnits[unit.id] ? '▾' : '▸'} {unit.title}
+                    <span>{openUnits[unit.id] ? '▾' : '▸'}</span>
+                    <span>{unit.title}</span>
+                    {isTeacher && !unitVisible && unitActivities.length > 0 && (
+                      <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">Hidden</span>
+                    )}
                     {!isTeacher && unitActivities.length > 0 && (
-                      <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                         {completedCount}/{unitActivities.length}
                       </span>
                     )}
                   </button>
-                  {isTeacher && <ActionMenu onAdd={() => setLessonModalUnit(unit.id)} />}
+                  {isTeacher && (
+                    <div className="self-end sm:self-auto">
+                      <ActionMenu
+                        items={[
+                          { label: 'Add lesson', onClick: () => setLessonModalUnit(unit.id) },
+                          { label: 'Edit unit', onClick: () => setEditingUnitId(unit.id) },
+                          {
+                            label: unitVisible ? 'Hide unit from students' : 'Show unit to students',
+                            onClick: () => void onToggleUnitVisibility(unit.id, !unitVisible),
+                          },
+                          {
+                            label: 'Move unit up',
+                            onClick: () => void onMoveUnit(unit.id, 'up'),
+                            disabled: unitIndex === 0,
+                          },
+                          {
+                            label: 'Move unit down',
+                            onClick: () => void onMoveUnit(unit.id, 'down'),
+                            disabled: unitIndex === course.units.length - 1,
+                          },
+                          {
+                            label: 'Delete unit',
+                            danger: true,
+                            onClick: () => {
+                              if (
+                                confirmAction(
+                                  `Delete "${unit.title}" and all of its lessons and activities? This cannot be undone.`,
+                                )
+                              ) {
+                                void onDeleteUnit(unit.id)
+                              }
+                            },
+                          },
+                        ]}
+                      />
+                    </div>
+                  )}
                 </div>
                 {openUnits[unit.id] && (
                   <div className="space-y-2 border-t border-slate-100 p-3">
-                    {unit.lessons.map((lesson) => (
-                      <div key={lesson.id} className="rounded-lg border border-slate-200">
-                        <div className="flex items-center justify-between p-2.5">
-                          <button
-                            className="text-left text-sm font-medium text-slate-700"
-                            onClick={() =>
-                              setOpenLessons((previous) => ({
-                                ...previous,
-                                [lesson.id]: !previous[lesson.id],
-                              }))
-                            }
-                          >
-                            {openLessons[lesson.id] ? '▾' : '▸'} {lesson.title}
-                          </button>
-                          {isTeacher && <ActionMenu onAdd={() => onCreateActivity(lesson.id)} />}
-                        </div>
-                        {openLessons[lesson.id] && (
-                          <div className="space-y-2 border-t border-slate-100 p-3">
-                            {lesson.activities
-                              .filter((activity) => isTeacher || activity.visible)
-                              .map((activity) => (
-                                <div
-                                  key={activity.id}
-                                  className={`flex items-center justify-between rounded-lg p-2.5 ${
-                                    activity.visible === false ? 'bg-slate-100 opacity-60' : 'bg-slate-50'
-                                  }`}
-                                >
-                                  <div className="flex flex-1 items-center gap-2">
-                                    {isTeacher && activity.visible === false && (
-                                      <span title="Hidden from students" className="text-slate-400">
-                                        🚫
-                                      </span>
-                                    )}
-                                    <ActivityCard
-                                      activity={activity}
-                                      currentUserId={currentUserId}
-                                      isTeacher={isTeacher}
-                                      gradebookEntries={gradebookEntries}
-                                      onSelect={onActivitySelect}
-                                    />
-                                  </div>
-                                  {isTeacher && (
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        title={activity.visible === false ? 'Show to students' : 'Hide from students'}
-                                        onClick={async () => {
-                                          try {
-                                            setSavingActivityId(activity.id)
-                                            await onToggleActivityVisibility(
-                                              activity.id,
-                                              activity.visible === false,
-                                            )
-                                          } finally {
-                                            setSavingActivityId(null)
-                                          }
-                                        }}
-                                        disabled={savingActivityId === activity.id}
-                                        className="rounded p-1 text-xs text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50"
-                                      >
-                                        {activity.visible === false ? '👁' : '🚫'}
-                                      </button>
-                                      <ActionMenu onAdd={() => onCreateActivity(lesson.id)} />
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            {lesson.activities.length === 0 && (
-                              <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
-                                No activities yet.
-                              </p>
-                            )}
+                    {unit.lessons.map((lesson, lessonIndex) => {
+                      const lessonVisible = lesson.activities.length === 0 || hasVisibleActivity(lesson.activities)
+
+                      return (
+                        <div
+                          key={lesson.id}
+                          className={`rounded-lg border border-slate-200 ${
+                            isTeacher && !lessonVisible ? 'bg-slate-100/80' : 'bg-white'
+                          }`}
+                        >
+                          <div className="flex flex-col gap-3 p-2.5 sm:flex-row sm:items-center sm:justify-between">
+                            <button
+                              className="text-left text-sm font-medium text-slate-700"
+                              onClick={() =>
+                                setOpenLessons((previous) => ({
+                                  ...previous,
+                                  [lesson.id]: !previous[lesson.id],
+                                }))
+                              }
+                            >
+                              {openLessons[lesson.id] ? '▾' : '▸'} {lesson.title}
+                              {isTeacher && !lessonVisible && lesson.activities.length > 0 && (
+                                <span className="ml-2 rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                                  Hidden
+                                </span>
+                              )}
+                            </button>
                             {isTeacher && (
-                              <button
-                                className="w-full rounded-lg border border-dashed border-indigo-300 bg-indigo-50 px-3 py-2 text-sm text-indigo-700"
-                                onClick={() => onCreateActivity(lesson.id)}
-                              >
-                                + Add new activity
-                              </button>
+                              <div className="self-end sm:self-auto">
+                                <ActionMenu
+                                  items={[
+                                    { label: 'Add activity', onClick: () => onCreateActivity(lesson.id) },
+                                    { label: 'Edit lesson', onClick: () => setEditingLessonId(lesson.id) },
+                                    {
+                                      label: lessonVisible ? 'Hide lesson from students' : 'Show lesson to students',
+                                      onClick: () => void onToggleLessonVisibility(lesson.id, !lessonVisible),
+                                    },
+                                    {
+                                      label: 'Move lesson up',
+                                      onClick: () => void onMoveLesson(lesson.id, 'up'),
+                                      disabled: lessonIndex === 0,
+                                    },
+                                    {
+                                      label: 'Move lesson down',
+                                      onClick: () => void onMoveLesson(lesson.id, 'down'),
+                                      disabled: lessonIndex === unit.lessons.length - 1,
+                                    },
+                                    {
+                                      label: 'Delete lesson',
+                                      danger: true,
+                                      onClick: () => {
+                                        if (
+                                          confirmAction(
+                                            `Delete "${lesson.title}" and all of its activities? This cannot be undone.`,
+                                          )
+                                        ) {
+                                          void onDeleteLesson(lesson.id)
+                                        }
+                                      },
+                                    },
+                                  ]}
+                                />
+                              </div>
                             )}
                           </div>
-                        )}
-                      </div>
-                    ))}
+                          {openLessons[lesson.id] && (
+                            <div className="space-y-2 border-t border-slate-100 p-3">
+                              {lesson.activities
+                                .filter((activity) => isTeacher || activity.visible)
+                                .map((activity, activityIndex) => (
+                                  <div
+                                    key={activity.id}
+                                    className={`rounded-lg p-2.5 ${
+                                      activity.visible === false ? 'bg-slate-100 opacity-80' : 'bg-slate-50'
+                                    }`}
+                                  >
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                      <div className="min-w-0 flex-1">
+                                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                                          {activity.visible === false && (
+                                            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
+                                              Hidden
+                                            </span>
+                                          )}
+                                          <span className="text-xs text-slate-500">
+                                            {activity.points} pts
+                                            {activity.dueDate ? ` · Due ${activity.dueDate}` : ''}
+                                          </span>
+                                        </div>
+                                        <ActivityCard
+                                          activity={activity}
+                                          currentUserId={currentUserId}
+                                          isTeacher={isTeacher}
+                                          gradebookEntries={gradebookEntries}
+                                          onSelect={onActivitySelect}
+                                        />
+                                      </div>
+                                      {isTeacher && (
+                                        <div className="self-end sm:self-auto">
+                                          <ActionMenu
+                                            items={[
+                                              {
+                                                label: 'Edit assignment',
+                                                onClick: () => onUpdateActivity(activity.id),
+                                              },
+                                              {
+                                                label: activity.visible === false
+                                                  ? 'Show assignment to students'
+                                                  : 'Hide assignment from students',
+                                                onClick: async () => {
+                                                  try {
+                                                    setSavingActivityId(activity.id)
+                                                    await onToggleActivityVisibility(
+                                                      activity.id,
+                                                      activity.visible === false,
+                                                    )
+                                                  } finally {
+                                                    setSavingActivityId(null)
+                                                  }
+                                                },
+                                              },
+                                              {
+                                                label: 'Move assignment up',
+                                                onClick: () => void onMoveActivity(activity.id, 'up'),
+                                                disabled: activityIndex === 0 || savingActivityId === activity.id,
+                                              },
+                                              {
+                                                label: 'Move assignment down',
+                                                onClick: () => void onMoveActivity(activity.id, 'down'),
+                                                disabled:
+                                                  activityIndex === lesson.activities.length - 1
+                                                  || savingActivityId === activity.id,
+                                              },
+                                              {
+                                                label: 'Delete assignment',
+                                                danger: true,
+                                                onClick: () => {
+                                                  if (
+                                                    confirmAction(
+                                                      `Delete "${activity.title}"? This cannot be undone.`,
+                                                    )
+                                                  ) {
+                                                    void onDeleteActivity(activity.id)
+                                                  }
+                                                },
+                                              },
+                                            ]}
+                                          />
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              {lesson.activities.length === 0 && (
+                                <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
+                                  No activities yet.
+                                </p>
+                              )}
+                              {isTeacher && (
+                                <button
+                                  className="w-full rounded-lg border border-dashed border-indigo-300 bg-indigo-50 px-3 py-2 text-sm text-indigo-700"
+                                  onClick={() => onCreateActivity(lesson.id)}
+                                >
+                                  + Add new activity
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
                     {unit.lessons.length === 0 && (
                       <p className="rounded-lg border border-dashed border-slate-200 px-3 py-4 text-sm text-slate-500">
                         No lessons yet.
@@ -356,6 +559,7 @@ export const CourseHierarchy = ({
       <NameDescModal
         open={lessonModalUnit !== null}
         title="Add New Lesson"
+        confirmLabel="Create"
         onClose={() => setLessonModalUnit(null)}
         onConfirm={async (name, description) => {
           if (!lessonModalUnit) return
@@ -368,10 +572,37 @@ export const CourseHierarchy = ({
       <NameDescModal
         open={unitModalOpen}
         title="Add New Unit"
+        confirmLabel="Create"
         onClose={() => setUnitModalOpen(false)}
         onConfirm={async (name, description) => {
           const unitId = await onCreateUnit(name, description)
           setOpenUnits((previous) => ({ ...previous, [unitId]: true }))
+        }}
+      />
+
+      <NameDescModal
+        open={editingUnit !== null}
+        title="Edit Unit"
+        confirmLabel="Save changes"
+        initialName={editingUnit?.title}
+        initialDescription={editingUnit?.description}
+        onClose={() => setEditingUnitId(null)}
+        onConfirm={async (name, description) => {
+          if (!editingUnit) return
+          await onUpdateUnit(editingUnit.id, name, description)
+        }}
+      />
+
+      <NameDescModal
+        open={editingLesson !== null}
+        title="Edit Lesson"
+        confirmLabel="Save changes"
+        initialName={editingLesson?.title}
+        initialDescription={editingLesson?.description}
+        onClose={() => setEditingLessonId(null)}
+        onConfirm={async (name, description) => {
+          if (!editingLesson) return
+          await onUpdateLesson(editingLesson.id, name, description)
         }}
       />
     </>

@@ -39,6 +39,8 @@ This list is ordered by implementation priority for LMS viability.
 - [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.
 - [ ] **Hidden/weighted autograder checks** — separate teacher-only hidden tests from student-visible checks and allow weighted scoring instead of the current coarse 100/50/0 buckets.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
+- [ ] **Drag-and-drop hierarchy management** — replace the current move-up/move-down course organizer with direct drag-and-drop reordering and cross-unit / cross-lesson moves.
+- [ ] **Frontend regression coverage for teacher hierarchy tools** — add automated browser coverage for edit/delete/visibility/reorder flows on units, lessons, and activities.
 
 ___
 ## Potential Post-Production

@@ -16,6 +16,7 @@ import type {
   CreateActivityInput,
   CreateCourseInput,
   GradebookEntry,
+  UpdateActivityInput,
   UpdateActivityDirectionsInput,
   User,
 } from '../types/models'
@@ -38,6 +39,17 @@ interface AppContextValue {
   createUnit: (courseId: string, title: string, description: string) => Promise<string>
   createLesson: (unitId: string, title: string, description: string) => Promise<string>
   createActivity: (lessonId: string, input: CreateActivityInput) => Promise<string>
+  updateUnit: (unitId: string, title: string, description: string) => Promise<void>
+  updateLesson: (lessonId: string, title: string, description: string) => Promise<void>
+  updateActivity: (activityId: string, input: UpdateActivityInput) => Promise<void>
+  deleteUnit: (unitId: string) => Promise<void>
+  deleteLesson: (lessonId: string) => Promise<void>
+  deleteActivity: (activityId: string) => Promise<void>
+  moveUnit: (unitId: string, direction: 'up' | 'down') => Promise<void>
+  moveLesson: (lessonId: string, direction: 'up' | 'down') => Promise<void>
+  moveActivity: (activityId: string, direction: 'up' | 'down') => Promise<void>
+  toggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
+  toggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   toggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
   submitActivity: (activityId: string, responseText: string, submissionFiles?: CreateActivityInput['starterFiles']) => Promise<void>
   updateGradebookEntry: (
@@ -54,8 +66,6 @@ interface AppContextValue {
 
 const STORAGE_KEYS = {
   currentUser: 'edu-platform.current-user',
-  selectedCourseId: 'edu-platform.selected-course-id',
-  selectedActivityId: 'edu-platform.selected-activity-id',
 } as const
 
 const readStoredValue = <T,>(key: string, fallback: T): T => {
@@ -189,6 +199,46 @@ const updateCoursesForActivity = (
     })),
   }))
 
+const updateCoursesForUnit = (
+  courses: Course[],
+  unitId: string,
+  updater: (unit: Course['units'][number]) => Course['units'][number],
+) =>
+  courses.map((course) => ({
+    ...course,
+    units: course.units.map((unit) => (unit.id === unitId ? updater(unit) : unit)),
+  }))
+
+const updateCoursesForLesson = (
+  courses: Course[],
+  lessonId: string,
+  updater: (lesson: Course['units'][number]['lessons'][number]) => Course['units'][number]['lessons'][number],
+) =>
+  courses.map((course) => ({
+    ...course,
+    units: course.units.map((unit) => ({
+      ...unit,
+      lessons: unit.lessons.map((lesson) => (lesson.id === lessonId ? updater(lesson) : lesson)),
+    })),
+  }))
+
+const reorderById = <T extends { id: string }>(items: T[], itemId: string, direction: 'up' | 'down') => {
+  const currentIndex = items.findIndex((item) => item.id === itemId)
+  if (currentIndex === -1) {
+    return items
+  }
+
+  const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+  if (swapIndex < 0 || swapIndex >= items.length) {
+    return items
+  }
+
+  const next = [...items]
+  const [current] = next.splice(currentIndex, 1)
+  next.splice(swapIndex, 0, current)
+  return next
+}
+
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
 
 const withDateOnly = (value: string | null) => value?.slice(0, 10) ?? ''
@@ -289,12 +339,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [currentUser, setCurrentUserState] = useState<User | null>(() =>
     readStoredValue<User | null>(STORAGE_KEYS.currentUser, null),
   )
-  const [selectedCourseId, setSelectedCourseIdState] = useState<string | null>(() =>
-    readStoredValue<string | null>(STORAGE_KEYS.selectedCourseId, null),
-  )
-  const [selectedActivityId, setSelectedActivityIdState] = useState<string | null>(() =>
-    readStoredValue<string | null>(STORAGE_KEYS.selectedActivityId, null),
-  )
+  const [selectedCourseId, setSelectedCourseIdState] = useState<string | null>(null)
+  const [selectedActivityId, setSelectedActivityIdState] = useState<string | null>(null)
   const [courses, setCourses] = useState<Course[]>([])
   const [gradebookEntries, setGradebookEntries] = useState<GradebookEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -329,32 +375,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     window.localStorage.removeItem(STORAGE_KEYS.currentUser)
   }, [currentUser])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    if (selectedCourseId) {
-      window.localStorage.setItem(STORAGE_KEYS.selectedCourseId, JSON.stringify(selectedCourseId))
-      return
-    }
-
-    window.localStorage.removeItem(STORAGE_KEYS.selectedCourseId)
-  }, [selectedCourseId])
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return
-    }
-
-    if (selectedActivityId) {
-      window.localStorage.setItem(STORAGE_KEYS.selectedActivityId, JSON.stringify(selectedActivityId))
-      return
-    }
-
-    window.localStorage.removeItem(STORAGE_KEYS.selectedActivityId)
-  }, [selectedActivityId])
 
   const apiUrl = useCallback((path: string) => `${apiBaseUrl}${path}`, [])
 
@@ -626,6 +646,213 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [currentUser, refreshData, request],
   )
 
+  const updateUnit = useCallback(
+    async (unitId: string, title: string, description: string) => {
+      const response = await request<MutationResponse>(`/units/${unitId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title, description: description || null }),
+      })
+      setCourses((previous) =>
+        updateCoursesForUnit(previous, unitId, (unit) => ({
+          ...unit,
+          title: response.title ?? title,
+          description: response.description ?? (description || null),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const updateLesson = useCallback(
+    async (lessonId: string, title: string, description: string) => {
+      const response = await request<MutationResponse>(`/lessons/${lessonId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title, description: description || null }),
+      })
+      setCourses((previous) =>
+        updateCoursesForLesson(previous, lessonId, (lesson) => ({
+          ...lesson,
+          title: response.title ?? title,
+          description: response.description ?? (description || null),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const updateActivity = useCallback(
+    async (activityId: string, input: UpdateActivityInput) => {
+      const response = await request<ApiActivity>(`/activities/${activityId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      })
+      setCourses((previous) =>
+        updateCoursesForActivity(previous, activityId, (activity) => ({
+          ...activity,
+          title: response.title,
+          description: response.description,
+          directions: response.directions,
+          resourceUrl: response.resourceUrl,
+          dueDate: withDateOnly(response.dueAt),
+          points: response.pointsPossible,
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const deleteUnit = useCallback(
+    async (unitId: string) => {
+      await request(`/units/${unitId}`, { method: 'DELETE' })
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.filter((unit) => unit.id !== unitId),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const deleteLesson = useCallback(
+    async (lessonId: string) => {
+      await request(`/lessons/${lessonId}`, { method: 'DELETE' })
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.map((unit) => ({
+            ...unit,
+            lessons: unit.lessons.filter((lesson) => lesson.id !== lessonId),
+          })),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const deleteActivity = useCallback(
+    async (activityId: string) => {
+      await request(`/activities/${activityId}`, { method: 'DELETE' })
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.map((unit) => ({
+            ...unit,
+            lessons: unit.lessons.map((lesson) => ({
+              ...lesson,
+              activities: lesson.activities.filter((activity) => activity.id !== activityId),
+            })),
+          })),
+        })),
+      )
+      setSelectedActivityIdState((previous) => (previous === activityId ? null : previous))
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const moveUnit = useCallback(
+    async (unitId: string, direction: 'up' | 'down') => {
+      await request(`/units/${unitId}/move`, {
+        method: 'PATCH',
+        body: JSON.stringify({ direction }),
+      })
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: reorderById(course.units, unitId, direction),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const moveLesson = useCallback(
+    async (lessonId: string, direction: 'up' | 'down') => {
+      await request(`/lessons/${lessonId}/move`, {
+        method: 'PATCH',
+        body: JSON.stringify({ direction }),
+      })
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.map((unit) => ({
+            ...unit,
+            lessons: reorderById(unit.lessons, lessonId, direction),
+          })),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const moveActivity = useCallback(
+    async (activityId: string, direction: 'up' | 'down') => {
+      await request(`/activities/${activityId}/move`, {
+        method: 'PATCH',
+        body: JSON.stringify({ direction }),
+      })
+      setCourses((previous) =>
+        previous.map((course) => ({
+          ...course,
+          units: course.units.map((unit) => ({
+            ...unit,
+            lessons: unit.lessons.map((lesson) => ({
+              ...lesson,
+              activities: reorderById(lesson.activities, activityId, direction),
+            })),
+          })),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const toggleUnitVisibility = useCallback(
+    async (unitId: string, visible: boolean) => {
+      await request(`/units/${unitId}/visibility`, {
+        method: 'PATCH',
+        body: JSON.stringify({ visible }),
+      })
+      setCourses((previous) =>
+        updateCoursesForUnit(previous, unitId, (unit) => ({
+          ...unit,
+          lessons: unit.lessons.map((lesson) => ({
+            ...lesson,
+            activities: lesson.activities.map((activity) => ({ ...activity, visible })),
+          })),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const toggleLessonVisibility = useCallback(
+    async (lessonId: string, visible: boolean) => {
+      await request(`/lessons/${lessonId}/visibility`, {
+        method: 'PATCH',
+        body: JSON.stringify({ visible }),
+      })
+      setCourses((previous) =>
+        updateCoursesForLesson(previous, lessonId, (lesson) => ({
+          ...lesson,
+          activities: lesson.activities.map((activity) => ({ ...activity, visible })),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
   const toggleActivityVisibility = useCallback(
     async (activityId: string, visible: boolean) => {
       await request(`/activities/${activityId}/visibility`, {
@@ -729,6 +956,17 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       createUnit,
       createLesson,
       createActivity,
+      updateUnit,
+      updateLesson,
+      updateActivity,
+      deleteUnit,
+      deleteLesson,
+      deleteActivity,
+      moveUnit,
+      moveLesson,
+      moveActivity,
+      toggleUnitVisibility,
+      toggleLessonVisibility,
       toggleActivityVisibility,
       submitActivity,
       updateGradebookEntry,
@@ -739,12 +977,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       courses,
       createActivity,
       createCourse,
+      deleteActivity,
+      deleteLesson,
+      deleteUnit,
       createLesson,
       createUnit,
       currentUser,
       error,
       gradebookEntries,
       loading,
+      moveActivity,
+      moveLesson,
+      moveUnit,
       refreshData,
       setCurrentUser,
       setSelectedActivityId,
@@ -752,9 +996,14 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectedActivityId,
       selectedCourseId,
       submitActivity,
+      toggleLessonVisibility,
+      toggleUnitVisibility,
       toggleActivityVisibility,
+      updateActivity,
       updateActivityDirections,
       updateGradebookEntry,
+      updateLesson,
+      updateUnit,
     ],
   )
 
