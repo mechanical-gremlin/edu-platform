@@ -18,6 +18,12 @@ The API validates execution configuration at startup from a single contract.
 - In `NODE_ENV=production`, the backend fails fast on boot when any required execution variable is missing or invalid.
 - In non-production environments, the app can boot for local development, and `/execute` returns a clear `503` configuration error until values are fixed.
 
+## `/execute` error contract
+
+- Timeouts return `504` with `{ code: "EXEC_TIMEOUT", message, retryable, requestId }`.
+- Transient Judge0/network failures return `502` with `{ code: "EXEC_UPSTREAM_ERROR", message, retryable, requestId }`.
+- Client validation and upstream 4xx execution rejections return `400` with `{ code: "EXEC_BAD_REQUEST", message, retryable, requestId }`.
+
 ## Provider-agnostic examples
 
 RapidAPI-hosted Judge0:

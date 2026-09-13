@@ -37,9 +37,41 @@ Use this checklist after deploying backend changes related to `/execute`.
 
 1. Send source code bigger than `EXEC_MAX_SOURCE_KB`.
 2. Confirm backend returns `400` with:
-   - `Source code exceeds EXEC_MAX_SOURCE_KB (...)`.
+   - `code: "EXEC_BAD_REQUEST"`
+   - `retryable: false`
+   - `requestId`
+   - `message: "Source code exceeds EXEC_MAX_SOURCE_KB (...)"`.
 
 ## 5) Output size enforcement
 
 1. Execute code that returns output larger than `EXEC_MAX_OUTPUT_KB`.
 2. Confirm response output is truncated and ends with `[output truncated]`.
+
+## 6) Timeout mapping
+
+1. Lower `EXEC_TIMEOUT_MS` to a small test-safe value.
+2. Execute code or point the backend at a deliberately slow/unresponsive Judge0 instance.
+3. Confirm backend returns `504` with:
+   - `code: "EXEC_TIMEOUT"`
+   - `retryable: true`
+   - `requestId`
+
+## 7) Transient failure retry
+
+1. Point the backend at a Judge0 deployment or proxy that fails once with a transient `5xx`, then succeeds.
+2. Send an authenticated `/execute` request.
+3. Confirm the request eventually succeeds without a client-side retry, showing the backend retried upstream once.
+
+## 8) Non-retryable upstream 4xx
+
+1. Trigger a Judge0-side validation/auth failure that returns `4xx`.
+2. Confirm backend returns `400` immediately with:
+   - `code: "EXEC_BAD_REQUEST"`
+   - `retryable: false`
+   - `requestId`
+
+## 9) Frontend error messaging
+
+1. In the coding editor, trigger an `EXEC_TIMEOUT` response and confirm the UI shows a timeout-specific message plus retry guidance.
+2. Trigger an `EXEC_UPSTREAM_ERROR` response and confirm the UI shows a temporary-unavailable message plus retry guidance.
+3. Trigger a non-retryable `EXEC_BAD_REQUEST` response and confirm the UI surfaces the backend message without retry guidance.
