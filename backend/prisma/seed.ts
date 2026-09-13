@@ -11,8 +11,8 @@ const users = [
 ] as const
 
 const courses = [
-  { id: 'c-1', title: 'Game Development with Godot', code: 'CSP-201' },
-  { id: 'c-2', title: 'Web Development Fundamentals', code: 'CSP-110' },
+  { id: 'c-1', title: 'Game Development with Godot', code: 'CSP-201', visible: true, position: 0 },
+  { id: 'c-2', title: 'Web Development Fundamentals', code: 'CSP-110', visible: true, position: 1 },
 ] as const
 
 const enrollments = [

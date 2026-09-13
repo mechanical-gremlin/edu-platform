@@ -16,10 +16,10 @@ This checklist is intended to help assess whether the edu-platform is ready for 
 ## 1) Product Scope and Core LMS Flows
 
 ### Curriculum structure
-- [ ] Courses can be created, edited, archived, and duplicated
-- [ ] Units can be reordered and hidden/shown
-- [ ] Lessons can be reordered and hidden/shown
-- [ ] Activities support multiple types consistently
+- [~] Courses can be created, edited, hidden/shown, reordered, and deleted; archive/duplicate workflows are still pending
+- [x] Units can be reordered and hidden/shown
+- [x] Lessons can be reordered and hidden/shown
+- [x] Activities support multiple types consistently
 - [ ] Activity previews match the student experience
 - [ ] Teachers can publish/unpublish content safely
 - [ ] Curriculum content can be reused across courses
@@ -27,8 +27,8 @@ This checklist is intended to help assess whether the edu-platform is ready for 
 ### Teacher workflows
 - [ ] Teacher account creation and login work reliably
 - [ ] Teachers can create assignments without technical assistance
-- [ ] Teachers can edit due dates, points, directions, and visibility
-- [ ] Teachers can attach starter code/files/resources
+- [x] Teachers can edit due dates, points, directions, and visibility
+- [x] Teachers can attach starter code/files/resources
 - [ ] Teachers can preview assignments before publishing
 - [ ] Teachers can grade submissions from a single workflow
 - [ ] Teachers can override grades and leave feedback

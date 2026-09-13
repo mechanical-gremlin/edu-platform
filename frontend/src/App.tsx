@@ -50,18 +50,22 @@ function App() {
     createCourse,
     createLesson,
     createUnit,
+    deleteCourse,
     deleteActivity,
     deleteLesson,
     deleteUnit,
+    moveCourse,
     moveActivity,
     moveActivityToLesson,
     moveLesson,
     moveUnit,
     submitActivity,
     toggleLessonVisibility,
+    toggleCourseVisibility,
     toggleUnitVisibility,
     toggleActivityVisibility,
     updateActivity,
+    updateCourse,
     updateActivityDirections,
     updateGradebookEntry,
     updateLesson,
@@ -361,6 +365,15 @@ function App() {
                   }
                 : undefined
             }
+            onUpdateCourse={
+              currentUser.role === 'teacher'
+                ? (courseId, title, code, description) =>
+                    updateCourse(courseId, { title, code, description: description || null })
+                : undefined
+            }
+            onDeleteCourse={currentUser.role === 'teacher' ? deleteCourse : undefined}
+            onMoveCourse={currentUser.role === 'teacher' ? moveCourse : undefined}
+            onToggleCourseVisibility={currentUser.role === 'teacher' ? toggleCourseVisibility : undefined}
           />
         )}
 

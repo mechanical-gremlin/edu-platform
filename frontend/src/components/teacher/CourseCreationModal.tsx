@@ -1,14 +1,31 @@
 import { useState } from 'react'
 
+interface CourseFormValues {
+  title: string
+  code: string
+  description?: string | null
+}
+
 interface CourseCreationModalProps {
   onClose: () => void
   onCreate: (title: string, code: string, description: string) => Promise<void>
+  initialValues?: CourseFormValues | null
+  submitLabel?: string
+  titleText?: string
+  errorText?: string
 }
 
-export const CourseCreationModal = ({ onClose, onCreate }: CourseCreationModalProps) => {
-  const [title, setTitle] = useState('')
-  const [code, setCode] = useState('')
-  const [description, setDescription] = useState('')
+export const CourseCreationModal = ({
+  onClose,
+  onCreate,
+  initialValues = null,
+  submitLabel = 'Create Course',
+  titleText = 'Create New Course',
+  errorText = 'Failed to save course',
+}: CourseCreationModalProps) => {
+  const [title, setTitle] = useState(initialValues?.title ?? '')
+  const [code, setCode] = useState(initialValues?.code ?? '')
+  const [description, setDescription] = useState(initialValues?.description ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,7 +37,7 @@ export const CourseCreationModal = ({ onClose, onCreate }: CourseCreationModalPr
       await onCreate(title.trim(), code.trim(), description.trim())
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create course')
+      setError(err instanceof Error ? err.message : errorText)
     } finally {
       setSaving(false)
     }
@@ -29,7 +46,7 @@ export const CourseCreationModal = ({ onClose, onCreate }: CourseCreationModalPr
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <h2 className="text-lg font-semibold text-slate-900">Create New Course</h2>
+        <h2 className="text-lg font-semibold text-slate-900">{titleText}</h2>
         <div className="mt-4 space-y-3">
           <div>
             <label className="block text-sm font-medium text-slate-700">Course Title</label>
@@ -73,7 +90,7 @@ export const CourseCreationModal = ({ onClose, onCreate }: CourseCreationModalPr
             disabled={saving || !title.trim() || !code.trim()}
             onClick={handleSubmit}
           >
-            {saving ? 'Creating…' : 'Create Course'}
+            {saving ? 'Saving…' : submitLabel}
           </button>
         </div>
       </div>

@@ -35,6 +35,10 @@ interface AppContextValue {
   setSelectedActivityId: Dispatch<SetStateAction<string | null>>
   refreshData: () => Promise<void>
   createCourse: (input: CreateCourseInput) => Promise<string>
+  updateCourse: (courseId: string, input: CreateCourseInput) => Promise<void>
+  deleteCourse: (courseId: string) => Promise<void>
+  moveCourse: (courseId: string, direction: 'up' | 'down') => Promise<void>
+  toggleCourseVisibility: (courseId: string, visible: boolean) => Promise<void>
   addEnrollment: (courseId: string, input: AddEnrollmentInput) => Promise<void>
   createUnit: (courseId: string, title: string, description: string) => Promise<string>
   createLesson: (unitId: string, title: string, description: string) => Promise<string>
@@ -97,6 +101,7 @@ interface ApiCourseListItem {
   code: string
   description: string | null
   teacherName: string | null
+  visible: boolean
 }
 
 interface ApiActivity {
@@ -114,6 +119,11 @@ interface ApiActivity {
   studentEntrypointSelectionEnabled: boolean
   expectedOutput: string | null
   autograderEnabled: boolean
+  autograderReferenceSolution?: string | null
+  autograderReferenceOutput?: string | null
+  autograderCodeMatch?: boolean
+  autograderOutputMatch?: boolean
+  autograderTestCases?: Array<{ input: string; expectedOutput: string }> | null
   resourceUrl: string | null
   visible: boolean
   dueAt: string | null
@@ -126,6 +136,7 @@ interface ApiCourse {
   code: string
   description: string | null
   teacherName: string | null
+  visible: boolean
   units: Array<{
     id: string
     title: string
@@ -194,6 +205,11 @@ interface MutationResponse {
   description?: string | null
 }
 
+interface CourseMutationResponse extends MutationResponse {
+  code?: string
+  visible?: boolean
+}
+
 const updateCoursesForActivity = (
   courses: Course[],
   activityId: string,
@@ -211,6 +227,12 @@ const updateCoursesForActivity = (
       })),
     })),
   }))
+
+const updateCoursesForCourse = (
+  courses: Course[],
+  courseId: string,
+  updater: (course: Course) => Course,
+) => courses.map((course) => (course.id === courseId ? updater(course) : course))
 
 const updateCoursesForUnit = (
   courses: Course[],
@@ -262,6 +284,7 @@ const mapCourse = (course: ApiCourse): Course => ({
   code: course.code,
   description: course.description,
   teacherName: course.teacherName ?? 'Unassigned',
+  visible: course.visible,
   units: course.units.map((unit) => ({
     id: unit.id,
     title: unit.title,
@@ -287,6 +310,11 @@ const mapCourse = (course: ApiCourse): Course => ({
         studentEntrypointSelectionEnabled: activity.studentEntrypointSelectionEnabled,
         expectedOutput: activity.expectedOutput,
         autograderEnabled: activity.autograderEnabled,
+        autograderReferenceSolution: activity.autograderReferenceSolution ?? null,
+        autograderReferenceOutput: activity.autograderReferenceOutput ?? null,
+        autograderCodeMatch: activity.autograderCodeMatch ?? false,
+        autograderOutputMatch: activity.autograderOutputMatch ?? false,
+        autograderTestCases: activity.autograderTestCases ?? null,
         resourceUrl: activity.resourceUrl,
         visible: activity.visible,
         dueDate: withDateOnly(activity.dueAt),
@@ -401,7 +429,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const request = useCallback(
     async <T,>(path: string, init?: RequestInit) => {
       const headers = new Headers(init?.headers)
-      headers.set('Content-Type', 'application/json')
+      if (init?.body !== undefined && init.body !== null) {
+        headers.set('Content-Type', 'application/json')
+      } else {
+        headers.delete('Content-Type')
+      }
       if (currentUser) {
         headers.set('x-user-id', currentUser.id)
       }
@@ -501,6 +533,73 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       })
       void refreshData()
       return response.id
+    },
+    [refreshData, request],
+  )
+
+  const updateCourse = useCallback(
+    async (courseId: string, input: CreateCourseInput) => {
+      const response = await request<CourseMutationResponse>(`/courses/${courseId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(input),
+      })
+      setCourses((previous) =>
+        updateCoursesForCourse(previous, courseId, (course) => ({
+          ...course,
+          title: response.title ?? input.title,
+          code: response.code ?? input.code,
+          description: response.description ?? (input.description || null),
+        })),
+      )
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const deleteCourse = useCallback(
+    async (courseId: string) => {
+      await request(`/courses/${courseId}`, { method: 'DELETE' })
+      setCourses((previous) => previous.filter((course) => course.id !== courseId))
+      setSelectedCourseIdState((previous) => (previous === courseId ? null : previous))
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const moveCourse = useCallback(
+    async (courseId: string, direction: 'up' | 'down') => {
+      await request(`/courses/${courseId}/move`, {
+        method: 'PATCH',
+        body: JSON.stringify({ direction }),
+      })
+      setCourses((previous) => reorderById(previous, courseId, direction))
+      void refreshData()
+    },
+    [refreshData, request],
+  )
+
+  const toggleCourseVisibility = useCallback(
+    async (courseId: string, visible: boolean) => {
+      await request<{ id: string; visible: boolean }>(`/courses/${courseId}/visibility`, {
+        method: 'PATCH',
+        body: JSON.stringify({ visible }),
+      })
+      setCourses((previous) =>
+        updateCoursesForCourse(previous, courseId, (course) => ({
+          ...course,
+          visible,
+          units: course.units.map((unit) => ({
+            ...unit,
+            visible,
+            lessons: unit.lessons.map((lesson) => ({
+              ...lesson,
+              visible,
+              activities: lesson.activities.map((activity) => ({ ...activity, visible })),
+            })),
+          })),
+        })),
+      )
+      void refreshData()
     },
     [refreshData, request],
   )
@@ -620,6 +719,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     studentEntrypointSelectionEnabled: response.studentEntrypointSelectionEnabled,
                     expectedOutput: response.expectedOutput,
                     autograderEnabled: response.autograderEnabled,
+                    autograderReferenceSolution: response.autograderReferenceSolution ?? null,
+                    autograderReferenceOutput: response.autograderReferenceOutput ?? null,
+                    autograderCodeMatch: response.autograderCodeMatch ?? false,
+                    autograderOutputMatch: response.autograderOutputMatch ?? false,
+                    autograderTestCases: response.autograderTestCases ?? null,
                     resourceUrl: response.resourceUrl,
                     visible: response.visible,
                     dueDate: withDateOnly(response.dueAt),
@@ -718,9 +822,25 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updateCoursesForActivity(previous, activityId, (activity) => ({
           ...activity,
           title: response.title,
+          type: response.type,
           description: response.description,
           directions: response.directions,
+          language: response.language,
+          languageLocked: response.languageLocked,
+          starterCode: response.starterCode,
+          starterFiles: response.starterFiles,
+          entrypoint: response.entrypoint,
+          studentFileTreeEnabled: response.studentFileTreeEnabled,
+          studentEntrypointSelectionEnabled: response.studentEntrypointSelectionEnabled,
+          expectedOutput: response.expectedOutput,
+          autograderEnabled: response.autograderEnabled,
+          autograderReferenceSolution: response.autograderReferenceSolution ?? null,
+          autograderReferenceOutput: response.autograderReferenceOutput ?? null,
+          autograderCodeMatch: response.autograderCodeMatch ?? false,
+          autograderOutputMatch: response.autograderOutputMatch ?? false,
+          autograderTestCases: response.autograderTestCases ?? null,
           resourceUrl: response.resourceUrl,
+          visible: response.visible,
           dueDate: withDateOnly(response.dueAt),
           points: response.pointsPossible,
         })),
@@ -1004,6 +1124,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       setSelectedActivityId,
       refreshData,
       createCourse,
+      updateCourse,
+      deleteCourse,
+      moveCourse,
+      toggleCourseVisibility,
       addEnrollment,
       createUnit,
       createLesson,
@@ -1030,6 +1154,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       courses,
       createActivity,
       createCourse,
+      deleteCourse,
       deleteActivity,
       deleteLesson,
       deleteUnit,
@@ -1039,6 +1164,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       error,
       gradebookEntries,
       loading,
+      moveCourse,
       moveActivity,
       moveActivityToLesson,
       moveLesson,
@@ -1050,10 +1176,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       selectedActivityId,
       selectedCourseId,
       submitActivity,
+      toggleCourseVisibility,
       toggleLessonVisibility,
       toggleUnitVisibility,
       toggleActivityVisibility,
       updateActivity,
+      updateCourse,
       updateActivityDirections,
       updateGradebookEntry,
       updateLesson,
