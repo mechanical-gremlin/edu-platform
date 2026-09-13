@@ -336,22 +336,12 @@ export const ProjectWorkspaceEditor = ({
 
   useEffect(() => {
     if (!showPreview || !previewDocument) {
-      setPreviewNewTabUrl((current) => {
-        if (current) {
-          URL.revokeObjectURL(current)
-        }
-        return null
-      })
+      setPreviewNewTabUrl(null)
       return
     }
 
     const nextUrl = URL.createObjectURL(new Blob([previewDocument], { type: 'text/html' }))
-    setPreviewNewTabUrl((current) => {
-      if (current) {
-        URL.revokeObjectURL(current)
-      }
-      return nextUrl
-    })
+    setPreviewNewTabUrl(nextUrl)
 
     return () => {
       URL.revokeObjectURL(nextUrl)

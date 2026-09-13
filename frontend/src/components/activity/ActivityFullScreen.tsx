@@ -474,7 +474,7 @@ export const ActivityFullScreen = ({
             defaultEntrypoint={workspaceEntrypoint}
             entrypointEditable={
               currentUser.role === 'teacher'
-              || studentEntrypointSelectionEnabled
+              || (!languageLockedForStudents && studentEntrypointSelectionEnabled)
             }
             fileTreeToggleVisible={currentUser.role === 'teacher' || studentFileTreeEnabled}
             onChange={(files, entrypoint) => {
