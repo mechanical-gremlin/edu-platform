@@ -74,6 +74,17 @@ export const buildDefaultWorkspaceFiles = (language: string, starterCode?: strin
   return [{ path: entrypoint, language, content }]
 }
 
+export const buildDefaultWorkspaceState = (language: string, starterCode?: string | null) => {
+  const files = buildDefaultWorkspaceFiles(language, starterCode)
+  return {
+    files,
+    entrypoint: resolveDeterministicEntrypoint({
+      language,
+      files,
+    }).entrypoint,
+  }
+}
+
 export const normalizeWorkspacePath = (value: string) => {
   const normalized = value.trim().replaceAll('\\', '/').replaceAll(/\/+/g, '/')
   if (!normalized || normalized.startsWith('/') || normalized.endsWith('/')) {

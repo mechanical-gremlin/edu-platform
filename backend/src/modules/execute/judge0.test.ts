@@ -46,6 +46,21 @@ test('createJudge0MultiFileArchive adds compile and run scripts for Java workspa
   })
 
   const archive = await JSZip.loadAsync(Buffer.from(archiveBase64, 'base64'))
-  assert.match(await archive.file('compile')?.async('string') ?? '', /javac 'src\/Helper\.java' 'src\/Main\.java'/)
-  assert.match(await archive.file('run')?.async('string') ?? '', /java 'src\.Main'/)
+  assert.match(await archive.file('compile')?.async('string') ?? '', /javac -d \. 'src\/Helper\.java' 'src\/Main\.java'/)
+  assert.match(await archive.file('run')?.async('string') ?? '', /java 'Main'/)
+})
+
+test('createJudge0MultiFileArchive runs the entrypoint package for Go workspaces', async () => {
+  const archiveBase64 = await createJudge0MultiFileArchive({
+    language: 'go',
+    entrypoint: 'cmd/app/main.go',
+    files: [
+      { path: 'go.mod', content: 'module example.com/demo\n\ngo 1.22\n' },
+      { path: 'cmd/app/main.go', content: 'package main\n\nfunc main() {}\n' },
+      { path: 'internal/math/add.go', content: 'package math\n' },
+    ],
+  })
+
+  const archive = await JSZip.loadAsync(Buffer.from(archiveBase64, 'base64'))
+  assert.match(await archive.file('run')?.async('string') ?? '', /cd 'cmd\/app'\ngo run \./)
 })

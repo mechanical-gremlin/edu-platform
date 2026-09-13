@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildDefaultWorkspaceFiles,
+  buildDefaultWorkspaceState,
   getDefaultWorkspaceEntrypoint,
   isPreviewRuntimeLanguage,
   resolveDeterministicEntrypoint,
@@ -32,5 +33,21 @@ test('workspace defaults keep the web kit as a preview-oriented preset', () => {
   assert.deepEqual(
     webFiles.map((file) => file.path),
     ['index.html', 'style.css', 'script.js'],
+  )
+})
+
+test('default workspace state resets files and entrypoint when switching runtimes', () => {
+  const pythonWorkspace = buildDefaultWorkspaceState('python')
+  const javascriptWorkspace = buildDefaultWorkspaceState('javascript')
+
+  assert.equal(pythonWorkspace.entrypoint, 'main.py')
+  assert.equal(javascriptWorkspace.entrypoint, 'index.js')
+  assert.deepEqual(
+    pythonWorkspace.files.map((file) => file.path),
+    ['main.py'],
+  )
+  assert.deepEqual(
+    javascriptWorkspace.files.map((file) => file.path),
+    ['index.js'],
   )
 })

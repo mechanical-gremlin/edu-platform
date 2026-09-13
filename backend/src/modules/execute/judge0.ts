@@ -86,7 +86,21 @@ const shellQuote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`
 
 const sortPaths = (paths: string[]) => [...paths].sort((left, right) => left.localeCompare(right))
 
-const toJavaClassName = (entrypoint: string) => entrypoint.replace(/\.java$/i, '').replaceAll('/', '.')
+const getParentDirectory = (path: string) => {
+  const lastSlash = path.lastIndexOf('/')
+  return lastSlash >= 0 ? path.slice(0, lastSlash) : ''
+}
+
+const getFilenameStem = (path: string) => path.split('/').at(-1)?.replace(/\.[^.]+$/u, '') ?? path
+
+const getEntrypointFile = (files: ProjectWorkspaceFile[], entrypoint: string) =>
+  files.find((file) => file.path === entrypoint) ?? null
+
+const toJavaLaunchClass = (entrypoint: string, files: ProjectWorkspaceFile[]) => {
+  const packageName = getEntrypointFile(files, entrypoint)?.content.match(/^\s*package\s+([\w.]+)\s*;/mu)?.[1]
+  const baseClass = getFilenameStem(entrypoint)
+  return packageName ? `${packageName}.${baseClass}` : baseClass
+}
 
 const buildMultiFileScripts = ({
   language,
@@ -121,8 +135,8 @@ const buildMultiFileScripts = ({
     case 'java': {
       const javaFiles = matchingPaths(['.java'])
       return {
-        compile: `#!/bin/bash\nset -e\njavac ${shellList(javaFiles)}\n`,
-        run: `#!/bin/bash\nset -e\njava ${shellQuote(toJavaClassName(entrypoint))}\n`,
+        compile: `#!/bin/bash\nset -e\njavac -d . ${shellList(javaFiles)}\n`,
+        run: `#!/bin/bash\nset -e\njava ${shellQuote(toJavaLaunchClass(entrypoint, files))}\n`,
       }
     }
     case 'c': {
@@ -157,10 +171,13 @@ const buildMultiFileScripts = ({
         run: `#!/bin/bash\nset -e\nruby ${shellQuote(entrypoint)}\n`,
       }
     case 'go': {
-      const goFiles = matchingPaths(['.go'])
+      const entrypointDirectory = getParentDirectory(entrypoint)
       return {
         compile: null,
-        run: `#!/bin/bash\nset -e\ngo run ${shellList(goFiles)}\n`,
+        run:
+          entrypointDirectory
+            ? `#!/bin/bash\nset -e\ncd ${shellQuote(entrypointDirectory)}\ngo run .\n`
+            : '#!/bin/bash\nset -e\ngo run .\n',
       }
     }
     case 'rust':

@@ -13,6 +13,7 @@ import {
   type CodingDraftSnapshot,
 } from '../../utils/codingDrafts'
 import {
+  buildDefaultWorkspaceState,
   buildDefaultWorkspaceFiles,
   resolveDeterministicEntrypoint,
 } from '../../utils/projectWorkspace'
@@ -419,7 +420,15 @@ export const ActivityFullScreen = ({
                 className="rounded border border-slate-200 px-2 py-1 text-sm"
                 value={workspaceLanguage}
                 onChange={(event) => {
-                  setWorkspaceLanguage(event.target.value)
+                  const nextLanguage = event.target.value
+                  const nextWorkspace = buildDefaultWorkspaceState(nextLanguage)
+                  setWorkspaceLanguage(nextLanguage)
+                  setWorkspaceFiles(nextWorkspace.files)
+                  setWorkspaceEntrypoint(nextWorkspace.entrypoint)
+                  setSubmissionText(
+                    getWorkspaceSubmissionText(nextLanguage, nextWorkspace.files, nextWorkspace.entrypoint),
+                  )
+                  setWorkspaceEditorResetKey((value) => value + 1)
                 }}
               >
                 {CODING_LANGUAGES.map((option) => (
