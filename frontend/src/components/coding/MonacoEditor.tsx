@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
+import { getExecuteErrorMessage, type ExecuteErrorResponse } from './executeErrors'
 
 export const CODING_LANGUAGES: { value: string; label: string }[] = [
   { value: 'javascript', label: 'JavaScript' },
@@ -139,8 +140,8 @@ export const MonacoEditor = ({
       })
 
       if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as { message?: string }
-        throw new Error(body.message ?? `HTTP ${response.status}`)
+        const body = (await response.json().catch(() => ({}))) as ExecuteErrorResponse
+        throw new Error(getExecuteErrorMessage(body, response.status))
       }
 
       const result = (await response.json()) as ExecuteResult

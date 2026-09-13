@@ -8,6 +8,8 @@ export class AppError extends Error {
     message: string,
     public readonly error = STATUS_CODES[statusCode] ?? 'Error',
     public readonly expose = statusCode < 500,
+    public readonly code?: string,
+    public readonly retryable = false,
   ) {
     super(message)
   }

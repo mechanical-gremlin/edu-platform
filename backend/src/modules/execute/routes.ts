@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { AppError, requireUser } from '../../lib.js'
 import type { ExecutionConfigState } from '../../config/executionConfig.js'
 import { bytesFromKb } from '../../config/executionConfig.js'
-import { executeResponseSchema, executeWithJudge0 } from './judge0.js'
+import { executeErrorResponseSchema, executeResponseSchema, executeWithJudge0 } from './judge0.js'
 
 interface ExecuteRoutesOptions {
   executionConfigState: ExecutionConfigState
@@ -23,10 +23,18 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
         body: executeBodySchema,
         response: {
           200: executeResponseSchema,
+          400: executeErrorResponseSchema,
+          401: executeErrorResponseSchema,
+          403: executeErrorResponseSchema,
+          500: executeErrorResponseSchema,
+          502: executeErrorResponseSchema,
+          503: executeErrorResponseSchema,
+          504: executeErrorResponseSchema,
         },
       },
     },
     async (request) => {
+      request.executeStartedAt = Date.now()
       requireUser(request)
 
       if (!options.executionConfigState.config) {
@@ -35,29 +43,56 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
           `Code execution is not configured. ${options.executionConfigState.errors.join(' ')}`,
           undefined,
           true,
+          'EXEC_NOT_CONFIGURED',
+          false,
         )
       }
 
       const payload = executeBodySchema.parse(request.body)
+      const durationStartedAt = request.executeStartedAt ?? Date.now()
       const maxSourceBytes = bytesFromKb(options.executionConfigState.config.maxSourceKb)
       const maxStdinBytes = bytesFromKb(options.executionConfigState.config.maxStdinKb)
       if (Buffer.byteLength(payload.code, 'utf8') > maxSourceBytes) {
         throw new AppError(
           400,
           `Source code exceeds EXEC_MAX_SOURCE_KB (${options.executionConfigState.config.maxSourceKb} KB).`,
+          undefined,
+          true,
+          'EXEC_BAD_REQUEST',
+          false,
         )
       }
       if (Buffer.byteLength(payload.stdin ?? '', 'utf8') > maxStdinBytes) {
         throw new AppError(
           400,
           `Standard input exceeds EXEC_MAX_STDIN_KB (${options.executionConfigState.config.maxStdinKb} KB).`,
+          undefined,
+          true,
+          'EXEC_BAD_REQUEST',
+          false,
         )
       }
 
-      return executeWithJudge0({
+      const result = await executeWithJudge0({
         ...payload,
         config: options.executionConfigState.config,
       })
+
+      request.log.info(
+        {
+          requestId: request.id,
+          userId: request.user?.id ?? null,
+          courseId: null,
+          assignmentId: null,
+          runtime: payload.language,
+          durationMs: Date.now() - durationStartedAt,
+          outcome: 'success',
+          errorCode: null,
+        },
+        'execution completed',
+      )
+
+      return result
     },
   )
 }

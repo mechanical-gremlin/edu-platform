@@ -13,6 +13,7 @@ import { gradeRoutes } from './modules/grades/routes.js'
 import { progressRoutes } from './modules/progress/routes.js'
 import { AppError } from './lib.js'
 import { assertExecutionConfigAtStartup, resolveExecutionConfig } from './config/executionConfig.js'
+import { isExecuteRoute, toExecuteErrorResponse } from './modules/execute/judge0.js'
 
 interface BuildAppOptions {
   prisma?: PrismaClient
@@ -26,6 +27,7 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
 
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
+  app.decorateRequest('executeStartedAt', null)
   await app.register(cors, { origin: true })
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
@@ -33,7 +35,31 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
     done()
   })
 
-  app.setErrorHandler((error, _request, reply) => {
+  app.setErrorHandler((error, request, reply) => {
+    if (isExecuteRoute(request.url)) {
+      const { statusCode, body } = toExecuteErrorResponse(error, request.id)
+      const requestBody = typeof request.body === 'object' && request.body !== null ? (request.body as Record<string, unknown>) : {}
+      const executeStartedAt = request.executeStartedAt ?? Date.now()
+      const headerUserId = request.headers['x-user-id']
+
+      request.log.warn(
+        {
+          requestId: request.id,
+          userId: request.user?.id ?? (Array.isArray(headerUserId) ? headerUserId[0] : headerUserId) ?? null,
+          courseId: typeof requestBody.courseId === 'string' ? requestBody.courseId : null,
+          assignmentId: typeof requestBody.assignmentId === 'string' ? requestBody.assignmentId : null,
+          runtime: typeof requestBody.language === 'string' ? requestBody.language : null,
+          durationMs: Date.now() - executeStartedAt,
+          outcome: 'error',
+          errorCode: body.code,
+        },
+        'execution failed',
+      )
+
+      reply.status(statusCode).send(body)
+      return
+    }
+
     const fastifyError = error as { statusCode?: number; name?: string; message?: string }
     const statusCode =
       error instanceof AppError

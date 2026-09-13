@@ -187,9 +187,10 @@ test('POST /execute returns actionable config error when execution env is missin
 
     assert.equal(response.statusCode, 503)
     assert.deepEqual(response.json(), {
-      statusCode: 503,
-      error: 'Service Unavailable',
-      message: 'Code execution is not configured. JUDGE0_BASE_URL is required',
+     code: 'EXEC_NOT_CONFIGURED',
+     message: 'Code execution is not configured. JUDGE0_BASE_URL is required',
+     retryable: false,
+     requestId: 'req-1',
     })
   } finally {
     await app.close()
@@ -316,9 +317,10 @@ test('POST /execute returns config error for invalid Judge0 URL', { concurrency:
 
     assert.equal(response.statusCode, 503)
     assert.deepEqual(response.json(), {
-      statusCode: 503,
-      error: 'Service Unavailable',
+      code: 'EXEC_NOT_CONFIGURED',
       message: 'Code execution is not configured. JUDGE0_BASE_URL must be a valid URL',
+      retryable: false,
+      requestId: 'req-1',
     })
   } finally {
     await app.close()
@@ -342,9 +344,10 @@ test('POST /execute rejects code that exceeds configured source limit', { concur
 
     assert.equal(response.statusCode, 400)
     assert.deepEqual(response.json(), {
-      statusCode: 400,
-      error: 'Bad Request',
+      code: 'EXEC_BAD_REQUEST',
       message: 'Source code exceeds EXEC_MAX_SOURCE_KB (1 KB).',
+      retryable: false,
+      requestId: 'req-1',
     })
   } finally {
     await app.close()
@@ -369,12 +372,204 @@ test('POST /execute rejects stdin that exceeds configured stdin limit', { concur
 
     assert.equal(response.statusCode, 400)
     assert.deepEqual(response.json(), {
-      statusCode: 400,
-      error: 'Bad Request',
+      code: 'EXEC_BAD_REQUEST',
       message: 'Standard input exceeds EXEC_MAX_STDIN_KB (1 KB).',
+      retryable: false,
+      requestId: 'req-1',
     })
   } finally {
     await app.close()
+    restoreEnv()
+  }
+})
+
+test('POST /execute retries transient Judge0 failures and then succeeds', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
+  const originalFetch = globalThis.fetch
+  let submitAttempts = 0
+  let totalCalls = 0
+  globalThis.fetch = async (input) => {
+    totalCalls += 1
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      submitAttempts += 1
+      if (submitAttempts === 1) {
+        return new Response('temporary outage', { status: 502 })
+      }
+      return new Response(JSON.stringify({ token: 'tok-retry-success' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(
+      JSON.stringify({
+        stdout: 'Recovered\n',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.03',
+        memory: 1024,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("retry")',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(submitAttempts, 2)
+    assert.equal(totalCalls, 3)
+    assert.equal((response.json() as { stdout: string | null }).stdout, 'Recovered\n')
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
+test('POST /execute maps timeout failures to standardized timeout responses', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_TIMEOUT_MS: '1000' })
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (_input, init) =>
+    (await new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal
+      const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' })
+      if (!signal) {
+        return
+      }
+      if (signal.aborted) {
+        reject(abortError)
+        return
+      }
+      signal.addEventListener('abort', () => reject(abortError), { once: true })
+    })) as Response
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("slow")',
+      },
+    })
+
+    assert.equal(response.statusCode, 504)
+    assert.deepEqual(response.json(), {
+      code: 'EXEC_TIMEOUT',
+      message: 'Code execution timed out. Try again with smaller input.',
+      retryable: true,
+      requestId: 'req-1',
+    })
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
+test('POST /execute times out when Judge0 polling remains pending past the deadline', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_TIMEOUT_MS: '1000' })
+  const originalFetch = globalThis.fetch
+  let pollCalls = 0
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-pending' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    pollCalls += 1
+    return new Response(
+      JSON.stringify({
+        stdout: null,
+        stderr: null,
+        compile_output: null,
+        status: { id: 1, description: 'In Queue' },
+        time: null,
+        memory: null,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("pending")',
+      },
+    })
+
+    assert.equal(response.statusCode, 504)
+    assert.ok(pollCalls >= 2)
+    assert.deepEqual(response.json(), {
+      code: 'EXEC_TIMEOUT',
+      message: 'Code execution timed out. Try again with smaller input.',
+      retryable: true,
+      requestId: 'req-1',
+    })
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
+test('POST /execute does not retry non-retryable Judge0 client failures', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
+  const originalFetch = globalThis.fetch
+  let totalCalls = 0
+  globalThis.fetch = async () => {
+    totalCalls += 1
+    return new Response('bad source', {
+      status: 422,
+      headers: { 'Content-Type': 'text/plain' },
+    })
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("bad")',
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.equal(totalCalls, 1)
+    assert.deepEqual(response.json(), {
+      code: 'EXEC_BAD_REQUEST',
+      message: 'Execution request was rejected by the execution service: bad source',
+      retryable: false,
+      requestId: 'req-1',
+    })
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
     restoreEnv()
   }
 })
