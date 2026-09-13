@@ -11,7 +11,7 @@ This list is reordered to match the current development sequence request.
 - [x] **Execution payload/output limits** — `/execute` now rejects oversized source/stdin payloads and includes structured truncation metadata when output is capped.
 - [x] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
   - Implemented fixed-window user burst + user sustained + shared course limits with deterministic `429` + `Retry-After` contract and backend unit/integration tests.
-- [x] **Multi-file coding projects** — Web Development Kit now supports a project workspace model with explicit entrypoint resolution and deterministic run target validation in `/execute`.
+- [ ] **Multi-file coding projects** — Web Development Kit now supports a project workspace model with explicit entrypoint resolution and deterministic run target validation in `/execute`.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
 - [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.
 - [ ] **Language/runtime coverage matrix** — define and validate which languages/runtimes are officially supported in MVP and production.
