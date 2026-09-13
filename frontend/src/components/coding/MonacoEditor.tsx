@@ -184,13 +184,15 @@ export const MonacoEditor = ({
 
       setOutput(displayOutput || `(${result.status.description} — no output)`)
       if (result.truncation) {
-        const truncatedLabels: string[] = []
-        if (result.truncation.stdout.truncated) truncatedLabels.push('stdout')
-        if (result.truncation.stderr.truncated) truncatedLabels.push('stderr')
-        if (result.truncation.compile_output.truncated) truncatedLabels.push('compile output')
+        const truncatedFieldLimits: string[] = []
+        if (result.truncation.stdout.truncated) truncatedFieldLimits.push(`stdout (${result.truncation.stdout.maxSizeBytes} bytes)`)
+        if (result.truncation.stderr.truncated) truncatedFieldLimits.push(`stderr (${result.truncation.stderr.maxSizeBytes} bytes)`)
+        if (result.truncation.compile_output.truncated) {
+          truncatedFieldLimits.push(`compile output (${result.truncation.compile_output.maxSizeBytes} bytes)`)
+        }
 
-        if (truncatedLabels.length > 0) {
-          setTruncationNotice(`Output truncated for ${truncatedLabels.join(', ')} to ${result.truncation.stdout.maxSizeBytes} bytes per field.`)
+        if (truncatedFieldLimits.length > 0) {
+          setTruncationNotice(`Output truncated for ${truncatedFieldLimits.join(', ')}.`)
         }
       }
       onExecutionComplete?.(result)
