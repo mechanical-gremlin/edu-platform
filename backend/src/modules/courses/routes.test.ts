@@ -748,6 +748,26 @@ test('PATCH /courses/:courseId/move swaps teacher course positions', async () =>
   }
 })
 
+test('PATCH /courses/:courseId/move is a no-op at the boundary', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/courses/c-1/move',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: { direction: 'up' },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), { id: 'c-1' })
+    assert.deepEqual(prisma.getCoursePositionUpdates(), [])
+  } finally {
+    await app.close()
+  }
+})
+
 test('DELETE /courses/:courseId deletes the full course tree', async () => {
   const prisma = buildCoursePrismaStub()
   const app = await buildApp({ prisma: prisma.stub })

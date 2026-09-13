@@ -53,7 +53,7 @@ const createActivityBodyBaseSchema = z.object({
   resourceUrl: z.url().optional().nullable(),
   visible: z.boolean().optional(),
 })
-const createActivityBodySchema = createActivityBodyBaseSchema.superRefine((value, context) => {
+const validateActivityBody = (value: z.infer<typeof createActivityBodyBaseSchema>, context: z.RefinementCtx) => {
   if (!value.autograderEnabled) {
     return
   }
@@ -103,7 +103,8 @@ const createActivityBodySchema = createActivityBodyBaseSchema.superRefine((value
       message: 'Reference output is required when output matching is enabled',
     })
   }
-})
+}
+const createActivityBodySchema = createActivityBodyBaseSchema.superRefine(validateActivityBody)
 const visibilitySchema = z.object({
   visible: z.boolean(),
 })
@@ -121,7 +122,7 @@ const moveActivitySchema = z.union([
 const directionsSchema = z.object({
   directions: z.string().trim().max(20000).optional().nullable(),
 })
-const updateActivityBodySchema = createActivityBodyBaseSchema.partial()
+const updateActivityBodySchema = z.record(z.string(), z.unknown())
 const submissionBodySchema = z.object({
   content: z.record(z.string(), z.unknown()).optional().nullable(),
 })
