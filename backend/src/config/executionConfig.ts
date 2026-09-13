@@ -119,6 +119,12 @@ let upstreamStatusCache:
       checkedAt: number
     }
   | undefined
+let upstreamStatusInFlight:
+  | {
+      url: string
+      promise: Promise<ExecutionUpstreamStatus>
+    }
+  | undefined
 
 export const getExecutionUpstreamStatus = async (config: ExecutionConfig | null): Promise<ExecutionUpstreamStatus> => {
   if (!config) {
@@ -134,21 +140,40 @@ export const getExecutionUpstreamStatus = async (config: ExecutionConfig | null)
     return upstreamStatusCache.status
   }
 
-  let status: ExecutionUpstreamStatus = 'unreachable'
-  try {
-    const response = await fetch(config.judge0BaseUrl, {
-      method: 'HEAD',
-      signal: AbortSignal.timeout(UPSTREAM_HEALTH_TIMEOUT_MS),
-    })
-    status = response.ok ? 'reachable' : 'unreachable'
-  } catch {
-    status = 'unreachable'
+  if (upstreamStatusInFlight?.url === config.judge0BaseUrl) {
+    return upstreamStatusInFlight.promise
   }
 
-  upstreamStatusCache = {
+  const probePromise = (async () => {
+    let status: ExecutionUpstreamStatus = 'unreachable'
+    try {
+      const response = await fetch(config.judge0BaseUrl, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(UPSTREAM_HEALTH_TIMEOUT_MS),
+      })
+      status = response.ok ? 'reachable' : 'unreachable'
+    } catch {
+      status = 'unreachable'
+    }
+
+    upstreamStatusCache = {
+      url: config.judge0BaseUrl,
+      status,
+      checkedAt: Date.now(),
+    }
+    return status
+  })()
+
+  upstreamStatusInFlight = {
     url: config.judge0BaseUrl,
-    status,
-    checkedAt: now,
+    promise: probePromise,
   }
-  return status
+
+  try {
+    return await probePromise
+  } finally {
+    if (upstreamStatusInFlight?.promise === probePromise) {
+      upstreamStatusInFlight = undefined
+    }
+  }
 }

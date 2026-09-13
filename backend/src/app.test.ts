@@ -85,6 +85,27 @@ test('GET /health returns ok', async () => {
   }
 })
 
+test('GET /health reports unknown execution upstream when config is missing', async () => {
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: undefined })
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({ method: 'GET', url: '/health' })
+    const body = response.json() as {
+      status: string
+      execution: { configured: boolean; upstream: string; errors: string[] }
+    }
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(body.status, 'ok')
+    assert.equal(body.execution.configured, false)
+    assert.equal(body.execution.upstream, 'unknown')
+    assert.ok(body.execution.errors.includes('JUDGE0_BASE_URL is required'))
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
 test('GET / returns service metadata', async () => {
   const app = await buildApp({ prisma: prismaStub })
   const response = await app.inject({ method: 'GET', url: '/' })
@@ -346,8 +367,8 @@ test('POST /execute truncates oversized output using configured output limit', {
     return new Response(
       JSON.stringify({
         stdout: 'x'.repeat(1500),
-        stderr: null,
-        compile_output: null,
+        stderr: 'y'.repeat(1500),
+        compile_output: 'z'.repeat(1500),
         status: { id: 3, description: 'Accepted' },
         time: '0.01',
         memory: 1024,
@@ -369,9 +390,13 @@ test('POST /execute truncates oversized output using configured output limit', {
     })
 
     assert.equal(response.statusCode, 200)
-    const body = response.json() as { stdout: string | null }
+    const body = response.json() as { stdout: string | null; stderr: string | null; compile_output: string | null }
     assert.ok(body.stdout?.endsWith('\n[output truncated]'))
+    assert.ok(body.stderr?.endsWith('\n[output truncated]'))
+    assert.ok(body.compile_output?.endsWith('\n[output truncated]'))
     assert.ok(Buffer.byteLength(body.stdout ?? '', 'utf8') <= 1024)
+    assert.ok(Buffer.byteLength(body.stderr ?? '', 'utf8') <= 1024)
+    assert.ok(Buffer.byteLength(body.compile_output ?? '', 'utf8') <= 1024)
   } finally {
     await app.close()
     globalThis.fetch = originalFetch
