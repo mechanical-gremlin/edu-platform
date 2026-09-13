@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 import { getExecuteErrorMessage, type ExecuteErrorResponse } from './executeErrors'
 
@@ -43,6 +43,8 @@ const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
   const kb = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackKb
   return kb * 1024
 }
+
+const utf8Encoder = new TextEncoder()
 
 interface ExecuteResult {
   stdout: string | null
@@ -112,9 +114,8 @@ export const MonacoEditor = ({
   const showHtmlPreview = language === 'html'
   const maxSourceBytes = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
   const maxStdinBytes = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
-  const textEncoder = new TextEncoder()
-  const sourceBytes = textEncoder.encode(code).length
-  const stdinBytes = textEncoder.encode(stdin ?? '').length
+  const sourceBytes = useMemo(() => utf8Encoder.encode(code).length, [code])
+  const stdinBytes = useMemo(() => utf8Encoder.encode(stdin ?? '').length, [stdin])
   const preflightWarning =
     sourceBytes > maxSourceBytes
       ? `Source code exceeds the ${Math.round(maxSourceBytes / 1024)} KB limit.`
