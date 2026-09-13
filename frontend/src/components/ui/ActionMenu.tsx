@@ -19,6 +19,7 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
   const menuId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
   const visibleItems = useMemo(() => items.filter((item) => !item.disabled), [items])
 
@@ -40,7 +41,12 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
     }
 
     const handlePointerDown = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      if (
+        containerRef.current
+        && !containerRef.current.contains(target)
+        && !menuRef.current?.contains(target)
+      ) {
         setOpen(false)
       }
     }
@@ -94,6 +100,7 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
       {open && visibleItems.length > 0 && typeof document !== 'undefined'
         ? createPortal(
             <div
+              ref={menuRef}
               className="fixed z-50 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
               style={{ top: menuPosition.top, right: menuPosition.right }}
               id={menuId}

@@ -316,14 +316,31 @@ const assertTeacherForCourse = async (app: Parameters<FastifyPluginAsync>[0], co
   }
 }
 
-const findTeacherCourse = async (app: Parameters<FastifyPluginAsync>[0], courseId: string) => {
+const requireTeacherCourseAccess = async (app: Parameters<FastifyPluginAsync>[0], courseId: string, userId: string) => {
   const course = await app.prisma.course.findUnique({
     where: { id: courseId },
-    select: { id: true, title: true, code: true, description: true, visible: true },
+    select: {
+      id: true,
+      title: true,
+      code: true,
+      description: true,
+      visible: true,
+      enrollments: {
+        where: {
+          userId,
+          role: 'teacher',
+        },
+        select: { id: true },
+      },
+    },
   })
 
   if (!course) {
     throw new AppError(404, 'Course not found')
+  }
+
+  if (course.enrollments.length === 0) {
+    throw new AppError(403, 'Teacher access required for this course')
   }
 
   return course
@@ -660,8 +677,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const user = requireRole(request, 'teacher')
       const { courseId } = courseParamsSchema.parse(request.params)
       const payload = createCourseBodySchema.parse(request.body)
-      const course = await findTeacherCourse(app, courseId)
-      await assertTeacherForCourse(app, courseId, user.id)
+      const course = await requireTeacherCourseAccess(app, courseId, user.id)
 
       if (payload.code !== course.code) {
         const existing = await app.prisma.course.findUnique({ where: { code: payload.code }, select: { id: true } })
@@ -1173,8 +1189,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const user = requireRole(request, 'teacher')
       const { courseId } = courseParamsSchema.parse(request.params)
       const payload = visibilitySchema.parse(request.body)
-      await findTeacherCourse(app, courseId)
-      await assertTeacherForCourse(app, courseId, user.id)
+      await requireTeacherCourseAccess(app, courseId, user.id)
 
       await app.prisma.$transaction(async (tx) => {
         await tx.activity.updateMany({
@@ -1349,8 +1364,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const user = requireRole(request, 'teacher')
       const { courseId } = courseParamsSchema.parse(request.params)
       const payload = moveDirectionSchema.parse(request.body)
-      await findTeacherCourse(app, courseId)
-      await assertTeacherForCourse(app, courseId, user.id)
+      await requireTeacherCourseAccess(app, courseId, user.id)
 
       const siblingEnrollments = await app.prisma.enrollment.findMany({
         where: {
@@ -1583,8 +1597,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     async (request, reply) => {
       const user = requireRole(request, 'teacher')
       const { courseId } = courseParamsSchema.parse(request.params)
-      await findTeacherCourse(app, courseId)
-      await assertTeacherForCourse(app, courseId, user.id)
+      await requireTeacherCourseAccess(app, courseId, user.id)
 
       await app.prisma.course.delete({ where: { id: courseId } })
       reply.code(204)
