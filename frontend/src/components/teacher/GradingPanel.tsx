@@ -6,6 +6,7 @@ import {
   buildDefaultWorkspaceFiles,
   resolveDeterministicEntrypoint,
 } from '../../utils/projectWorkspace'
+import { resolveRuntimeProfile } from '../../utils/runtimeProfiles'
 
 interface GradingPanelProps {
   activityId: string
@@ -57,6 +58,11 @@ export const GradingPanel = ({
   const autograderResult = current?.autograderResult ?? null
   const isAutograded = current?.gradingSource === 'autograder'
   const resolvedActivityLanguage = activityLanguage ?? 'javascript'
+  const reviewRuntimeProfile = resolveRuntimeProfile({
+    language: resolvedActivityLanguage,
+    files: reviewFiles,
+    requestedEntrypoint: reviewEntrypoint,
+  })
 
   useEffect(() => {
     if (activityType !== 'coding') {
@@ -175,6 +181,7 @@ export const GradingPanel = ({
               language={resolvedActivityLanguage}
               defaultFiles={reviewFiles}
               defaultEntrypoint={reviewEntrypoint}
+              runtimeProfile={reviewRuntimeProfile}
               onChange={(files, entrypoint) => {
                 setReviewFiles(files)
                 setReviewEntrypoint(entrypoint)

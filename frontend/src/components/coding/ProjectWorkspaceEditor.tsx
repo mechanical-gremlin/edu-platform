@@ -1,14 +1,22 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState, type ComponentType } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 import type { StarterFile } from '../../types/models'
 import { getExecuteErrorMessage, type ExecuteErrorResponse } from './executeErrors'
+import { ProjectWorkspaceToolbar } from './ProjectWorkspaceToolbar'
 import {
   buildDefaultWorkspaceFiles,
-  isPreviewRuntimeLanguage,
   normalizeProjectWorkspaceFiles,
   normalizeWorkspacePath,
-  resolveDeterministicEntrypoint,
 } from '../../utils/projectWorkspace'
+import {
+  getExecutionControlState,
+  getStepCapability,
+  resolveRuntimeTarget,
+  type ExecutionUiState,
+  type RuntimeProfile,
+} from '../../utils/runtimeProfiles'
+
+void React
 
 const EXT_LANGUAGE: Record<string, string> = {
   c: 'c',
@@ -39,8 +47,8 @@ const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
 }
 
 const utf8Encoder = new TextEncoder()
-const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
-const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
+const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env?.VITE_EXEC_MAX_SOURCE_KB, 64)
+const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env?.VITE_EXEC_MAX_STDIN_KB, 8)
 
 interface ExecuteResult {
   stdout: string | null
@@ -137,6 +145,7 @@ interface ProjectWorkspaceEditorProps {
   language: string
   defaultFiles?: StarterFile[] | null
   defaultEntrypoint?: string | null
+  runtimeProfile?: RuntimeProfile | null
   onChange?: (files: StarterFile[], entrypoint: string | null) => void
   readOnly?: boolean
   entrypointEditable?: boolean
@@ -149,12 +158,29 @@ interface ProjectWorkspaceEditorProps {
   stdin?: string
   showStdinField?: boolean
   onStdinChange?: (stdin: string) => void
+  editorComponent?: ComponentType<{
+    height: string
+    language: string
+    value: string
+    onChange: (value: string | undefined) => void
+    theme: string
+    options: {
+      readOnly: boolean
+      minimap: { enabled: boolean }
+      fontSize: number
+      lineNumbers: 'on'
+      scrollBeyondLastLine: boolean
+      wordWrap: 'on'
+      padding: { top: number; bottom: number }
+    }
+  }>
 }
 
 export const ProjectWorkspaceEditor = ({
   language,
   defaultFiles,
   defaultEntrypoint,
+  runtimeProfile,
   onChange,
   readOnly = false,
   entrypointEditable = true,
@@ -167,6 +193,7 @@ export const ProjectWorkspaceEditor = ({
   stdin = '',
   showStdinField = false,
   onStdinChange,
+  editorComponent: EditorComponent = MonacoEditorReact,
 }: ProjectWorkspaceEditorProps) => {
   const initialFiles = useMemo(
     () =>
@@ -193,7 +220,7 @@ export const ProjectWorkspaceEditor = ({
   const [previewDocument, setPreviewDocument] = useState('')
   const [previewDirty, setPreviewDirty] = useState(false)
   const [output, setOutput] = useState<string | null>(null)
-  const [running, setRunning] = useState(false)
+  const [executionState, setExecutionState] = useState<ExecutionUiState>('idle')
   const [runError, setRunError] = useState<string | null>(null)
   const [truncationNotice, setTruncationNotice] = useState<string | null>(null)
   const [passed, setPassed] = useState<boolean | null>(null)
@@ -203,14 +230,17 @@ export const ProjectWorkspaceEditor = ({
     files: StarterFile[] | null | undefined
     entrypoint: string | null | undefined
     language: string
+    runtimeProfile: RuntimeProfile | null | undefined
   }>({
     files: undefined,
     entrypoint: undefined,
     language,
+    runtimeProfile,
   })
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const executionTokenRef = useRef(0)
   const fileTreeId = useId()
-  const showPreview = isPreviewRuntimeLanguage(language)
-  const showExecution = Boolean(executeUrl && !showPreview)
+  const targetSelectId = useId()
   const showFileTree = fileTreeToggleVisible && fileTreeOpen
 
   const directorySet = useMemo(() => {
@@ -241,14 +271,61 @@ export const ProjectWorkspaceEditor = ({
       : stdinBytes > maxStdinBytesLimit
         ? `Program input exceeds the ${Math.round(maxStdinBytesLimit / 1024)} KB limit.`
         : null
+  const runtimeTarget = useMemo(
+    () =>
+      resolveRuntimeTarget({
+        language,
+        files,
+        requestedEntrypoint: entrypoint,
+        runtimeProfile,
+      }),
+    [entrypoint, files, language, runtimeProfile],
+  )
+  const resolvedRuntimeProfile = runtimeTarget.profile
+  const showPreview = resolvedRuntimeProfile === 'web'
+  const showExecution = Boolean(executeUrl && resolvedRuntimeProfile === 'code')
+  const stepCapability = useMemo(
+    () => getStepCapability({ language, runtimeProfile: resolvedRuntimeProfile }),
+    [language, resolvedRuntimeProfile],
+  )
+  const executionControls = useMemo(
+    () =>
+      getExecutionControlState({
+        executionState,
+        hasValidTarget: Boolean(runtimeTarget.target),
+        stepCapability,
+      }),
+    [executionState, runtimeTarget.target, stepCapability],
+  )
+  const stopHelpText =
+    showExecution && (executionState === 'running' || executionState === 'stopping')
+      ? 'Stop cancels this editor request. Backend execution may continue until its normal timeout.'
+      : null
+
+  const cancelActiveExecution = () => {
+    if (!abortControllerRef.current) {
+      return
+    }
+    executionTokenRef.current += 1
+    abortControllerRef.current.abort()
+    abortControllerRef.current = null
+  }
 
   const refreshPreview = (nextFiles = files, nextEntrypoint = entrypoint) => {
-    if (!nextEntrypoint) {
+    const nextTarget = resolveRuntimeTarget({
+      language,
+      files: nextFiles,
+      requestedEntrypoint: nextEntrypoint,
+      runtimeProfile,
+    })
+
+    if (!nextTarget.target) {
       setPreviewDocument('')
+      setEntrypointError(nextTarget.error?.message ?? null)
       setPreviewDirty(false)
       return
     }
-    setPreviewDocument(buildSrcdoc(nextFiles, nextEntrypoint))
+    setPreviewDocument(buildSrcdoc(nextFiles, nextTarget.target))
     setPreviewDirty(false)
   }
 
@@ -260,23 +337,27 @@ export const ProjectWorkspaceEditor = ({
     const candidateFiles = options?.normalizeFiles === false
       ? nextFiles
       : normalizeProjectWorkspaceFiles(nextFiles)
-    const resolved = resolveDeterministicEntrypoint({
+    const resolved = resolveRuntimeTarget({
       language,
       files: candidateFiles,
       requestedEntrypoint,
+      runtimeProfile,
     })
 
+    cancelActiveExecution()
     setFiles(candidateFiles)
-    setEntrypoint(resolved.entrypoint)
+    setEntrypoint(resolved.target)
     setEntrypointError(resolved.error?.message ?? null)
-    onChange?.(candidateFiles, resolved.entrypoint)
+    onChange?.(candidateFiles, resolved.target)
 
-    if (showPreview) {
+    if (resolved.profile === 'web') {
       if (options?.refreshPreview) {
-        refreshPreview(candidateFiles, resolved.entrypoint)
+        refreshPreview(candidateFiles, resolved.target)
       } else {
         setPreviewDirty(true)
       }
+    } else {
+      setPreviewDirty(false)
     }
   }
 
@@ -286,46 +367,58 @@ export const ProjectWorkspaceEditor = ({
       || defaultFiles !== prevDefaultsRef.current.files
       || defaultEntrypoint !== prevDefaultsRef.current.entrypoint
       || language !== prevDefaultsRef.current.language
+      || runtimeProfile !== prevDefaultsRef.current.runtimeProfile
 
     if (!defaultsChanged) {
       return
     }
 
-    prevDefaultsRef.current = { files: defaultFiles, entrypoint: defaultEntrypoint, language }
+    prevDefaultsRef.current = {
+      files: defaultFiles,
+      entrypoint: defaultEntrypoint,
+      language,
+      runtimeProfile,
+    }
     const nextFiles =
       defaultFiles && defaultFiles.length > 0
         ? normalizeProjectWorkspaceFiles(defaultFiles)
         : buildDefaultWorkspaceFiles(language)
-    const resolved = resolveDeterministicEntrypoint({
+    const resolved = resolveRuntimeTarget({
       language,
       files: nextFiles,
       requestedEntrypoint: defaultEntrypoint,
+      runtimeProfile,
     })
 
     if (
       initialized
       && areWorkspaceFilesEqual(nextFiles, files)
-      && resolved.entrypoint === entrypoint
+      && resolved.target === entrypoint
     ) {
       return
     }
 
+    cancelActiveExecution()
     setFiles(nextFiles)
     setFolders([])
     setSelectedFolder('')
     setActivePath(nextFiles[0]?.path ?? '')
-    setEntrypoint(resolved.entrypoint)
+    setEntrypoint(resolved.target)
     setEntrypointError(resolved.error?.message ?? null)
     setOutput(null)
     setRunError(null)
     setTruncationNotice(null)
     setPassed(null)
-    if (showPreview) {
-      setPreviewDocument(resolved.entrypoint ? buildSrcdoc(nextFiles, resolved.entrypoint) : '')
+    setExecutionState('idle')
+    if (resolved.profile === 'web') {
+      setPreviewDocument(resolved.target ? buildSrcdoc(nextFiles, resolved.target) : '')
+      setPreviewDirty(false)
+    } else {
+      setPreviewDocument('')
       setPreviewDirty(false)
     }
     setInitialized(true)
-  }, [defaultEntrypoint, defaultFiles, entrypoint, files, initialized, language, showPreview])
+  }, [defaultEntrypoint, defaultFiles, entrypoint, files, initialized, language, runtimeProfile])
 
   useEffect(() => {
     if (fileTreeToggleVisible) {
@@ -347,6 +440,11 @@ export const ProjectWorkspaceEditor = ({
       URL.revokeObjectURL(nextUrl)
     }
   }, [previewDocument, showPreview])
+
+  useEffect(() => () => {
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
+  }, [])
 
   const createItem = () => {
     const baseName = newItemName.trim()
@@ -508,11 +606,27 @@ export const ProjectWorkspaceEditor = ({
   }
 
   const handleRun = async () => {
-    if (!executeUrl || !entrypoint) {
+    if (!executeUrl || abortControllerRef.current) {
+      return
+    }
+
+    const resolvedTarget = resolveRuntimeTarget({
+      language,
+      files,
+      requestedEntrypoint: entrypoint,
+      runtimeProfile,
+    })
+    if (!resolvedTarget.target) {
+      setExecutionState('idle')
+      setRunError(resolvedTarget.error?.message ?? 'Select a valid run target before executing.')
+      setOutput(null)
+      setPassed(null)
+      setTruncationNotice(null)
       return
     }
 
     if (preflightWarning) {
+      setExecutionState('idle')
       setRunError(preflightWarning)
       setOutput(null)
       setPassed(null)
@@ -520,7 +634,11 @@ export const ProjectWorkspaceEditor = ({
       return
     }
 
-    setRunning(true)
+    const abortController = new AbortController()
+    const executionToken = executionTokenRef.current + 1
+    executionTokenRef.current = executionToken
+    abortControllerRef.current = abortController
+    setExecutionState('running')
     setRunError(null)
     setTruncationNotice(null)
     setOutput(null)
@@ -535,7 +653,14 @@ export const ProjectWorkspaceEditor = ({
       const response = await fetch(executeUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ language, files, entrypoint, stdin, courseId }),
+        signal: abortController.signal,
+        body: JSON.stringify({
+          language,
+          files,
+          entrypoint: resolvedTarget.target,
+          stdin,
+          courseId,
+        }),
       })
 
       if (!response.ok) {
@@ -547,6 +672,10 @@ export const ProjectWorkspaceEditor = ({
       const stdoutText = result.stdout?.trim() ?? ''
       const stderrText = result.stderr?.trim() ?? ''
       const compileText = result.compile_output?.trim() ?? ''
+
+      if (executionToken !== executionTokenRef.current) {
+        return
+      }
 
       let displayOutput = stdoutText
       if (compileText) {
@@ -577,11 +706,35 @@ export const ProjectWorkspaceEditor = ({
       if (expectedOutput) {
         setPassed(stdoutText === expectedOutput.trim())
       }
+      setExecutionState('completed')
     } catch (error) {
+      if (executionToken !== executionTokenRef.current) {
+        return
+      }
+      if (error instanceof Error && error.name === 'AbortError') {
+        setExecutionState('idle')
+        setOutput(
+          (current) =>
+            current
+            ?? 'Stopped waiting for this run. Backend execution may continue until its normal timeout.',
+        )
+        return
+      }
+      setExecutionState('error')
       setRunError(error instanceof Error ? error.message : 'Run failed')
     } finally {
-      setRunning(false)
+      if (executionToken === executionTokenRef.current && abortControllerRef.current === abortController) {
+        abortControllerRef.current = null
+      }
     }
+  }
+
+  const handleStop = () => {
+    if (!abortControllerRef.current || executionControls.stopDisabled) {
+      return
+    }
+    setExecutionState('stopping')
+    abortControllerRef.current.abort()
   }
 
   const treeRows = useMemo(() => {
@@ -741,9 +894,10 @@ export const ProjectWorkspaceEditor = ({
         </div>
       )}
 
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-800 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-2">
-          {fileTreeToggleVisible && (
+      <ProjectWorkspaceToolbar
+        executionState={executionState}
+        fileTreeControl={
+          fileTreeToggleVisible ? (
             <button
               className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
               onClick={() => setFileTreeOpen((open) => !open)}
@@ -752,72 +906,40 @@ export const ProjectWorkspaceEditor = ({
             >
               {fileTreeOpen ? 'Hide file tree' : 'Show file tree'}
             </button>
-          )}
-          <span className="truncate text-xs text-slate-300">{activeFile?.path ?? 'No file selected'}</span>
+          ) : undefined
+        }
+        leftStatus={activeFile?.path ?? 'No file selected'}
+        onPreviewRefresh={() => refreshPreview()}
+        onRun={handleRun}
+        onStop={handleStop}
+        onTargetChange={(nextEntrypoint) => {
+          applyWorkspace(files, nextEntrypoint, { normalizeFiles: false })
+        }}
+        previewDirty={previewDirty}
+        previewNewTabUrl={previewNewTabUrl}
+        runtimeProfile={resolvedRuntimeProfile}
+        runDisabled={executionControls.runDisabled}
+        selectedTarget={runtimeTarget.target}
+        stepDisabled={executionControls.stepDisabled}
+        stepCapability={stepCapability}
+        stopDisabled={executionControls.stopDisabled}
+        targetEditable={entrypointEditable && !readOnly}
+        targetOptions={runtimeTarget.targetOptions}
+        targetSelectId={targetSelectId}
+      />
+      {showExecution && passed !== null && (
+        <div className="flex justify-end">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${
+              passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+            }`}
+          >
+            {passed ? '✓ Matches' : '✗ No match'}
+          </span>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {entrypointEditable && (
-            <select
-              className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100"
-              value={entrypoint ?? ''}
-              onChange={(event) => {
-                const nextEntrypoint = event.target.value || null
-                applyWorkspace(files, nextEntrypoint, { normalizeFiles: false })
-              }}
-            >
-              {sortedFiles.map((file) => (
-                <option key={`entrypoint-${file.path}`} value={file.path}>
-                  Entrypoint: {file.path}
-                </option>
-              ))}
-            </select>
-          )}
-          {showPreview && (
-            <>
-              <button
-                className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-                onClick={() => refreshPreview()}
-              >
-                {previewDirty ? '▶ Refresh Preview *' : '▶ Refresh Preview'}
-              </button>
-              <a
-                className={`rounded border px-3 py-1 text-xs font-medium ${previewNewTabUrl ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'cursor-not-allowed border-slate-700 text-slate-500'}`}
-                href={previewNewTabUrl ?? '#'}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!previewNewTabUrl}
-                onClick={(event) => {
-                  if (!previewNewTabUrl) {
-                    event.preventDefault()
-                  }
-                }}
-              >
-                ↗ Open Preview Tab
-              </a>
-            </>
-          )}
-          {showExecution && (
-            <button
-              className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-              disabled={running || !entrypoint || Boolean(preflightWarning)}
-              onClick={handleRun}
-            >
-              {running ? '▶ Running…' : '▶ Run'}
-            </button>
-          )}
-          {showExecution && passed !== null && (
-            <span
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                passed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-              }`}
-            >
-              {passed ? '✓ Matches' : '✗ No match'}
-            </span>
-          )}
-        </div>
-      </div>
+      )}
 
-      {(pathError || entrypointError || runError || truncationNotice || preflightWarning) && (
+      {(pathError || entrypointError || runError || truncationNotice || preflightWarning || stopHelpText) && (
         <div className="space-y-2">
           {(pathError || entrypointError) && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -835,6 +957,11 @@ export const ProjectWorkspaceEditor = ({
           {truncationNotice && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
               {truncationNotice}
+            </p>
+          )}
+          {stopHelpText && (
+            <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
+              {stopHelpText}
             </p>
           )}
         </div>
@@ -882,7 +1009,7 @@ export const ProjectWorkspaceEditor = ({
 
         <div className="flex min-w-0 flex-1 gap-3 overflow-hidden">
           <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200">
-            <MonacoEditorReact
+            <EditorComponent
               height={height}
               language={activeFile?.language ?? langForFile(activeFile?.path ?? '', language)}
               value={activeFile?.content ?? ''}

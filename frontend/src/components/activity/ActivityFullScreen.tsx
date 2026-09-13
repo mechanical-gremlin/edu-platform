@@ -17,6 +17,7 @@ import {
   buildDefaultWorkspaceFiles,
   resolveDeterministicEntrypoint,
 } from '../../utils/projectWorkspace'
+import { resolveRuntimeProfile } from '../../utils/runtimeProfiles'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
 
@@ -293,6 +294,15 @@ export const ActivityFullScreen = ({
     [workspaceEntrypoint, workspaceFiles, workspaceLanguage],
   )
   const currentDraftSignature = `${workspaceLanguage}:${workspaceSnapshot}:${workspaceEntrypoint ?? ''}`
+  const workspaceRuntimeProfile = useMemo(
+    () =>
+      resolveRuntimeProfile({
+        language: workspaceLanguage,
+        files: workspaceFiles,
+        requestedEntrypoint: workspaceEntrypoint,
+      }),
+    [workspaceEntrypoint, workspaceFiles, workspaceLanguage],
+  )
 
   useEffect(() => {
     if (
@@ -473,6 +483,7 @@ export const ActivityFullScreen = ({
             language={workspaceLanguage}
             defaultFiles={workspaceFiles}
             defaultEntrypoint={workspaceEntrypoint}
+            runtimeProfile={workspaceRuntimeProfile}
             entrypointEditable={
               currentUser.role === 'teacher'
               || studentEntrypointSelectionEnabled
