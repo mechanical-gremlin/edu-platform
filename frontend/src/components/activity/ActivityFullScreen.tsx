@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { GradingPanel } from '../teacher/GradingPanel'
 import { DirectionsEditor } from '../teacher/DirectionsEditor'
-import { MonacoEditor } from '../coding/MonacoEditor'
-import { WebProjectEditor } from '../coding/WebProjectEditor'
+import { CODING_LANGUAGES } from '../coding/MonacoEditor'
+import { ProjectWorkspaceEditor } from '../coding/ProjectWorkspaceEditor'
 import type { Activity, GradebookEntry, StarterFile, UpdateActivityDirectionsInput, User } from '../../types/models'
 import {
   parseSubmissionFiles,
@@ -12,9 +12,13 @@ import {
   serializeSubmissionFiles,
   type CodingDraftSnapshot,
 } from '../../utils/codingDrafts'
+import {
+  buildDefaultWorkspaceState,
+  buildDefaultWorkspaceFiles,
+  resolveDeterministicEntrypoint,
+} from '../../utils/projectWorkspace'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
-const DEFAULT_WEB_FILE: StarterFile[] = [{ path: 'index.html', language: 'html', content: '' }]
 
 const formatSavedAt = (value: string | null) => {
   if (!value) {
@@ -139,14 +143,15 @@ export const ActivityFullScreen = ({
   const [submissionText, setSubmissionText] = useState('')
   const [submissionError, setSubmissionError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [monacoLanguage, setMonacoLanguage] = useState(activity.language ?? 'javascript')
-  const [monacoCode, setMonacoCode] = useState(activity.starterCode ?? '')
-  const [webFiles, setWebFiles] = useState<StarterFile[]>(activity.starterFiles ?? [])
-  const [webEntrypoint, setWebEntrypoint] = useState<string | null>(activity.entrypoint ?? null)
+  const [workspaceLanguage, setWorkspaceLanguage] = useState(activity.language ?? 'javascript')
+  const [workspaceFiles, setWorkspaceFiles] = useState<StarterFile[]>(
+    activity.starterFiles ?? buildDefaultWorkspaceFiles(activity.language ?? 'javascript', activity.starterCode),
+  )
+  const [workspaceEntrypoint, setWorkspaceEntrypoint] = useState<string | null>(activity.entrypoint ?? null)
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [draftHistory, setDraftHistory] = useState<CodingDraftSnapshot[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [webEditorResetKey, setWebEditorResetKey] = useState(0)
+  const [workspaceEditorResetKey, setWorkspaceEditorResetKey] = useState(0)
   const savedDraftSignatureRef = useRef<string | null>(null)
   const draftHistoryRef = useRef<CodingDraftSnapshot[]>([])
   const historyPanelId = useId()
@@ -157,7 +162,36 @@ export const ActivityFullScreen = ({
     (entry) => entry.activityId === activity.id && entry.studentId === currentUser.id,
   )
   const isCodingActivity = activity.type === 'coding'
-  const isWebActivity = isCodingActivity && activity.language === 'web'
+  const resolvedActivityLanguage = activity.language ?? 'javascript'
+  const resolveWorkspaceState = (
+    language: string,
+    nextFiles: StarterFile[] | null | undefined,
+    requestedEntrypoint?: string | null,
+    starterCode?: string | null,
+  ) => {
+    const files =
+      nextFiles && nextFiles.length > 0
+        ? nextFiles
+        : buildDefaultWorkspaceFiles(language, starterCode)
+    const resolved = resolveDeterministicEntrypoint({
+      language,
+      files,
+      requestedEntrypoint,
+    })
+    return { files, entrypoint: resolved.entrypoint }
+  }
+  const getWorkspaceSubmissionText = (
+    language: string,
+    files: StarterFile[],
+    requestedEntrypoint: string | null,
+  ) => {
+    const resolved = resolveDeterministicEntrypoint({
+      language,
+      files,
+      requestedEntrypoint,
+    })
+    return files.find((file) => file.path === resolved.entrypoint)?.content ?? ''
+  }
 
   useEffect(() => {
     setDirectionsOpen(Boolean(activity.directions) || currentUser.role === 'teacher')
@@ -172,10 +206,15 @@ export const ActivityFullScreen = ({
       setDraftSavedAt(null)
       setDraftHistory([])
       draftHistoryRef.current = []
-      setMonacoLanguage(activity.language ?? 'javascript')
-      setMonacoCode(activity.starterCode ?? '')
-      setWebFiles(activity.starterFiles ?? [])
-      setWebEntrypoint(activity.entrypoint ?? null)
+      setWorkspaceLanguage(resolvedActivityLanguage)
+      const resolvedWorkspace = resolveWorkspaceState(
+        resolvedActivityLanguage,
+        activity.starterFiles,
+        activity.entrypoint,
+        activity.starterCode,
+      )
+      setWorkspaceFiles(resolvedWorkspace.files)
+      setWorkspaceEntrypoint(resolvedWorkspace.entrypoint)
       savedDraftSignatureRef.current = null
       return
     }
@@ -183,44 +222,42 @@ export const ActivityFullScreen = ({
     const storedDraft =
       currentUser.role === 'student' ? readCodingDraft(currentUser.id, activity.id) : null
 
-    const fallbackFiles =
-      activity.starterFiles && activity.starterFiles.length > 0 ? activity.starterFiles : DEFAULT_WEB_FILE
+    const fallbackWorkspace = resolveWorkspaceState(
+      resolvedActivityLanguage,
+      activity.starterFiles,
+      activity.entrypoint,
+      activity.starterCode,
+    )
     const submittedFiles =
       gradeEntry?.submissionFiles && gradeEntry.submissionFiles.length > 0
         ? gradeEntry.submissionFiles
-        : parseSubmissionFiles(gradeEntry?.submissionText, fallbackFiles)
-
-    if (isWebActivity) {
-      const nextFiles =
-        storedDraft?.submissionFiles && storedDraft.submissionFiles.length > 0
-          ? storedDraft.submissionFiles
-          : gradeEntry?.submitted
-            ? submittedFiles
-            : fallbackFiles
-      const nextEntrypoint =
-        storedDraft?.submissionEntrypoint
+        : parseSubmissionFiles(gradeEntry?.submissionText, fallbackWorkspace.files)
+    const nextLanguage = storedDraft?.language ?? resolvedActivityLanguage
+    const nextWorkspace = resolveWorkspaceState(
+      nextLanguage,
+      storedDraft?.submissionFiles && storedDraft.submissionFiles.length > 0
+        ? storedDraft.submissionFiles
+        : gradeEntry?.submitted
+          ? submittedFiles
+          : fallbackWorkspace.files,
+      storedDraft?.submissionEntrypoint
         ?? gradeEntry?.submissionEntrypoint
         ?? activity.entrypoint
-        ?? nextFiles[0]?.path
-        ?? null
+        ?? fallbackWorkspace.entrypoint,
+      storedDraft?.submissionText ?? gradeEntry?.submissionText ?? activity.starterCode,
+    )
+    const nextSubmissionText = getWorkspaceSubmissionText(
+      nextLanguage,
+      nextWorkspace.files,
+      nextWorkspace.entrypoint,
+    )
 
-      setMonacoLanguage(activity.language ?? 'web')
-      setMonacoCode('')
-      setWebFiles(nextFiles)
-      setWebEntrypoint(nextEntrypoint)
-      setWebEditorResetKey((value) => value + 1)
-      setSubmissionText(storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles))
-      savedDraftSignatureRef.current = `web:${storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles)}`
-    } else {
-      const nextLanguage = storedDraft?.language ?? activity.language ?? 'javascript'
-      const nextCode = storedDraft?.submissionText ?? gradeEntry?.submissionText ?? activity.starterCode ?? ''
-      setMonacoLanguage(nextLanguage)
-      setMonacoCode(nextCode)
-      setWebFiles(activity.starterFiles ?? [])
-      setWebEntrypoint(activity.entrypoint ?? null)
-      setSubmissionText(nextCode)
-      savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
-    }
+    setWorkspaceLanguage(nextLanguage)
+    setWorkspaceFiles(nextWorkspace.files)
+    setWorkspaceEntrypoint(nextWorkspace.entrypoint)
+    setWorkspaceEditorResetKey((value) => value + 1)
+    setSubmissionText(nextSubmissionText)
+    savedDraftSignatureRef.current = `${nextLanguage}:${serializeSubmissionFiles(nextWorkspace.files)}:${nextWorkspace.entrypoint ?? ''}`
 
     setDraftSavedAt(storedDraft?.updatedAt ?? null)
     setDraftHistory(storedDraft?.history ?? [])
@@ -239,7 +276,7 @@ export const ActivityFullScreen = ({
     gradeEntry?.submissionText,
     gradeEntry?.submitted,
     isCodingActivity,
-    isWebActivity,
+    resolvedActivityLanguage,
   ])
 
   const isGraded = gradeEntry?.pointsEarned !== null && gradeEntry?.pointsEarned !== undefined
@@ -247,8 +284,12 @@ export const ActivityFullScreen = ({
   const embeddedUrl = useMemo(() => getEmbeddedUrl(activity), [activity])
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
   const languageLockedForStudents = Boolean(activity.languageLocked && activity.language)
-  const codingSubmissionText = isWebActivity ? serializeSubmissionFiles(webFiles) : monacoCode
-  const currentDraftSignature = `${isWebActivity ? 'web' : monacoLanguage}:${codingSubmissionText}`
+  const workspaceSnapshot = useMemo(() => serializeSubmissionFiles(workspaceFiles), [workspaceFiles])
+  const codingSubmissionText = useMemo(
+    () => getWorkspaceSubmissionText(workspaceLanguage, workspaceFiles, workspaceEntrypoint),
+    [workspaceEntrypoint, workspaceFiles, workspaceLanguage],
+  )
+  const currentDraftSignature = `${workspaceLanguage}:${workspaceSnapshot}:${workspaceEntrypoint ?? ''}`
 
   useEffect(() => {
     if (
@@ -263,10 +304,10 @@ export const ActivityFullScreen = ({
       const savedDraft = saveCodingDraft({
         activityId: activity.id,
         history: draftHistoryRef.current,
-        language: isWebActivity ? 'web' : monacoLanguage,
-        submissionFiles: isWebActivity ? webFiles : null,
-        submissionEntrypoint: isWebActivity ? webEntrypoint : null,
-        submissionText: codingSubmissionText,
+        language: workspaceLanguage,
+        submissionFiles: workspaceFiles,
+        submissionEntrypoint: workspaceEntrypoint,
+        submissionText: workspaceSnapshot,
         userId: currentUser.id,
       })
 
@@ -284,10 +325,10 @@ export const ActivityFullScreen = ({
     currentUser.id,
     currentUser.role,
     isCodingActivity,
-    isWebActivity,
-    monacoLanguage,
-    webEntrypoint,
-    webFiles,
+    workspaceEntrypoint,
+    workspaceFiles,
+    workspaceLanguage,
+    workspaceSnapshot,
   ])
 
   const handleSaveCheckpoint = () => {
@@ -297,10 +338,10 @@ export const ActivityFullScreen = ({
 
     const savedDraft = saveCodingDraftCheckpoint({
       activityId: activity.id,
-      language: isWebActivity ? 'web' : monacoLanguage,
-      submissionFiles: isWebActivity ? webFiles : null,
-      submissionEntrypoint: isWebActivity ? webEntrypoint : null,
-      submissionText: codingSubmissionText,
+      language: workspaceLanguage,
+      submissionFiles: workspaceFiles,
+      submissionEntrypoint: workspaceEntrypoint,
+      submissionText: workspaceSnapshot,
       userId: currentUser.id,
     })
 
@@ -313,48 +354,32 @@ export const ActivityFullScreen = ({
   }
 
   const handleRestoreSnapshot = (snapshot: CodingDraftSnapshot) => {
-    if (isWebActivity) {
-      const nextFiles = snapshot.submissionFiles && snapshot.submissionFiles.length > 0
-        ? snapshot.submissionFiles
-        : activity.starterFiles ?? DEFAULT_WEB_FILE
-      const nextEntrypoint =
-        snapshot.submissionEntrypoint
-        ?? activity.entrypoint
-        ?? nextFiles[0]?.path
-        ?? null
-      setWebFiles(nextFiles)
-      setWebEntrypoint(nextEntrypoint)
-      setSubmissionText(snapshot.submissionText || serializeSubmissionFiles(nextFiles))
-      if (currentUser.role === 'student') {
-        const savedDraft = saveCodingDraft({
-          activityId: activity.id,
-          history: draftHistoryRef.current,
-          language: 'web',
-          submissionFiles: nextFiles,
-          submissionEntrypoint: nextEntrypoint,
-          submissionText: snapshot.submissionText || serializeSubmissionFiles(nextFiles),
-          userId: currentUser.id,
-        })
-        setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
-        savedDraftSignatureRef.current = `web:${snapshot.submissionText || serializeSubmissionFiles(nextFiles)}`
-      }
-      setWebEditorResetKey((value) => value + 1)
-    } else {
-      setMonacoLanguage(snapshot.language)
-      setMonacoCode(snapshot.submissionText)
-      setSubmissionText(snapshot.submissionText)
-      if (currentUser.role === 'student') {
-        const savedDraft = saveCodingDraft({
-          activityId: activity.id,
-          history: draftHistoryRef.current,
-          language: snapshot.language,
-          submissionText: snapshot.submissionText,
-          userId: currentUser.id,
-        })
-        setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
-        savedDraftSignatureRef.current = `${snapshot.language}:${snapshot.submissionText}`
-      }
+    const nextWorkspace = resolveWorkspaceState(
+      snapshot.language,
+      snapshot.submissionFiles,
+      snapshot.submissionEntrypoint ?? activity.entrypoint,
+      snapshot.submissionText,
+    )
+    setWorkspaceLanguage(snapshot.language)
+    setWorkspaceFiles(nextWorkspace.files)
+    setWorkspaceEntrypoint(nextWorkspace.entrypoint)
+    setSubmissionText(
+      getWorkspaceSubmissionText(snapshot.language, nextWorkspace.files, nextWorkspace.entrypoint),
+    )
+    if (currentUser.role === 'student') {
+      const savedDraft = saveCodingDraft({
+        activityId: activity.id,
+        history: draftHistoryRef.current,
+        language: snapshot.language,
+        submissionFiles: nextWorkspace.files,
+        submissionEntrypoint: nextWorkspace.entrypoint,
+        submissionText: serializeSubmissionFiles(nextWorkspace.files),
+        userId: currentUser.id,
+      })
+      setDraftSavedAt(savedDraft?.updatedAt ?? snapshot.savedAt)
+      savedDraftSignatureRef.current = `${snapshot.language}:${serializeSubmissionFiles(nextWorkspace.files)}:${nextWorkspace.entrypoint ?? ''}`
     }
+    setWorkspaceEditorResetKey((value) => value + 1)
   }
 
   const handleResetWorkspace = () => {
@@ -362,92 +387,105 @@ export const ActivityFullScreen = ({
       return
     }
 
-    if (isWebActivity) {
-      const nextFiles = activity.starterFiles && activity.starterFiles.length > 0
-        ? activity.starterFiles
-        : DEFAULT_WEB_FILE
-      const nextEntrypoint = activity.entrypoint ?? nextFiles[0]?.path ?? null
-      setWebFiles(nextFiles)
-      setWebEntrypoint(nextEntrypoint)
-      setSubmissionText(serializeSubmissionFiles(nextFiles))
-      if (currentUser.role === 'student') {
-        const savedDraft = saveCodingDraft({
-          activityId: activity.id,
-          history: draftHistoryRef.current,
-          language: 'web',
-          submissionFiles: nextFiles,
-          submissionEntrypoint: nextEntrypoint,
-          submissionText: serializeSubmissionFiles(nextFiles),
-          userId: currentUser.id,
-        })
-        setDraftSavedAt(savedDraft?.updatedAt ?? null)
-        savedDraftSignatureRef.current = `web:${serializeSubmissionFiles(nextFiles)}`
-      }
-      setWebEditorResetKey((value) => value + 1)
-      return
-    }
-
-    const nextLanguage = activity.language ?? 'javascript'
-    const nextCode = activity.starterCode ?? ''
-    setMonacoLanguage(nextLanguage)
-    setMonacoCode(nextCode)
-    setSubmissionText(nextCode)
+    const nextWorkspace = resolveWorkspaceState(
+      resolvedActivityLanguage,
+      activity.starterFiles,
+      activity.entrypoint,
+      activity.starterCode,
+    )
+    setWorkspaceLanguage(resolvedActivityLanguage)
+    setWorkspaceFiles(nextWorkspace.files)
+    setWorkspaceEntrypoint(nextWorkspace.entrypoint)
+    setSubmissionText(
+      getWorkspaceSubmissionText(
+        resolvedActivityLanguage,
+        nextWorkspace.files,
+        nextWorkspace.entrypoint,
+      ),
+    )
     if (currentUser.role === 'student') {
       const savedDraft = saveCodingDraft({
         activityId: activity.id,
         history: draftHistoryRef.current,
-        language: nextLanguage,
-        submissionText: nextCode,
+        language: resolvedActivityLanguage,
+        submissionFiles: nextWorkspace.files,
+        submissionEntrypoint: nextWorkspace.entrypoint,
+        submissionText: serializeSubmissionFiles(nextWorkspace.files),
         userId: currentUser.id,
       })
       setDraftSavedAt(savedDraft?.updatedAt ?? null)
-      savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
+      savedDraftSignatureRef.current = `${resolvedActivityLanguage}:${serializeSubmissionFiles(nextWorkspace.files)}:${nextWorkspace.entrypoint ?? ''}`
     }
+    setWorkspaceEditorResetKey((value) => value + 1)
   }
 
   const renderWorkspace = () => {
     if (isCodingActivity) {
-      const isWeb = isWebActivity
-
-      if (isWeb) {
-        return (
-          <WebProjectEditor
-            key={`${activity.id}-${webEditorResetKey}`}
-            defaultFiles={webFiles}
-            defaultEntrypoint={webEntrypoint}
+      return (
+        <div className="space-y-2">
+          {(currentUser.role === 'teacher' || !languageLockedForStudents) && (
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-slate-600">Language</label>
+              <select
+                className="rounded border border-slate-200 px-2 py-1 text-sm"
+                value={workspaceLanguage}
+                onChange={(event) => {
+                  const nextLanguage = event.target.value
+                  const nextWorkspace = buildDefaultWorkspaceState(nextLanguage)
+                  const nextSubmissionText = getWorkspaceSubmissionText(
+                    nextLanguage,
+                    nextWorkspace.files,
+                    nextWorkspace.entrypoint,
+                  )
+                  setWorkspaceLanguage(nextLanguage)
+                  setWorkspaceFiles(nextWorkspace.files)
+                  setWorkspaceEntrypoint(nextWorkspace.entrypoint)
+                  setSubmissionText(nextSubmissionText)
+                  if (currentUser.role === 'student') {
+                    const savedDraft = saveCodingDraft({
+                      activityId: activity.id,
+                      history: draftHistoryRef.current,
+                      language: nextLanguage,
+                      submissionFiles: nextWorkspace.files,
+                      submissionEntrypoint: nextWorkspace.entrypoint,
+                      submissionText: serializeSubmissionFiles(nextWorkspace.files),
+                      userId: currentUser.id,
+                    })
+                    setDraftSavedAt(savedDraft?.updatedAt ?? null)
+                    savedDraftSignatureRef.current = `${nextLanguage}:${serializeSubmissionFiles(nextWorkspace.files)}:${nextWorkspace.entrypoint ?? ''}`
+                  }
+                  setWorkspaceEditorResetKey((value) => value + 1)
+                }}
+              >
+                {CODING_LANGUAGES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <ProjectWorkspaceEditor
+            key={`${activity.id}-${workspaceEditorResetKey}`}
+            language={workspaceLanguage}
+            defaultFiles={workspaceFiles}
+            defaultEntrypoint={workspaceEntrypoint}
             entrypointEditable={currentUser.role === 'teacher' || !languageLockedForStudents}
             onChange={(files, entrypoint) => {
-              setWebFiles(files)
-              setWebEntrypoint(entrypoint)
+              setWorkspaceFiles(files)
+              setWorkspaceEntrypoint(entrypoint)
               if (currentUser.role === 'student') {
-                setSubmissionText(serializeSubmissionFiles(files))
+                setSubmissionText(getWorkspaceSubmissionText(workspaceLanguage, files, entrypoint))
               }
             }}
+            executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
+            userId={currentUser.id}
+            courseId={courseId ?? undefined}
+            expectedOutput={activity.expectedOutput}
             readOnly={false}
             height="500px"
           />
-        )
-      }
-
-      return (
-        <MonacoEditor
-          key={activity.id}
-          defaultValue={monacoCode}
-          language={monacoLanguage}
-          showLanguageSelector={currentUser.role === 'teacher' || !languageLockedForStudents}
-          onLanguageChange={setMonacoLanguage}
-          onChange={(code) => {
-            setMonacoCode(code)
-            if (currentUser.role === 'student') {
-              setSubmissionText(code)
-            }
-          }}
-          executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
-          userId={currentUser.id}
-          courseId={courseId ?? undefined}
-          expectedOutput={activity.expectedOutput}
-          minHeight="500px"
-        />
+        </div>
       )
     }
 
@@ -692,8 +730,8 @@ export const ActivityFullScreen = ({
                       <div>
                         <p className="text-sm font-medium text-slate-800">{formatSavedAt(snapshot.savedAt)}</p>
                         <p className="text-xs text-slate-500">
-                          {snapshot.language === 'web'
-                            ? `${snapshot.submissionFiles?.length ?? 0} file(s)`
+                        {snapshot.submissionFiles?.length
+                          ? `${snapshot.submissionFiles.length} file(s)`
                             : `${snapshot.submissionText.length} characters`}
                         </p>
                       </div>
@@ -783,7 +821,7 @@ export const ActivityFullScreen = ({
               <button
                 className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 disabled={submitting || (activity.type === 'coding'
-                  ? (activity.language === 'web' ? webFiles.length === 0 : monacoCode.trim().length === 0)
+                  ? workspaceFiles.length === 0
                   : submissionText.trim().length === 0)}
                 onClick={async () => {
                   try {
@@ -798,22 +836,22 @@ export const ActivityFullScreen = ({
                     await onSubmitActivity?.(
                       activity.id,
                       textToSubmit,
-                      activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
-                      activity.type === 'coding' && activity.language === 'web' ? webEntrypoint : null,
+                      activity.type === 'coding' ? workspaceFiles : null,
+                      activity.type === 'coding' ? workspaceEntrypoint : null,
                     )
                     if (activity.type === 'coding' && currentUser.role === 'student') {
                       const savedDraft = saveCodingDraftCheckpoint({
                         activityId: activity.id,
-                        language: isWebActivity ? 'web' : monacoLanguage,
-                        submissionFiles: isWebActivity ? webFiles : null,
-                        submissionEntrypoint: isWebActivity ? webEntrypoint : null,
-                        submissionText: textToSubmit,
+                        language: workspaceLanguage,
+                        submissionFiles: workspaceFiles,
+                        submissionEntrypoint: workspaceEntrypoint,
+                        submissionText: workspaceSnapshot,
                         userId: currentUser.id,
                       })
                       setDraftSavedAt(savedDraft?.updatedAt ?? null)
                       draftHistoryRef.current = savedDraft?.history ?? draftHistoryRef.current
                       setDraftHistory(savedDraft?.history ?? draftHistory)
-                      savedDraftSignatureRef.current = `${isWebActivity ? 'web' : monacoLanguage}:${textToSubmit}`
+                      savedDraftSignatureRef.current = `${workspaceLanguage}:${workspaceSnapshot}:${workspaceEntrypoint ?? ''}`
                     }
                   } catch (saveError) {
                     setSubmissionError(

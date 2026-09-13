@@ -296,6 +296,75 @@ test('POST /execute accepts multi-file web project workspace payloads', { concur
   }
 })
 
+test('POST /execute accepts multi-file python project workspace payloads', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({})
+  const originalFetch = globalThis.fetch
+  let submitBody: Record<string, unknown> | null = null
+  globalThis.fetch = async (input, init) => {
+    const url = String(input)
+    if (url.endsWith('/submissions?base64_encoded=true&wait=false')) {
+      submitBody = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>
+      return new Response(JSON.stringify({ token: 'workspace-token' }), { status: 201 })
+    }
+    if (url.endsWith('/submissions/workspace-token?base64_encoded=false')) {
+      return new Response(
+        JSON.stringify({
+          stdout: '5\n',
+          stderr: null,
+          compile_output: null,
+          status: { id: 3, description: 'Accepted' },
+          time: '0.01',
+          memory: 1024,
+        }),
+        { status: 200 },
+      )
+    }
+
+    throw new Error(`Unexpected fetch URL: ${url}`)
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'python',
+        files: [
+          { path: 'main.py', content: 'from helpers.math_utils import add\nprint(add(2, 3))\n' },
+          { path: 'helpers/math_utils.py', content: 'def add(a, b):\n    return a + b\n' },
+        ],
+        entrypoint: 'main.py',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.deepEqual(response.json(), {
+      stdout: '5\n',
+      stderr: null,
+      compile_output: null,
+      truncation: {
+        stdout: { truncated: false, originalSizeBytes: 2, maxSizeBytes: 32 * 1024 },
+        stderr: { truncated: false, originalSizeBytes: 0, maxSizeBytes: 32 * 1024 },
+        compile_output: { truncated: false, originalSizeBytes: 0, maxSizeBytes: 32 * 1024 },
+      },
+      status: { id: 3, description: 'Accepted' },
+      time: '0.01',
+      memory: 1024,
+    })
+    assert.ok(submitBody)
+    const submittedPayload = submitBody as Record<string, unknown>
+    assert.equal(submittedPayload.language_id, 89)
+    assert.equal(typeof submittedPayload.additional_files, 'string')
+    assert.equal('source_code' in submittedPayload, false)
+  } finally {
+    globalThis.fetch = originalFetch
+    await app.close()
+    restoreEnv()
+  }
+})
+
 test('POST /execute rejects normalized project workspace path collisions', { concurrency: false }, async () => {
   const restoreEnv = withExecutionEnv({})
   const app = await buildApp({ prisma: prismaStub })

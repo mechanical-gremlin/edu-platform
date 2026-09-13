@@ -724,7 +724,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const user = requireRole(request, 'teacher')
       const { lessonId } = lessonParamsSchema.parse(request.params)
       const payload = createActivityBodySchema.parse(request.body)
-      const workspaceCapable = payload.type === 'coding' && payload.language === 'web'
+      const workspaceCapable = payload.type === 'coding' && typeof payload.language === 'string' && payload.language.trim().length > 0
       const normalizedWorkspace = workspaceCapable && payload.starterFiles
         ? normalizeProjectWorkspaceFiles(payload.starterFiles)
         : null

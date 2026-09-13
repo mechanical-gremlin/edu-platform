@@ -1,6 +1,8 @@
+import JSZip from 'jszip'
 import { z } from 'zod'
 import { AppError } from '../../lib.js'
 import { resolveExecutionConfig, type ExecutionConfig } from '../../config/executionConfig.js'
+import type { ProjectWorkspaceFile } from './projectWorkspace.js'
 
 export const JUDGE0_LANGUAGE_MAP: Record<string, number> = {
   javascript: 93,
@@ -19,6 +21,8 @@ export const JUDGE0_LANGUAGE_MAP: Record<string, number> = {
   swift: 83,
   kotlin: 78,
 }
+
+const JUDGE0_MULTI_FILE_LANGUAGE_ID = 89
 
 export const executeResponseSchema = z.object({
   stdout: z.string().nullable(),
@@ -77,6 +81,163 @@ export type ExecuteErrorCode =
   | 'EXEC_TIMEOUT'
   | 'EXEC_UNAUTHORIZED'
   | 'EXEC_UPSTREAM_ERROR'
+
+const shellQuote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`
+
+const sortPaths = (paths: string[]) => [...paths].sort((left, right) => left.localeCompare(right))
+
+const getParentDirectory = (path: string) => {
+  const lastSlash = path.lastIndexOf('/')
+  return lastSlash >= 0 ? path.slice(0, lastSlash) : ''
+}
+
+const getFilenameStem = (path: string) => path.split('/').at(-1)?.replace(/\.[^.]+$/u, '') ?? path
+
+const getEntrypointFile = (files: ProjectWorkspaceFile[], entrypoint: string) =>
+  files.find((file) => file.path === entrypoint) ?? null
+
+const toJavaLaunchClass = (entrypoint: string, files: ProjectWorkspaceFile[]) => {
+  const packageName = getEntrypointFile(files, entrypoint)?.content.match(/^\s*package\s+([\w.]+)\s*;/mu)?.[1]
+  const baseClass = getFilenameStem(entrypoint)
+  return packageName ? `${packageName}.${baseClass}` : baseClass
+}
+
+const buildMultiFileScripts = ({
+  language,
+  entrypoint,
+  files,
+}: {
+  language: string
+  entrypoint: string
+  files: ProjectWorkspaceFile[]
+}) => {
+  const allPaths = sortPaths(files.map((file) => file.path))
+  const matchingPaths = (extensions: string[]) =>
+    allPaths.filter((path) => extensions.some((extension) => path.toLowerCase().endsWith(extension)))
+  const shellList = (paths: string[]) => paths.map(shellQuote).join(' ')
+
+  switch (language) {
+    case 'javascript':
+      return {
+        compile: null,
+        run: `#!/bin/bash\nset -e\nnode ${shellQuote(entrypoint)}\n`,
+      }
+    case 'typescript':
+      return {
+        compile: `#!/bin/bash\nset -e\ntsc --module commonjs --target es2020 --esModuleInterop --outDir dist ${shellList(matchingPaths(['.ts']))}\n`,
+        run: `#!/bin/bash\nset -e\nnode ${shellQuote(`dist/${entrypoint.replace(/\.ts$/i, '.js')}`)}\n`,
+      }
+    case 'python':
+      return {
+        compile: null,
+        run: `#!/bin/bash\nset -e\npython3 ${shellQuote(entrypoint)}\n`,
+      }
+    case 'java': {
+      const javaFiles = matchingPaths(['.java'])
+      return {
+        compile: `#!/bin/bash\nset -e\njavac -d . ${shellList(javaFiles)}\n`,
+        run: `#!/bin/bash\nset -e\njava ${shellQuote(toJavaLaunchClass(entrypoint, files))}\n`,
+      }
+    }
+    case 'c': {
+      const cFiles = matchingPaths(['.c'])
+      return {
+        compile: `#!/bin/bash\nset -e\ngcc -std=c17 -O2 -pipe ${shellList(cFiles)} -o program\n`,
+        run: '#!/bin/bash\nset -e\n./program\n',
+      }
+    }
+    case 'cpp': {
+      const cppFiles = matchingPaths(['.cpp', '.cc', '.cxx'])
+      return {
+        compile: `#!/bin/bash\nset -e\ng++ -std=c++17 -O2 -pipe ${shellList(cppFiles)} -o program\n`,
+        run: '#!/bin/bash\nset -e\n./program\n',
+      }
+    }
+    case 'csharp': {
+      const csharpFiles = matchingPaths(['.cs'])
+      return {
+        compile: `#!/bin/bash\nset -e\nmcs -out:program.exe ${shellList(csharpFiles)}\n`,
+        run: '#!/bin/bash\nset -e\nmono program.exe\n',
+      }
+    }
+    case 'php':
+      return {
+        compile: null,
+        run: `#!/bin/bash\nset -e\nphp ${shellQuote(entrypoint)}\n`,
+      }
+    case 'ruby':
+      return {
+        compile: null,
+        run: `#!/bin/bash\nset -e\nruby ${shellQuote(entrypoint)}\n`,
+      }
+    case 'go': {
+      const entrypointDirectory = getParentDirectory(entrypoint)
+      const packageGlob = entrypointDirectory ? `./${entrypointDirectory}` : '.'
+      return {
+        compile: null,
+        run: `#!/bin/bash\nset -e\nmapfile -t go_files < <(find ${shellQuote(packageGlob)} -maxdepth 1 -name '*.go' -print | sort)\ngo run "\${go_files[@]}"\n`,
+      }
+    }
+    case 'rust':
+      if (entrypoint.includes('/')) {
+        return null
+      }
+      return {
+        compile: `#!/bin/bash\nset -e\nrustc --edition=2021 ${shellQuote(entrypoint)} -O -o program\n`,
+        run: '#!/bin/bash\nset -e\n./program\n',
+      }
+    case 'swift': {
+      const swiftFiles = matchingPaths(['.swift'])
+      return {
+        compile: `#!/bin/bash\nset -e\nswiftc ${shellList(swiftFiles)} -o program\n`,
+        run: '#!/bin/bash\nset -e\n./program\n',
+      }
+    }
+    case 'kotlin': {
+      const kotlinFiles = matchingPaths(['.kt'])
+      return {
+        compile: `#!/bin/bash\nset -e\nkotlinc ${shellList(kotlinFiles)} -include-runtime -d program.jar\n`,
+        run: '#!/bin/bash\nset -e\njava -jar program.jar\n',
+      }
+    }
+    default:
+      return null
+  }
+}
+
+export const createJudge0MultiFileArchive = async ({
+  language,
+  entrypoint,
+  files,
+}: {
+  language: string
+  entrypoint: string
+  files: ProjectWorkspaceFile[]
+}) => {
+  const scripts = buildMultiFileScripts({ language, entrypoint, files })
+  if (!scripts) {
+    throw createExecuteError({
+      statusCode: 400,
+      code: 'EXEC_BAD_REQUEST',
+      message: `Multi-file project workspace is unsupported for runtime "${language}".`,
+      retryable: false,
+    })
+  }
+
+  const archive = new JSZip()
+  for (const file of files) {
+    archive.file(file.path, file.content)
+  }
+  if (scripts.compile) {
+    archive.file('compile', scripts.compile, { unixPermissions: 0o755 })
+  }
+  archive.file('run', scripts.run, { unixPermissions: 0o755 })
+  const buffer = await archive.generateAsync({
+    type: 'nodebuffer',
+    compression: 'DEFLATE',
+  })
+  return buffer.toString('base64')
+}
 
 interface Judge0Failure {
   statusCode?: number | null
@@ -163,11 +324,16 @@ export const executeWithJudge0 = async ({
   code,
   stdin,
   config,
+  projectWorkspace,
 }: {
   language: string
   code: string
   stdin?: string | null
   config?: ExecutionConfig
+  projectWorkspace?: {
+    files: ProjectWorkspaceFile[]
+    entrypoint: string
+  } | null
 }): Promise<ExecuteResponse> => {
   if (!(language in JUDGE0_LANGUAGE_MAP)) {
     throw createExecuteError({
@@ -373,15 +539,29 @@ export const executeWithJudge0 = async ({
     })
   }
 
-  const submitResponse = await fetchWithRetry('/submissions?base64_encoded=false&wait=false', {
+  const requestBody = projectWorkspace
+    ? {
+        language_id: JUDGE0_MULTI_FILE_LANGUAGE_ID,
+        additional_files: await createJudge0MultiFileArchive({
+          language,
+          files: projectWorkspace.files,
+          entrypoint: projectWorkspace.entrypoint,
+        }),
+        stdin: stdin ?? '',
+      }
+    : {
+        source_code: code,
+        language_id: JUDGE0_LANGUAGE_MAP[language],
+        stdin: stdin ?? '',
+      }
+  const submitResponse = await fetchWithRetry(
+    `/submissions?base64_encoded=${projectWorkspace ? 'true' : 'false'}&wait=false`,
+    {
     method: 'POST',
     headers,
-    body: JSON.stringify({
-      source_code: code,
-      language_id: JUDGE0_LANGUAGE_MAP[language],
-      stdin: stdin ?? '',
-    }),
-  })
+      body: JSON.stringify(requestBody),
+    },
+  )
 
   const tokenPayload = await parseJudge0Json<{ token?: string | null }>(submitResponse)
   const token = tokenPayload.token?.trim()
