@@ -6,7 +6,7 @@ This list is reordered to match the current development sequence request.
 
 ## P0 — Fully functional coding editor (all languages + project types)
 
-- [ ] **Production execution key configured** — set `JUDGE0_API_KEY` on the Render backend service so `/execute` can run student code in production.
+- [x] **Production execution key configured** — set `JUDGE0_API_KEY` on the Render backend service so `/execute` can run student code in production.
 - [x] **Execution timeout + retry hardening** — `/execute` now enforces request deadlines, retries transient Judge0 failures, and returns a stable error contract for timeout/upstream failures.
 - [x] **Execution payload/output limits** — `/execute` now rejects oversized source/stdin payloads and includes structured truncation metadata when output is capped.
 - [ ] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
