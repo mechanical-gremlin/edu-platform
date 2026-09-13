@@ -151,6 +151,9 @@ export const MonacoEditor = ({
     if (!executeUrl) return
     if (preflightWarning) {
       setRunError(preflightWarning)
+      setOutput(null)
+      setPassed(null)
+      setTruncationNotice(null)
       return
     }
     setRunning(true)
