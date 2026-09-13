@@ -129,7 +129,7 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
             >
               {visibleItems.map((item, index) => (
                 <button
-                  key={item.label}
+                  key={`${item.label}-${index}`}
                   ref={(element) => {
                     itemRefs.current[index] = element
                   }}

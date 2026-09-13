@@ -29,7 +29,7 @@ const starterFileSchema = z.object({
   content: z.string().max(50_000),
 })
 
-const createActivityBodySchema = z.object({
+const createActivityBodyBaseSchema = z.object({
   title: z.string().trim().min(1).max(200),
   type: activityTypeSchema,
   description: z.string().trim().min(1).max(5000),
@@ -52,7 +52,8 @@ const createActivityBodySchema = z.object({
   pointsPossible: z.int().min(0).max(1000),
   resourceUrl: z.url().optional().nullable(),
   visible: z.boolean().optional(),
-}).superRefine((value, context) => {
+})
+const createActivityBodySchema = createActivityBodyBaseSchema.superRefine((value, context) => {
   if (!value.autograderEnabled) {
     return
   }
@@ -120,7 +121,7 @@ const moveActivitySchema = z.union([
 const directionsSchema = z.object({
   directions: z.string().trim().max(20000).optional().nullable(),
 })
-const updateActivityBodySchema = createActivityBodySchema
+const updateActivityBodySchema = createActivityBodyBaseSchema.partial()
 const submissionBodySchema = z.object({
   content: z.record(z.string(), z.unknown()).optional().nullable(),
 })
@@ -379,7 +380,25 @@ const findTeacherActivity = async (app: Parameters<FastifyPluginAsync>[0], activ
       id: true,
       title: true,
       type: true,
+      description: true,
+      directions: true,
+      language: true,
+      languageLocked: true,
+      starterCode: true,
+      starterFiles: true,
+      studentFileTreeEnabled: true,
+      studentEntrypointSelectionEnabled: true,
+      expectedOutput: true,
+      autograderEnabled: true,
+      autograderReferenceSolution: true,
+      autograderReferenceOutput: true,
+      autograderCodeMatch: true,
+      autograderOutputMatch: true,
+      autograderTestCases: true,
+      dueAt: true,
       pointsPossible: true,
+      resourceUrl: true,
+      visible: true,
       lessonId: true,
       lesson: { select: { unit: { select: { courseId: true } } } },
     },
@@ -1061,9 +1080,35 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = requireRole(request, 'teacher')
       const { activityId } = activityParamsSchema.parse(request.params)
-      const payload = updateActivityBodySchema.parse(request.body)
+      const partialPayload = updateActivityBodySchema.parse(request.body)
       const activity = await findTeacherActivity(app, activityId)
       await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
+      const currentWorkspace = parseStarterProjectWorkspace(activity.starterFiles)
+      const payload = createActivityBodySchema.parse({
+        title: activity.title,
+        description: activity.description,
+        directions: activity.directions,
+        language: activity.language,
+        languageLocked: activity.languageLocked,
+        starterCode: activity.starterCode,
+        starterFiles: currentWorkspace.files,
+        entrypoint: currentWorkspace.entrypoint,
+        studentFileTreeEnabled: activity.studentFileTreeEnabled,
+        studentEntrypointSelectionEnabled: activity.studentEntrypointSelectionEnabled,
+        expectedOutput: activity.expectedOutput,
+        autograderEnabled: activity.autograderEnabled,
+        autograderReferenceSolution: activity.autograderReferenceSolution,
+        autograderReferenceOutput: activity.autograderReferenceOutput,
+        autograderCodeMatch: activity.autograderCodeMatch,
+        autograderOutputMatch: activity.autograderOutputMatch,
+        autograderTestCases: Array.isArray(activity.autograderTestCases) ? activity.autograderTestCases : null,
+        dueAt: activity.dueAt?.toISOString() ?? null,
+        pointsPossible: activity.pointsPossible,
+        resourceUrl: activity.resourceUrl,
+        visible: activity.visible,
+        ...partialPayload,
+        type: partialPayload.type ?? activity.type,
+      })
 
       if (payload.type !== activity.type) {
         throw new AppError(400, 'Activity type cannot be changed after creation')
