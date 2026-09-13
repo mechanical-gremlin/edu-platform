@@ -45,6 +45,8 @@ const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
 }
 
 const utf8Encoder = new TextEncoder()
+const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
+const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
 
 interface ExecuteResult {
   stdout: string | null
@@ -112,15 +114,13 @@ export const MonacoEditor = ({
   const htmlPreviewHelpId = useId()
   const showExecution = Boolean(executeUrl && language !== 'html')
   const showHtmlPreview = language === 'html'
-  const maxSourceBytes = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
-  const maxStdinBytes = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
   const sourceBytes = useMemo(() => utf8Encoder.encode(code).length, [code])
   const stdinBytes = useMemo(() => utf8Encoder.encode(stdin ?? '').length, [stdin])
   const preflightWarning =
-    sourceBytes > maxSourceBytes
-      ? `Source code exceeds the ${Math.round(maxSourceBytes / 1024)} KB limit.`
-      : stdinBytes > maxStdinBytes
-        ? `Program input exceeds the ${Math.round(maxStdinBytes / 1024)} KB limit.`
+    sourceBytes > maxSourceBytesLimit
+      ? `Source code exceeds the ${Math.round(maxSourceBytesLimit / 1024)} KB limit.`
+      : stdinBytes > maxStdinBytesLimit
+        ? `Program input exceeds the ${Math.round(maxStdinBytesLimit / 1024)} KB limit.`
         : null
 
   // Only reset editor content when the starterCode prop itself changes (new activity)
