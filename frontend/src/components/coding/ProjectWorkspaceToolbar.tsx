@@ -121,24 +121,24 @@ export const ProjectWorkspaceToolbar = ({
             >
               {previewDirty ? '▶ Refresh Preview *' : '▶ Refresh Preview'}
             </button>
-            <a
-              className={`rounded border px-3 py-1 text-xs font-medium ${
-                previewNewTabUrl
-                  ? 'border-slate-600 text-slate-100 hover:bg-slate-700'
-                  : 'cursor-not-allowed border-slate-700 text-slate-500'
-              }`}
-              href={previewNewTabUrl ?? '#'}
-              target="_blank"
-              rel="noreferrer"
-              aria-disabled={!previewNewTabUrl}
-              onClick={(event) => {
-                if (!previewNewTabUrl) {
-                  event.preventDefault()
-                }
-              }}
-            >
-              ↗ Open Preview Tab
-            </a>
+            {previewNewTabUrl ? (
+              <a
+                className="rounded border border-slate-600 px-3 py-1 text-xs font-medium text-slate-100 hover:bg-slate-700"
+                href={previewNewTabUrl}
+                target="_blank"
+                rel="noreferrer"
+              >
+                ↗ Open Preview Tab
+              </a>
+            ) : (
+              <button
+                type="button"
+                className={`${buttonBaseClass} border border-slate-700 text-slate-500`}
+                disabled
+              >
+                ↗ Open Preview Tab
+              </button>
+            )}
           </>
         )}
       </div>

@@ -238,6 +238,7 @@ export const ProjectWorkspaceEditor = ({
     runtimeProfile,
   })
   const abortControllerRef = useRef<AbortController | null>(null)
+  const executionTokenRef = useRef(0)
   const fileTreeId = useId()
   const targetSelectId = useId()
   const showFileTree = fileTreeToggleVisible && fileTreeOpen
@@ -387,6 +388,9 @@ export const ProjectWorkspaceEditor = ({
       return
     }
 
+    executionTokenRef.current += 1
+    abortControllerRef.current?.abort()
+    abortControllerRef.current = null
     setFiles(nextFiles)
     setFolders([])
     setSelectedFolder('')
@@ -604,7 +608,7 @@ export const ProjectWorkspaceEditor = ({
       runtimeProfile,
     })
     if (!resolvedTarget.target) {
-      setExecutionState('error')
+      setExecutionState('idle')
       setRunError(resolvedTarget.error?.message ?? 'Select a valid run target before executing.')
       setOutput(null)
       setPassed(null)
@@ -613,7 +617,7 @@ export const ProjectWorkspaceEditor = ({
     }
 
     if (preflightWarning) {
-      setExecutionState('error')
+      setExecutionState('idle')
       setRunError(preflightWarning)
       setOutput(null)
       setPassed(null)
@@ -622,6 +626,8 @@ export const ProjectWorkspaceEditor = ({
     }
 
     const abortController = new AbortController()
+    const executionToken = executionTokenRef.current + 1
+    executionTokenRef.current = executionToken
     abortControllerRef.current = abortController
     setExecutionState('running')
     setRunError(null)
@@ -658,6 +664,10 @@ export const ProjectWorkspaceEditor = ({
       const stderrText = result.stderr?.trim() ?? ''
       const compileText = result.compile_output?.trim() ?? ''
 
+      if (executionToken !== executionTokenRef.current) {
+        return
+      }
+
       let displayOutput = stdoutText
       if (compileText) {
         displayOutput = `[Compile error]\n${compileText}`
@@ -689,6 +699,9 @@ export const ProjectWorkspaceEditor = ({
       }
       setExecutionState('completed')
     } catch (error) {
+      if (executionToken !== executionTokenRef.current) {
+        return
+      }
       if (error instanceof Error && error.name === 'AbortError') {
         setExecutionState('idle')
         setOutput(

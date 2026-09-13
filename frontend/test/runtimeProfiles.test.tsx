@@ -96,11 +96,17 @@ test('execution control gating disables run while active, enables stop only whil
     hasValidTarget: true,
     stepCapability,
   })
+  const stoppingControls = getExecutionControlState({
+    executionState: 'stopping',
+    hasValidTarget: true,
+    stepCapability,
+  })
 
   assert.equal(runningControls.runDisabled, true)
   assert.equal(runningControls.stopDisabled, false)
   assert.equal(idleControls.stopDisabled, true)
   assert.equal(idleControls.stepDisabled, true)
+  assert.equal(stoppingControls.stopDisabled, true)
 })
 
 test('target validation reports actionable errors and still resolves deterministic defaults', () => {
