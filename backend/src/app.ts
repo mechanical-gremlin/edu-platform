@@ -28,7 +28,10 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
   app.decorateRequest('executeStartedAt', null)
-  await app.register(cors, { origin: true })
+  await app.register(cors, {
+    origin: true,
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  })
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
     reply.header('Cross-Origin-Opener-Policy', 'same-origin')

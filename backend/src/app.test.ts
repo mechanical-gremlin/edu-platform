@@ -189,6 +189,41 @@ test('GET /me returns the authenticated user', async () => {
   await app.close()
 })
 
+test('CORS preflight allows teacher CRUD request methods', async () => {
+  const app = await buildApp({ prisma: prismaStub })
+
+  try {
+    const patchResponse = await app.inject({
+      method: 'OPTIONS',
+      url: '/units/u-1',
+      headers: {
+        origin: 'https://cs-lms-frontend.onrender.com',
+        'access-control-request-method': 'PATCH',
+      },
+    })
+
+    const deleteResponse = await app.inject({
+      method: 'OPTIONS',
+      url: '/units/u-1',
+      headers: {
+        origin: 'https://cs-lms-frontend.onrender.com',
+        'access-control-request-method': 'DELETE',
+      },
+    })
+
+    assert.equal(patchResponse.statusCode, 204)
+    assert.equal(patchResponse.headers['access-control-allow-origin'], 'https://cs-lms-frontend.onrender.com')
+    assert.match(patchResponse.headers['access-control-allow-methods'] ?? '', /\bPATCH\b/)
+    assert.match(patchResponse.headers['access-control-allow-methods'] ?? '', /\bDELETE\b/)
+    assert.equal(deleteResponse.statusCode, 204)
+    assert.equal(deleteResponse.headers['access-control-allow-origin'], 'https://cs-lms-frontend.onrender.com')
+    assert.match(deleteResponse.headers['access-control-allow-methods'] ?? '', /\bPATCH\b/)
+    assert.match(deleteResponse.headers['access-control-allow-methods'] ?? '', /\bDELETE\b/)
+  } finally {
+    await app.close()
+  }
+})
+
 test('buildApp fails fast in production when execution config is missing', async () => {
   const restoreEnv = withExecutionEnv({
     NODE_ENV: 'production',
