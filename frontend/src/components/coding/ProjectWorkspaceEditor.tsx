@@ -302,6 +302,15 @@ export const ProjectWorkspaceEditor = ({
       ? 'Stop cancels this editor request. Backend execution may continue until its normal timeout.'
       : null
 
+  const cancelActiveExecution = () => {
+    if (!abortControllerRef.current) {
+      return
+    }
+    executionTokenRef.current += 1
+    abortControllerRef.current.abort()
+    abortControllerRef.current = null
+  }
+
   const refreshPreview = (nextFiles = files, nextEntrypoint = entrypoint) => {
     const nextTarget = resolveRuntimeTarget({
       language,
@@ -335,6 +344,7 @@ export const ProjectWorkspaceEditor = ({
       runtimeProfile,
     })
 
+    cancelActiveExecution()
     setFiles(candidateFiles)
     setEntrypoint(resolved.target)
     setEntrypointError(resolved.error?.message ?? null)
@@ -388,9 +398,7 @@ export const ProjectWorkspaceEditor = ({
       return
     }
 
-    executionTokenRef.current += 1
-    abortControllerRef.current?.abort()
-    abortControllerRef.current = null
+    cancelActiveExecution()
     setFiles(nextFiles)
     setFolders([])
     setSelectedFolder('')
@@ -714,7 +722,7 @@ export const ProjectWorkspaceEditor = ({
       setExecutionState('error')
       setRunError(error instanceof Error ? error.message : 'Run failed')
     } finally {
-      if (abortControllerRef.current === abortController) {
+      if (executionToken === executionTokenRef.current && abortControllerRef.current === abortController) {
         abortControllerRef.current = null
       }
     }
