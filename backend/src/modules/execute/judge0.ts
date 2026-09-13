@@ -284,8 +284,9 @@ export const executeWithJudge0 = async ({
           throw error
         }
         const errorName = error instanceof Error ? error.name : undefined
+        const isAbortError = errorName === 'AbortError'
         const isNetworkError = error instanceof TypeError
-        const isTimeoutError = didTimeout || errorName === 'TimeoutError'
+        const isTimeoutError = didTimeout || errorName === 'TimeoutError' || (isAbortError && getRemainingTimeMs() <= 0)
 
         if (isRetryableJudge0Failure({ isNetworkError, isTimeout: isTimeoutError }) && attempt < EXEC_TRANSIENT_RETRIES) {
           await waitBeforeRetry(attempt)
@@ -294,7 +295,7 @@ export const executeWithJudge0 = async ({
         if (isTimeoutError) {
           throw createTimeoutError()
         }
-        if (errorName === 'AbortError') {
+        if (isAbortError) {
           throw createExecuteError({
             statusCode: 502,
             code: 'EXEC_UPSTREAM_ERROR',

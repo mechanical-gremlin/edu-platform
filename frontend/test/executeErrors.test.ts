@@ -26,4 +26,5 @@ test('getExecuteErrorMessage preserves unknown backend messages without duplicat
 
 test('getExecuteErrorMessage falls back to HTTP status when no message is available', () => {
   assert.equal(getExecuteErrorMessage({}, 502), 'HTTP 502')
+  assert.equal(getExecuteErrorMessage({ code: 'EXEC_CUSTOM', retryable: true }, 503), 'HTTP 503. Please try again.')
 })

@@ -15,5 +15,10 @@ export const getExecuteErrorMessage = (error: ExecuteErrorResponse, fallbackStat
   const resolvedMessage = baseMessage?.trim() || `HTTP ${fallbackStatus}`
   const hasRetryGuidance = /try again|retry/i.test(resolvedMessage)
 
-  return error.retryable && !hasRetryGuidance ? `${resolvedMessage} Please try again.` : resolvedMessage
+  if (!error.retryable || hasRetryGuidance) {
+    return resolvedMessage
+  }
+
+  const separator = /[.!?]$/.test(resolvedMessage) ? ' ' : '. '
+  return `${resolvedMessage}${separator}Please try again.`
 }
