@@ -54,6 +54,7 @@ This list is reordered to match the current development sequence request.
 - [ ] **Error monitoring + structured logs** — add centralized error tracking and request-correlated backend logs.
 - [ ] **E2E regression coverage** — automate smoke flows (login, coding run, submit, gradebook).
 - [ ] **Frontend regression coverage for teacher hierarchy tools** — add automated browser coverage for edit/delete/visibility/reorder flows on units, lessons, and activities.
+- [ ] **Migrate Prisma config from package.json** — move `prisma` configuration from `backend/package.json` to a `prisma.config.ts` file before Prisma 7 upgrade, as the package.json approach is deprecated.
 
 ---
 
