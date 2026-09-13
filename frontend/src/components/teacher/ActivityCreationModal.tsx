@@ -495,7 +495,7 @@ export const ActivityCreationModal = ({
                   language: type === 'coding' ? starterLanguage : null,
                   languageLocked: type === 'coding' ? languageLocked : false,
                   starterCode:
-                    type === 'coding' && starterLanguage !== 'web'
+                    type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
                       ? (resolveWorkspaceStarterCode(starterFiles, starterLanguage, starterEntrypoint).trim() || null)
                       : null,
                   starterFiles: type === 'coding' ? (starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage)) : null,

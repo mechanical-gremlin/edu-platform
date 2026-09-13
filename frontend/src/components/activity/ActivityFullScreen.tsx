@@ -361,7 +361,7 @@ export const ActivityFullScreen = ({
     setWorkspaceLanguage(snapshot.language)
     setWorkspaceFiles(nextWorkspace.files)
     setWorkspaceEntrypoint(nextWorkspace.entrypoint)
-    setSubmissionText(snapshot.submissionText || serializeSubmissionFiles(nextWorkspace.files))
+    setSubmissionText(serializeSubmissionFiles(nextWorkspace.files))
     if (currentUser.role === 'student') {
       const savedDraft = saveCodingDraft({
         activityId: activity.id,

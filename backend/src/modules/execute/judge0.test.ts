@@ -50,6 +50,21 @@ test('createJudge0MultiFileArchive adds compile and run scripts for Java workspa
   assert.match(await archive.file('run')?.async('string') ?? '', /java 'Main'/)
 })
 
+test('createJudge0MultiFileArchive compiles TypeScript workspaces to a Node-compatible dist entrypoint', async () => {
+  const archiveBase64 = await createJudge0MultiFileArchive({
+    language: 'typescript',
+    entrypoint: 'src/index.ts',
+    files: [
+      { path: 'src/index.ts', content: 'import { greet } from "./lib/greet.js"\nconsole.log(greet())\n' },
+      { path: 'src/lib/greet.ts', content: 'export const greet = () => "hello"\n' },
+    ],
+  })
+
+  const archive = await JSZip.loadAsync(Buffer.from(archiveBase64, 'base64'))
+  assert.match(await archive.file('compile')?.async('string') ?? '', /tsc --module nodenext --target es2020 --outDir dist 'src\/index\.ts' 'src\/lib\/greet\.ts'/)
+  assert.match(await archive.file('run')?.async('string') ?? '', /node 'dist\/src\/index\.js'/)
+})
+
 test('createJudge0MultiFileArchive runs the entrypoint package for Go workspaces', async () => {
   const archiveBase64 = await createJudge0MultiFileArchive({
     language: 'go',
@@ -62,5 +77,5 @@ test('createJudge0MultiFileArchive runs the entrypoint package for Go workspaces
   })
 
   const archive = await JSZip.loadAsync(Buffer.from(archiveBase64, 'base64'))
-  assert.match(await archive.file('run')?.async('string') ?? '', /cd 'cmd\/app'\ngo run \./)
+  assert.match(await archive.file('run')?.async('string') ?? '', /go run '\.\/cmd\/app'/)
 })

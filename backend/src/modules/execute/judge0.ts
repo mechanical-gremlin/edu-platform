@@ -124,8 +124,8 @@ const buildMultiFileScripts = ({
       }
     case 'typescript':
       return {
-        compile: null,
-        run: `#!/bin/bash\nset -e\ndeno run --allow-read ${shellQuote(entrypoint)}\n`,
+        compile: `#!/bin/bash\nset -e\ntsc --module nodenext --target es2020 --outDir dist ${shellList(matchingPaths(['.ts']))}\n`,
+        run: `#!/bin/bash\nset -e\nnode ${shellQuote(`dist/${entrypoint.replace(/\.ts$/i, '.js')}`)}\n`,
       }
     case 'python':
       return {
@@ -176,7 +176,7 @@ const buildMultiFileScripts = ({
         compile: null,
         run:
           entrypointDirectory
-            ? `#!/bin/bash\nset -e\ncd ${shellQuote(entrypointDirectory)}\ngo run .\n`
+            ? `#!/bin/bash\nset -e\ngo run ${shellQuote(`./${entrypointDirectory}`)}\n`
             : '#!/bin/bash\nset -e\ngo run .\n',
       }
     }
