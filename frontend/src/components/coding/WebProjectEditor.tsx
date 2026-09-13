@@ -115,9 +115,10 @@ export const WebProjectEditor = ({
   const [pathError, setPathError] = useState<string | null>(null)
   const [previewKey, setPreviewKey] = useState(0)
   const [srcdoc, setSrcdoc] = useState('')
+  const [initialized, setInitialized] = useState(false)
   const prevDefaultsRef = useRef<{ files: StarterFile[] | null | undefined; entrypoint: string | null | undefined }>({
-    files: defaultFiles,
-    entrypoint: defaultEntrypoint,
+    files: undefined,
+    entrypoint: undefined,
   })
   const fileTreeId = useId()
 
@@ -156,7 +157,7 @@ export const WebProjectEditor = ({
   }
 
   useEffect(() => {
-    if (defaultFiles !== prevDefaultsRef.current.files || defaultEntrypoint !== prevDefaultsRef.current.entrypoint) {
+    if (!initialized || defaultFiles !== prevDefaultsRef.current.files || defaultEntrypoint !== prevDefaultsRef.current.entrypoint) {
       prevDefaultsRef.current = { files: defaultFiles, entrypoint: defaultEntrypoint }
       const nextFiles = defaultFiles && defaultFiles.length > 0 ? normalizeProjectWorkspaceFiles(defaultFiles) : DEFAULT_FILES
       const resolved = resolveDeterministicEntrypoint({
@@ -171,20 +172,9 @@ export const WebProjectEditor = ({
       setEntrypointError(resolved.error?.message ?? null)
       refreshPreview(nextFiles, resolved.entrypoint)
       onChange?.(nextFiles, resolved.entrypoint)
+      setInitialized(true)
     }
-  }, [defaultEntrypoint, defaultFiles, onChange])
-
-  useEffect(() => {
-    const resolved = resolveDeterministicEntrypoint({
-      language: 'web',
-      files,
-      requestedEntrypoint: entrypoint,
-    })
-    setEntrypoint(resolved.entrypoint)
-    setEntrypointError(resolved.error?.message ?? null)
-    refreshPreview(files, resolved.entrypoint)
-    onChange?.(files, resolved.entrypoint)
-  }, [onChange])
+  }, [defaultEntrypoint, defaultFiles, initialized, onChange])
 
   useEffect(() => {
     if (!srcdoc) {
@@ -329,7 +319,13 @@ export const WebProjectEditor = ({
       if (selectedFolder.startsWith(prefix) || selectedFolder === renameTarget) {
         setSelectedFolder(nextPath)
       }
-      publish(nextFiles, entrypoint)
+      const nextEntrypoint =
+        entrypoint === renameTarget
+          ? nextPath
+          : entrypoint?.startsWith(prefix)
+            ? `${nextPath}/${entrypoint.slice(prefix.length)}`
+            : entrypoint
+      publish(nextFiles, nextEntrypoint)
     } else {
       const nextFiles = files.map((file) => (file.path === renameTarget ? { ...file, path: nextPath } : file))
       if (activePath === renameTarget) {

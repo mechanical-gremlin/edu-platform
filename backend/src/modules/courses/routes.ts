@@ -761,6 +761,15 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         language: file.language,
         content: file.content,
       })) ?? null
+      if (starterFiles) {
+        const pathSet = new Set<string>()
+        for (const file of starterFiles) {
+          if (pathSet.has(file.path)) {
+            throw new AppError(400, `Duplicate starter project file path "${file.path}".`, undefined, true, 'FILE_PATH_INVALID', false)
+          }
+          pathSet.add(file.path)
+        }
+      }
       const entrypoint = payload.entrypoint ? normalizeWorkspacePath(payload.entrypoint) : null
       if (payload.entrypoint && !entrypoint) {
         throw new AppError(400, 'Entrypoint path is invalid.', undefined, true, 'ENTRYPOINT_INVALID', false)

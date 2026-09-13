@@ -296,6 +296,37 @@ test('POST /execute accepts multi-file web project workspace payloads', { concur
   }
 })
 
+test('POST /execute rejects normalized project workspace path collisions', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({})
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'web',
+        files: [
+          { path: 'src//index.html', content: '<h1>A</h1>' },
+          { path: 'src/index.html', content: '<h1>B</h1>' },
+        ],
+        entrypoint: 'src/index.html',
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.deepEqual(response.json(), {
+      code: 'FILE_PATH_INVALID',
+      message: 'Duplicate file path \"src/index.html\".',
+      retryable: false,
+      requestId: 'req-1',
+    })
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
 test('POST /execute enforces per-user burst limits with 429 contract and Retry-After', { concurrency: false }, async () => {
   const restoreEnv = withExecutionEnv({
     EXEC_RATE_LIMIT_USER_BURST_MAX: '1',
