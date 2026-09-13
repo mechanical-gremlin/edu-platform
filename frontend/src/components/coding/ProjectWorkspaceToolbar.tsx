@@ -1,6 +1,7 @@
+import React, { type ReactNode } from 'react'
 import type { ExecutionUiState, RuntimeProfile, StepCapability } from '../../utils/runtimeProfiles'
 
-import type { ReactNode } from 'react'
+void React
 
 interface ProjectWorkspaceToolbarProps {
   executionState: ExecutionUiState
