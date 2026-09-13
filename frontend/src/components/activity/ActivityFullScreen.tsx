@@ -246,9 +246,11 @@ export const ActivityFullScreen = ({
         ?? fallbackWorkspace.entrypoint,
       storedDraft?.submissionText ?? gradeEntry?.submissionText ?? activity.starterCode,
     )
-    const nextSubmissionText =
-      storedDraft?.submissionText
-      ?? getWorkspaceSubmissionText(nextLanguage, nextWorkspace.files, nextWorkspace.entrypoint)
+    const nextSubmissionText = getWorkspaceSubmissionText(
+      nextLanguage,
+      nextWorkspace.files,
+      nextWorkspace.entrypoint,
+    )
 
     setWorkspaceLanguage(nextLanguage)
     setWorkspaceFiles(nextWorkspace.files)
@@ -361,7 +363,9 @@ export const ActivityFullScreen = ({
     setWorkspaceLanguage(snapshot.language)
     setWorkspaceFiles(nextWorkspace.files)
     setWorkspaceEntrypoint(nextWorkspace.entrypoint)
-    setSubmissionText(serializeSubmissionFiles(nextWorkspace.files))
+    setSubmissionText(
+      getWorkspaceSubmissionText(snapshot.language, nextWorkspace.files, nextWorkspace.entrypoint),
+    )
     if (currentUser.role === 'student') {
       const savedDraft = saveCodingDraft({
         activityId: activity.id,
@@ -392,7 +396,13 @@ export const ActivityFullScreen = ({
     setWorkspaceLanguage(resolvedActivityLanguage)
     setWorkspaceFiles(nextWorkspace.files)
     setWorkspaceEntrypoint(nextWorkspace.entrypoint)
-    setSubmissionText(serializeSubmissionFiles(nextWorkspace.files))
+    setSubmissionText(
+      getWorkspaceSubmissionText(
+        resolvedActivityLanguage,
+        nextWorkspace.files,
+        nextWorkspace.entrypoint,
+      ),
+    )
     if (currentUser.role === 'student') {
       const savedDraft = saveCodingDraft({
         activityId: activity.id,

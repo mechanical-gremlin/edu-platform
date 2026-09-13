@@ -124,7 +124,7 @@ const buildMultiFileScripts = ({
       }
     case 'typescript':
       return {
-        compile: `#!/bin/bash\nset -e\ntsc --module nodenext --target es2020 --outDir dist ${shellList(matchingPaths(['.ts']))}\n`,
+        compile: `#!/bin/bash\nset -e\ntsc --module commonjs --target es2020 --esModuleInterop --outDir dist ${shellList(matchingPaths(['.ts']))}\n`,
         run: `#!/bin/bash\nset -e\nnode ${shellQuote(`dist/${entrypoint.replace(/\.ts$/i, '.js')}`)}\n`,
       }
     case 'python':
@@ -172,12 +172,10 @@ const buildMultiFileScripts = ({
       }
     case 'go': {
       const entrypointDirectory = getParentDirectory(entrypoint)
+      const packageGlob = entrypointDirectory ? `./${entrypointDirectory}` : '.'
       return {
         compile: null,
-        run:
-          entrypointDirectory
-            ? `#!/bin/bash\nset -e\ngo run ${shellQuote(`./${entrypointDirectory}`)}\n`
-            : '#!/bin/bash\nset -e\ngo run .\n',
+        run: `#!/bin/bash\nset -e\nmapfile -t go_files < <(find ${shellQuote(packageGlob)} -maxdepth 1 -name '*.go' -print | sort)\ngo run "\${go_files[@]}"\n`,
       }
     }
     case 'rust':
