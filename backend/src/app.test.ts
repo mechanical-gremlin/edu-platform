@@ -371,6 +371,7 @@ test('POST /execute truncates oversized output using configured output limit', {
     assert.equal(response.statusCode, 200)
     const body = response.json() as { stdout: string | null }
     assert.ok(body.stdout?.endsWith('\n[output truncated]'))
+    assert.ok(Buffer.byteLength(body.stdout ?? '', 'utf8') <= 1024)
   } finally {
     await app.close()
     globalThis.fetch = originalFetch

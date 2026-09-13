@@ -136,11 +136,11 @@ export const getExecutionUpstreamStatus = async (config: ExecutionConfig | null)
 
   let status: ExecutionUpstreamStatus = 'unreachable'
   try {
-    await fetch(config.judge0BaseUrl, {
+    const response = await fetch(config.judge0BaseUrl, {
       method: 'HEAD',
       signal: AbortSignal.timeout(UPSTREAM_HEALTH_TIMEOUT_MS),
     })
-    status = 'reachable'
+    status = response.ok ? 'reachable' : 'unreachable'
   } catch {
     status = 'unreachable'
   }

@@ -159,6 +159,8 @@ export const executeWithJudge0 = async ({
   }
 
   const maxOutputBytes = resolvedConfig.maxOutputKb * 1024
+  const truncationSuffix = '\n[output truncated]'
+  const truncationSuffixBytes = Buffer.byteLength(truncationSuffix, 'utf8')
   const truncateOutput = (value: string | null) => {
     if (!value) {
       return null
@@ -167,17 +169,18 @@ export const executeWithJudge0 = async ({
     if (outputSize <= maxOutputBytes) {
       return value
     }
+    const outputBudgetBytes = Math.max(0, maxOutputBytes - truncationSuffixBytes)
     let safeOutput = ''
     let safeBytes = 0
     for (const character of value) {
       const characterBytes = Buffer.byteLength(character, 'utf8')
-      if (safeBytes + characterBytes > maxOutputBytes) {
+      if (safeBytes + characterBytes > outputBudgetBytes) {
         break
       }
       safeOutput += character
       safeBytes += characterBytes
     }
-    return `${safeOutput}\n[output truncated]`
+    return `${safeOutput}${truncationSuffix}`
   }
 
   return {
