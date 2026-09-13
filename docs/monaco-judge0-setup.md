@@ -14,6 +14,8 @@ code execution service for the edu-platform coding activity workflow.
   - student coding drafts auto-save in browser storage, can be checkpointed/restored, and can be reset back to the starter template
   - HTML activities now render a preview pane, and the web workspace is labeled **Web Development Kit** with the file explorer collapsed by default
   - executable coding activities can optionally enable an autograder with teacher reference code, no-input output checks, and teacher-authored input/output test cases that auto-apply 100/50/0 grades
+  - Web/HTML preview now supports opening the rendered workspace in a new browser tab for full-screen inspection
+  - Teachers can now choose whether students can open the file tree and whether students can switch the run entrypoint file
 - Planned follow-up work:
   - add a multi-file project workspace for non-web languages (for example Python + config/data files) with execution packaging
   - move coding draft persistence into backend storage so work follows students across devices

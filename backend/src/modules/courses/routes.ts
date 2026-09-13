@@ -39,6 +39,8 @@ const createActivityBodySchema = z.object({
   starterCode: z.string().trim().max(50_000).optional().nullable(),
   starterFiles: z.array(starterFileSchema).max(20).optional().nullable(),
   entrypoint: z.string().trim().max(200).optional().nullable(),
+  studentFileTreeEnabled: z.boolean().optional(),
+  studentEntrypointSelectionEnabled: z.boolean().optional(),
   expectedOutput: z.string().trim().max(4096).optional().nullable(),
   autograderEnabled: z.boolean().optional(),
   autograderReferenceSolution: z.string().trim().max(50_000).optional().nullable(),
@@ -191,6 +193,8 @@ const courseTreeSchema = z.object({
               starterCode: z.string().nullable(),
               starterFiles: z.array(starterFileSchema).nullable(),
               entrypoint: z.string().nullable(),
+              studentFileTreeEnabled: z.boolean(),
+              studentEntrypointSelectionEnabled: z.boolean(),
               expectedOutput: z.string().nullable(),
               autograderEnabled: z.boolean(),
               resourceUrl: z.string().nullable(),
@@ -222,6 +226,8 @@ const activityResponseSchema = z.object({
   starterCode: z.string().nullable(),
   starterFiles: z.array(starterFileSchema).nullable(),
   entrypoint: z.string().nullable(),
+  studentFileTreeEnabled: z.boolean(),
+  studentEntrypointSelectionEnabled: z.boolean(),
   expectedOutput: z.string().nullable(),
   autograderEnabled: z.boolean(),
   resourceUrl: z.string().nullable(),
@@ -398,6 +404,8 @@ const serializeActivity = (
     languageLocked: boolean
     starterCode: string | null
     starterFiles: Prisma.JsonValue | null
+    studentFileTreeEnabled: boolean
+    studentEntrypointSelectionEnabled: boolean
     expectedOutput: string | null
     autograderEnabled: boolean
     resourceUrl: string | null
@@ -421,6 +429,8 @@ const serializeActivity = (
   language: activity.language,
   languageLocked: activity.languageLocked,
   starterCode: activity.starterCode,
+  studentFileTreeEnabled: activity.studentFileTreeEnabled,
+  studentEntrypointSelectionEnabled: activity.studentEntrypointSelectionEnabled,
   expectedOutput: activity.expectedOutput,
   autograderEnabled: activity.autograderEnabled,
   resourceUrl: activity.resourceUrl,
@@ -775,6 +785,8 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           directions: payload.directions ?? null,
           language: payload.language ?? null,
           languageLocked: payload.languageLocked ?? false,
+          studentFileTreeEnabled: payload.studentFileTreeEnabled ?? true,
+          studentEntrypointSelectionEnabled: payload.studentEntrypointSelectionEnabled ?? true,
           starterCode: payload.starterCode ?? null,
           starterFiles: workspaceCapable
             ? starterFiles

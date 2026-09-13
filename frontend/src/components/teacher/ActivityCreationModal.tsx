@@ -50,6 +50,8 @@ export const ActivityCreationModal = ({
   const [, setStarterCode] = useState('')
   const [starterFiles, setStarterFiles] = useState<StarterFile[] | null>(null)
   const [starterEntrypoint, setStarterEntrypoint] = useState<string | null>(null)
+  const [studentFileTreeEnabled, setStudentFileTreeEnabled] = useState(true)
+  const [studentEntrypointSelectionEnabled, setStudentEntrypointSelectionEnabled] = useState(true)
   const [expectedOutput, setExpectedOutput] = useState('')
   const [autograderEnabled, setAutograderEnabled] = useState(false)
   const [autograderReferenceSolution, setAutograderReferenceSolution] = useState('')
@@ -79,6 +81,8 @@ export const ActivityCreationModal = ({
       setStarterCode('')
       setStarterFiles(null)
       setStarterEntrypoint(null)
+      setStudentFileTreeEnabled(true)
+      setStudentEntrypointSelectionEnabled(true)
       setExpectedOutput('')
       setAutograderEnabled(false)
       setAutograderReferenceSolution('')
@@ -256,6 +260,22 @@ export const ActivityCreationModal = ({
               />
               Lock language for students (sandbox activities can leave this unlocked)
             </label>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={studentFileTreeEnabled}
+                onChange={(event) => setStudentFileTreeEnabled(event.target.checked)}
+              />
+              Let students access the file tree
+            </label>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={studentEntrypointSelectionEnabled}
+                onChange={(event) => setStudentEntrypointSelectionEnabled(event.target.checked)}
+              />
+              Let students choose which file runs (entrypoint)
+            </label>
 
             {type === 'coding' && (
               <div className="space-y-2">
@@ -276,6 +296,7 @@ export const ActivityCreationModal = ({
                   userId={runUserId}
                   courseId={courseId}
                   expectedOutput={starterLanguage !== 'web' && starterLanguage !== 'html' ? expectedOutput : null}
+                  fileTreeToggleVisible
                   height="350px"
                 />
               </div>
@@ -516,6 +537,9 @@ export const ActivityCreationModal = ({
                   starterFiles: persistWorkspace ? resolvedWorkspaceFiles : null,
                   entrypoint:
                     type === 'coding' && persistWorkspace ? resolvedWorkspaceEntrypoint : null,
+                  studentFileTreeEnabled: type === 'coding' ? studentFileTreeEnabled : true,
+                  studentEntrypointSelectionEnabled:
+                    type === 'coding' ? studentEntrypointSelectionEnabled : true,
                   expectedOutput:
                     type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
                       ? (expectedOutput.trim() || null)

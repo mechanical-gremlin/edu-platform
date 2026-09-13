@@ -110,6 +110,8 @@ interface ApiActivity {
   starterCode: string | null
   starterFiles: Array<{ path: string; language?: string; content: string; name?: string }> | null
   entrypoint: string | null
+  studentFileTreeEnabled: boolean
+  studentEntrypointSelectionEnabled: boolean
   expectedOutput: string | null
   autograderEnabled: boolean
   resourceUrl: string | null
@@ -281,6 +283,8 @@ const mapCourse = (course: ApiCourse): Course => ({
         starterCode: activity.starterCode,
         starterFiles: activity.starterFiles,
         entrypoint: activity.entrypoint,
+        studentFileTreeEnabled: activity.studentFileTreeEnabled,
+        studentEntrypointSelectionEnabled: activity.studentEntrypointSelectionEnabled,
         expectedOutput: activity.expectedOutput,
         autograderEnabled: activity.autograderEnabled,
         resourceUrl: activity.resourceUrl,
@@ -612,6 +616,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     starterCode: response.starterCode,
                     starterFiles: response.starterFiles,
                     entrypoint: response.entrypoint,
+                    studentFileTreeEnabled: response.studentFileTreeEnabled,
+                    studentEntrypointSelectionEnabled: response.studentEntrypointSelectionEnabled,
                     expectedOutput: response.expectedOutput,
                     autograderEnabled: response.autograderEnabled,
                     resourceUrl: response.resourceUrl,
