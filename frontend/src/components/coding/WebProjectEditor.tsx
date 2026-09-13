@@ -301,10 +301,7 @@ export const WebProjectEditor = ({
     }
 
     const prefix = `${renameTarget}/`
-    const hasNestedWorkspaceItem =
-      files.some((file) => file.path.startsWith(prefix))
-      || Array.from(directorySet).some((folder) => folder.startsWith(prefix))
-    const isFolder = directorySet.has(renameTarget) && hasNestedWorkspaceItem
+    const isFolder = directorySet.has(renameTarget)
 
     if (isFolder) {
       const nextFolders = folders.map((folder) =>

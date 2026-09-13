@@ -775,6 +775,16 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       if (workspaceCapable && payload.entrypoint && !entrypoint) {
         throw new AppError(400, 'Entrypoint path is invalid.', undefined, true, 'ENTRYPOINT_INVALID', false)
       }
+      if (workspaceCapable && entrypoint && !starterFiles?.length) {
+        throw new AppError(
+          400,
+          'Entrypoint requires at least one starter project file.',
+          undefined,
+          true,
+          'ENTRYPOINT_MISSING',
+          false,
+        )
+      }
       if (workspaceCapable && entrypoint && starterFiles && !starterFiles.some((file) => file.path === entrypoint)) {
         throw new AppError(400, 'Entrypoint must reference a starter project file.', undefined, true, 'ENTRYPOINT_INVALID', false)
       }
