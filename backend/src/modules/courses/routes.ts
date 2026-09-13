@@ -745,7 +745,8 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const user = requireRole(request, 'teacher')
       const { lessonId } = lessonParamsSchema.parse(request.params)
       const payload = createActivityBodySchema.parse(request.body)
-      const normalizedStarterFiles = payload.starterFiles
+      const workspaceCapable = payload.type === 'coding' && payload.language === 'web'
+      const normalizedStarterFiles = workspaceCapable && payload.starterFiles
         ? payload.starterFiles.map((file) => ({
             path: normalizeWorkspacePath(file.path ?? file.name ?? ''),
             language: file.language,
@@ -770,11 +771,11 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           pathSet.add(file.path)
         }
       }
-      const entrypoint = payload.entrypoint ? normalizeWorkspacePath(payload.entrypoint) : null
-      if (payload.entrypoint && !entrypoint) {
+      const entrypoint = workspaceCapable && payload.entrypoint ? normalizeWorkspacePath(payload.entrypoint) : null
+      if (workspaceCapable && payload.entrypoint && !entrypoint) {
         throw new AppError(400, 'Entrypoint path is invalid.', undefined, true, 'ENTRYPOINT_INVALID', false)
       }
-      if (entrypoint && starterFiles && !starterFiles.some((file) => file.path === entrypoint)) {
+      if (workspaceCapable && entrypoint && starterFiles && !starterFiles.some((file) => file.path === entrypoint)) {
         throw new AppError(400, 'Entrypoint must reference a starter project file.', undefined, true, 'ENTRYPOINT_INVALID', false)
       }
 
@@ -797,12 +798,16 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           language: payload.language ?? null,
           languageLocked: payload.languageLocked ?? false,
           starterCode: payload.starterCode ?? null,
-          starterFiles: starterFiles
-            ? ({
-                files: starterFiles,
-                entrypoint,
-              } as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
+          starterFiles: workspaceCapable
+            ? starterFiles
+              ? ({
+                  files: starterFiles,
+                  entrypoint,
+                } as Prisma.InputJsonValue)
+              : Prisma.JsonNull
+            : payload.starterFiles
+              ? (payload.starterFiles as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           expectedOutput: payload.expectedOutput ?? null,
           autograderEnabled: payload.autograderEnabled ?? false,
           autograderReferenceSolution: payload.autograderEnabled ? payload.autograderReferenceSolution ?? null : null,

@@ -300,10 +300,13 @@ export const WebProjectEditor = ({
       return
     }
 
-    const isFolder = directorySet.has(renameTarget) && !files.some((file) => file.path === renameTarget)
+    const prefix = `${renameTarget}/`
+    const hasNestedWorkspaceItem =
+      files.some((file) => file.path.startsWith(prefix))
+      || Array.from(directorySet).some((folder) => folder.startsWith(prefix))
+    const isFolder = directorySet.has(renameTarget) && hasNestedWorkspaceItem
 
     if (isFolder) {
-      const prefix = `${renameTarget}/`
       const nextFolders = folders.map((folder) =>
         folder === renameTarget ? nextPath : folder.startsWith(prefix) ? `${nextPath}/${folder.slice(prefix.length)}` : folder,
       )
@@ -391,10 +394,10 @@ export const WebProjectEditor = ({
         <div className="space-y-2 border-t border-slate-700 p-2">
           {!showCreator ? (
             <div className="flex gap-2">
-              <button className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('file') }}>
+              <button type="button" className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('file') }}>
                 + New File
               </button>
-              <button className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('folder') }}>
+              <button type="button" className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('folder') }}>
                 + New Folder
               </button>
             </div>
