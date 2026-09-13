@@ -167,7 +167,17 @@ export const executeWithJudge0 = async ({
     if (outputSize <= maxOutputBytes) {
       return value
     }
-    return `${value.slice(0, maxOutputBytes)}\n[output truncated]`
+    let safeOutput = ''
+    let safeBytes = 0
+    for (const character of value) {
+      const characterBytes = Buffer.byteLength(character, 'utf8')
+      if (safeBytes + characterBytes > maxOutputBytes) {
+        break
+      }
+      safeOutput += character
+      safeBytes += characterBytes
+    }
+    return `${safeOutput}\n[output truncated]`
   }
 
   return {

@@ -5,6 +5,7 @@ const EXEC_TIMEOUT_MAX_MS = 60_000
 const EXEC_LIMIT_MIN_KB = 1
 const EXEC_LIMIT_MAX_KB = 1_024
 const UPSTREAM_HEALTH_TIMEOUT_MS = 2_000
+const UPSTREAM_HEALTH_CACHE_MS = 30_000
 
 const envSchema = z.object({
   NODE_ENV: z.string().optional(),
@@ -111,18 +112,43 @@ export const bytesFromKb = (kb: number) => kb * 1024
 
 export type ExecutionUpstreamStatus = 'reachable' | 'unreachable' | 'unknown'
 
+let upstreamStatusCache:
+  | {
+      url: string
+      status: ExecutionUpstreamStatus
+      checkedAt: number
+    }
+  | undefined
+
 export const getExecutionUpstreamStatus = async (config: ExecutionConfig | null): Promise<ExecutionUpstreamStatus> => {
   if (!config) {
     return 'unknown'
   }
 
+  const now = Date.now()
+  if (
+    upstreamStatusCache
+    && upstreamStatusCache.url === config.judge0BaseUrl
+    && now - upstreamStatusCache.checkedAt < UPSTREAM_HEALTH_CACHE_MS
+  ) {
+    return upstreamStatusCache.status
+  }
+
+  let status: ExecutionUpstreamStatus = 'unreachable'
   try {
     await fetch(config.judge0BaseUrl, {
       method: 'HEAD',
       signal: AbortSignal.timeout(UPSTREAM_HEALTH_TIMEOUT_MS),
     })
-    return 'reachable'
+    status = 'reachable'
   } catch {
-    return 'unreachable'
+    status = 'unreachable'
   }
+
+  upstreamStatusCache = {
+    url: config.judge0BaseUrl,
+    status,
+    checkedAt: now,
+  }
+  return status
 }
