@@ -481,6 +481,60 @@ test('POST /execute maps timeout failures to standardized timeout responses', { 
   }
 })
 
+test('POST /execute times out when Judge0 polling remains pending past the deadline', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_TIMEOUT_MS: '1000' })
+  const originalFetch = globalThis.fetch
+  let pollCalls = 0
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-pending' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    pollCalls += 1
+    return new Response(
+      JSON.stringify({
+        stdout: null,
+        stderr: null,
+        compile_output: null,
+        status: { id: 1, description: 'In Queue' },
+        time: null,
+        memory: null,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("pending")',
+      },
+    })
+
+    assert.equal(response.statusCode, 504)
+    assert.ok(pollCalls >= 2)
+    assert.deepEqual(response.json(), {
+      code: 'EXEC_TIMEOUT',
+      message: 'Code execution timed out. Try again with smaller input.',
+      retryable: true,
+      requestId: 'req-1',
+    })
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
 test('POST /execute does not retry non-retryable Judge0 client failures', { concurrency: false }, async () => {
   const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
   const originalFetch = globalThis.fetch

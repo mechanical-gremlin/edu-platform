@@ -283,12 +283,24 @@ export const executeWithJudge0 = async ({
         if (error instanceof AppError) {
           throw error
         }
-        if (isRetryableJudge0Failure({ isNetworkError: true, isTimeout: didTimeout }) && attempt < EXEC_TRANSIENT_RETRIES) {
+        const errorName = error instanceof Error ? error.name : undefined
+        const isNetworkError = error instanceof TypeError
+        const isTimeoutError = didTimeout || errorName === 'TimeoutError'
+
+        if (isRetryableJudge0Failure({ isNetworkError, isTimeout: isTimeoutError }) && attempt < EXEC_TRANSIENT_RETRIES) {
           await waitBeforeRetry(attempt)
           continue
         }
-        if (didTimeout) {
+        if (isTimeoutError) {
           throw createTimeoutError()
+        }
+        if (errorName === 'AbortError') {
+          throw createExecuteError({
+            statusCode: 502,
+            code: 'EXEC_UPSTREAM_ERROR',
+            message: 'Execution request was interrupted before completion. Please try again.',
+            retryable: false,
+          })
         }
         throw createExecuteError({
           statusCode: 502,
