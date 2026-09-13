@@ -150,6 +150,7 @@ export const MonacoEditor = ({
   const handleRun = async () => {
     if (!executeUrl) return
     if (preflightWarning) {
+      setRunError(preflightWarning)
       return
     }
     setRunning(true)

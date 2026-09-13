@@ -22,7 +22,7 @@ The API validates execution configuration at startup from a single contract.
 
 - Timeouts return `504` with `{ code: "EXEC_TIMEOUT", message, retryable, requestId }`.
 - Transient Judge0/network failures return `502` with `{ code: "EXEC_UPSTREAM_ERROR", message, retryable, requestId }`.
-- Client validation and upstream 4xx execution rejections return `400` with `{ code: "EXEC_BAD_REQUEST", message, retryable, requestId }`.
+- Non-size client validation and upstream 4xx execution rejections return `400` with `{ code: "EXEC_BAD_REQUEST", message, retryable, requestId }`.
 - Oversized source/stdin payloads return `413` with `{ code: "EXEC_PAYLOAD_TOO_LARGE", message, retryable, requestId }`.
 
 ## `/execute` output truncation contract
