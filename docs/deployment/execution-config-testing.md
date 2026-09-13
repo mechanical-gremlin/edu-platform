@@ -83,3 +83,43 @@ Use this checklist after deploying backend changes related to `/execute`.
 3. Trigger a non-retryable `EXEC_BAD_REQUEST` response and confirm the UI surfaces the backend message without retry guidance.
 4. With source/stdin over configured frontend limits, confirm a preflight warning appears and Run stays disabled.
 5. Trigger output truncation and confirm the output panel shows a truncation notice.
+
+## 10) Execution rate limiting
+
+The backend uses fixed-window counters for burst control, sustained control, and per-course backpressure.
+
+### Unit tests
+
+- Location: `backend/src/modules/execute/rateLimit.test.ts`
+- Command:
+  ```bash
+  npm --prefix backend run test -- src/modules/execute/rateLimit.test.ts
+  ```
+
+### Integration tests
+
+- Location: `backend/src/app.test.ts` (search for `/execute` rate limit tests)
+- Command:
+  ```bash
+  npm --prefix backend run test -- src/app.test.ts
+  ```
+
+### Run only limiter-related tests
+
+```bash
+npm --prefix backend run test -- src/modules/execute/rateLimit.test.ts src/app.test.ts
+```
+
+### What to validate
+
+1. Under-limit requests return normal `/execute` responses.
+2. Exceeded burst/sustained/course scopes return `429` + `Retry-After`.
+3. Blocked responses return `code: "EXECUTE_RATE_LIMITED"` with `details.scope` and `details.retryAfterSeconds`.
+4. Blocked requests do not call Judge0 upstream.
+5. Missing course identity applies user-only limits (documented fail-safe policy).
+
+### Timing test troubleshooting
+
+- Keep windows deterministic by overriding environment limits to small values in tests.
+- Use stable/fake time (`Date.now` stubs) when asserting exact `Retry-After`.
+- Ensure each test builds a fresh app instance so in-memory counters reset between runs.

@@ -54,6 +54,15 @@ export const executeErrorResponseSchema = z.object({
   message: z.string(),
   retryable: z.boolean(),
   requestId: z.string(),
+  details: z
+    .object({
+      scope: z.enum(['user_burst', 'user_sustained', 'course']),
+      retryAfterSeconds: z.int(),
+      limit: z.int().optional(),
+      windowSeconds: z.int().optional(),
+      remaining: z.int().optional(),
+    })
+    .optional(),
 })
 
 export type ExecuteResponse = z.infer<typeof executeResponseSchema>
@@ -64,6 +73,7 @@ export type ExecuteErrorCode =
   | 'EXEC_INTERNAL_ERROR'
   | 'EXEC_NOT_CONFIGURED'
   | 'EXEC_PAYLOAD_TOO_LARGE'
+  | 'EXECUTE_RATE_LIMITED'
   | 'EXEC_TIMEOUT'
   | 'EXEC_UNAUTHORIZED'
   | 'EXEC_UPSTREAM_ERROR'

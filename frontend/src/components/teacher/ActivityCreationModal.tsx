@@ -10,6 +10,7 @@ interface ActivityCreationModalProps {
   onSave: (input: CreateActivityInput) => Promise<void>
   executeUrl?: string
   runUserId?: string
+  courseId?: string
 }
 
 const suggestedResourceUrls: Record<ActivityType, string> = {
@@ -26,6 +27,7 @@ export const ActivityCreationModal = ({
   onSave,
   executeUrl,
   runUserId,
+  courseId,
 }: ActivityCreationModalProps) => {
   const [step, setStep] = useState(1)
   const [type, setType] = useState<ActivityType>('video')
@@ -254,6 +256,7 @@ export const ActivityCreationModal = ({
                   defaultValue={starterCode}
                   language={starterLanguage}
                   onChange={setStarterCode}
+                  courseId={courseId}
                   minHeight="300px"
                 />
                 <div>
@@ -313,6 +316,7 @@ export const ActivityCreationModal = ({
                             onChange={setAutograderReferenceSolution}
                             executeUrl={executeUrl}
                             userId={runUserId}
+                            courseId={courseId}
                             stdin={autograderRunInput}
                             showStdinField
                             onStdinChange={setAutograderRunInput}

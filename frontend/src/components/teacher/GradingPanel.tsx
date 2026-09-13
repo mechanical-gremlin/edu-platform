@@ -166,6 +166,7 @@ export const GradingPanel = ({
                 readOnly
                 executeUrl={executeUrl}
                 userId={runUserId}
+                courseId={activeStudent.courseId}
                 minHeight="360px"
               />
             )

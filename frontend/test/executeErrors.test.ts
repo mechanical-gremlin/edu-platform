@@ -11,6 +11,10 @@ test('getExecuteErrorMessage uses code-based messages for known retryable errors
     getExecuteErrorMessage({ code: 'EXEC_UPSTREAM_ERROR', retryable: true }, 502),
     'Execution service temporarily unavailable. Please try again.',
   )
+  assert.equal(
+    getExecuteErrorMessage({ code: 'EXECUTE_RATE_LIMITED', retryable: false }, 429),
+    'Execution rate limit exceeded. Please wait and retry.',
+  )
 })
 
 test('getExecuteErrorMessage preserves unknown backend messages without duplicating retry guidance', () => {

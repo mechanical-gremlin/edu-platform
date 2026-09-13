@@ -30,6 +30,7 @@ interface ActivityFullScreenProps {
   allActivities: Activity[]
   currentUser: User
   gradebookEntries: GradebookEntry[]
+  courseId?: string | null
   onClose: () => void
   onNavigate: (activityId: string) => void
   onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
@@ -115,6 +116,7 @@ export const ActivityFullScreen = ({
   allActivities,
   currentUser,
   gradebookEntries,
+  courseId,
   onClose,
   onNavigate,
   onSaveGrade,
@@ -409,6 +411,7 @@ export const ActivityFullScreen = ({
           }}
           executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
           userId={currentUser.id}
+          courseId={courseId ?? undefined}
           expectedOutput={activity.expectedOutput}
           minHeight="500px"
         />

@@ -121,6 +121,7 @@ export const CoursePage = ({
         onClose={() => setActivityModalLessonId(null)}
         executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
         runUserId={user.id}
+        courseId={course.id}
         onSave={async (input) => {
           if (!activityModalLessonId) return
           await onCreateActivity(activityModalLessonId, input)
