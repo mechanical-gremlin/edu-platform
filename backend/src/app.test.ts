@@ -193,7 +193,7 @@ test('CORS preflight allows teacher CRUD request methods', async () => {
   const app = await buildApp({ prisma: prismaStub })
 
   try {
-    const response = await app.inject({
+    const patchResponse = await app.inject({
       method: 'OPTIONS',
       url: '/units/u-1',
       headers: {
@@ -202,10 +202,23 @@ test('CORS preflight allows teacher CRUD request methods', async () => {
       },
     })
 
-    assert.equal(response.statusCode, 204)
-    assert.equal(response.headers['access-control-allow-origin'], 'https://cs-lms-frontend.onrender.com')
-    assert.match(response.headers['access-control-allow-methods'] ?? '', /\bPATCH\b/)
-    assert.match(response.headers['access-control-allow-methods'] ?? '', /\bDELETE\b/)
+    const deleteResponse = await app.inject({
+      method: 'OPTIONS',
+      url: '/units/u-1',
+      headers: {
+        origin: 'https://cs-lms-frontend.onrender.com',
+        'access-control-request-method': 'DELETE',
+      },
+    })
+
+    assert.equal(patchResponse.statusCode, 204)
+    assert.equal(patchResponse.headers['access-control-allow-origin'], 'https://cs-lms-frontend.onrender.com')
+    assert.match(patchResponse.headers['access-control-allow-methods'] ?? '', /\bPATCH\b/)
+    assert.match(patchResponse.headers['access-control-allow-methods'] ?? '', /\bDELETE\b/)
+    assert.equal(deleteResponse.statusCode, 204)
+    assert.equal(deleteResponse.headers['access-control-allow-origin'], 'https://cs-lms-frontend.onrender.com')
+    assert.match(deleteResponse.headers['access-control-allow-methods'] ?? '', /\bPATCH\b/)
+    assert.match(deleteResponse.headers['access-control-allow-methods'] ?? '', /\bDELETE\b/)
   } finally {
     await app.close()
   }
