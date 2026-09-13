@@ -10,11 +10,17 @@ interface CourseCardProps {
 
 export const CourseCard = ({ course, progress, onOpen, actionItems = [] }: CourseCardProps) => (
   <div
-    className={`rounded-2xl border border-slate-200 p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow ${
+    className={`relative rounded-2xl border border-slate-200 p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow ${
       course.visible === false ? 'bg-slate-200/70 shadow-inner' : 'bg-white'
     }`}
   >
-    <div className="flex items-start justify-between gap-3">
+    <button
+      type="button"
+      className="absolute inset-0 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      onClick={onOpen}
+      aria-label={`Open course ${course.title}`}
+    />
+    <div className="relative z-10 flex items-start justify-between gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500">{course.code}</p>
         <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -24,13 +30,13 @@ export const CourseCard = ({ course, progress, onOpen, actionItems = [] }: Cours
           )}
         </div>
       </div>
-      {actionItems.length > 0 && <ActionMenu ariaLabel={`Actions for course ${course.title}`} items={actionItems} />}
+      {actionItems.length > 0 && (
+        <div className="pointer-events-auto">
+          <ActionMenu ariaLabel={`Actions for course ${course.title}`} items={actionItems} />
+        </div>
+      )}
     </div>
-    <button
-      type="button"
-      className="mt-2 w-full text-left"
-      onClick={onOpen}
-    >
+    <div className="relative z-10 mt-2">
       <p className="text-sm text-slate-600">Instructor: {course.teacherName}</p>
 
       <div className="mt-4">
@@ -42,6 +48,6 @@ export const CourseCard = ({ course, progress, onOpen, actionItems = [] }: Cours
           <div className="h-2 rounded-full bg-indigo-500" style={{ width: `${progress}%` }} />
         </div>
       </div>
-    </button>
+    </div>
   </div>
 )

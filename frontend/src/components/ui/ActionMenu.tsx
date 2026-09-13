@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface ActionMenuItem {
@@ -16,8 +16,10 @@ interface ActionMenuProps {
 export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
   const [open, setOpen] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 })
+  const menuId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
   const visibleItems = useMemo(() => items.filter((item) => !item.disabled), [items])
 
   useEffect(() => {
@@ -44,6 +46,7 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
     }
 
     updatePosition()
+    requestAnimationFrame(() => itemRefs.current[0]?.focus())
     document.addEventListener('mousedown', handlePointerDown)
     window.addEventListener('resize', updatePosition)
     window.addEventListener('scroll', updatePosition, true)
@@ -55,6 +58,15 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
     }
   }, [open])
 
+  const focusItem = (index: number) => {
+    const count = itemRefs.current.length
+    if (count === 0) {
+      return
+    }
+    const normalizedIndex = (index + count) % count
+    itemRefs.current[normalizedIndex]?.focus()
+  }
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -65,7 +77,17 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
           event.stopPropagation()
           setOpen((value) => !value)
         }}
+        onKeyDown={(event) => {
+          if ((event.key === 'ArrowDown' || event.key === 'ArrowUp') && visibleItems.length > 0) {
+            event.preventDefault()
+            setOpen(true)
+            requestAnimationFrame(() => focusItem(event.key === 'ArrowUp' ? visibleItems.length - 1 : 0))
+          }
+        }}
         aria-label={ariaLabel}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
       >
         ⋮
       </button>
@@ -74,11 +96,38 @@ export const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
             <div
               className="fixed z-50 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
               style={{ top: menuPosition.top, right: menuPosition.right }}
+              id={menuId}
+              role="menu"
+              aria-label={ariaLabel}
+              onKeyDown={(event) => {
+                const currentIndex = itemRefs.current.findIndex((item) => item === document.activeElement)
+                if (event.key === 'Escape') {
+                  event.preventDefault()
+                  setOpen(false)
+                  buttonRef.current?.focus()
+                } else if (event.key === 'ArrowDown') {
+                  event.preventDefault()
+                  focusItem(currentIndex + 1)
+                } else if (event.key === 'ArrowUp') {
+                  event.preventDefault()
+                  focusItem(currentIndex - 1)
+                } else if (event.key === 'Home') {
+                  event.preventDefault()
+                  focusItem(0)
+                } else if (event.key === 'End') {
+                  event.preventDefault()
+                  focusItem(itemRefs.current.length - 1)
+                }
+              }}
             >
-              {visibleItems.map((item) => (
+              {visibleItems.map((item, index) => (
                 <button
                   key={item.label}
+                  ref={(element) => {
+                    itemRefs.current[index] = element
+                  }}
                   type="button"
+                  role="menuitem"
                   className={`block w-full px-4 py-2 text-left text-sm hover:bg-slate-50 ${
                     item.danger ? 'text-rose-600' : 'text-slate-700'
                   }`}

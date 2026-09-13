@@ -38,12 +38,27 @@ const buildCoursePrismaStub = () => {
       },
     },
     enrollment: {
+      aggregate: async () => ({
+        _max: { position: 1 },
+      }),
+      findMany: async () => [
+        { id: 'en-c-1', courseId: 'c-1', position: 0 },
+        { id: 'en-c-2', courseId: 'c-2', position: 1 },
+      ],
       findUnique: async ({ where }: { where: { userId_courseId: { userId: string; courseId: string } } }) => {
         if (where.userId_courseId.userId === 't-1' && ['c-1', 'c-2'].includes(where.userId_courseId.courseId)) {
           return { role: 'teacher' }
         }
 
         return null
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        coursePositionUpdates.push({
+          id: where.id,
+          position: data.position as number,
+          data,
+        })
+        return { id: where.id }
       },
       course: {
         findMany: async () => [
@@ -609,6 +624,33 @@ test('PATCH /courses/:courseId updates course metadata', async () => {
   }
 })
 
+test('PATCH /courses/:courseId rejects duplicate course codes', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'PATCH',
+      url: '/courses/c-1',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        title: 'Updated Course',
+        code: 'COURSE-9',
+        description: 'Revised overview',
+      },
+    })
+
+    assert.equal(response.statusCode, 409)
+    assert.deepEqual(response.json(), {
+      statusCode: 409,
+      error: 'Conflict',
+      message: 'A course with code "COURSE-9" already exists',
+    })
+  } finally {
+    await app.close()
+  }
+})
+
 test('PATCH /courses/:courseId/visibility toggles the course and nested hierarchy together', async () => {
   const prisma = buildCoursePrismaStub()
   const app = await buildApp({ prisma: prisma.stub })
@@ -661,9 +703,9 @@ test('PATCH /courses/:courseId/move swaps teacher course positions', async () =>
     assert.equal(response.statusCode, 200)
     assert.deepEqual(response.json(), { id: 'c-2' })
     assert.deepEqual(prisma.getCoursePositionUpdates(), [
-      { id: 'c-2', position: -1, data: { position: -1 } },
-      { id: 'c-1', position: 1, data: { position: 1 } },
-      { id: 'c-2', position: 0, data: { position: 0 } },
+      { id: 'en-c-2', position: -1, data: { position: -1 } },
+      { id: 'en-c-1', position: 1, data: { position: 1 } },
+      { id: 'en-c-2', position: 0, data: { position: 0 } },
     ])
   } finally {
     await app.close()

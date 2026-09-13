@@ -519,9 +519,47 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     },
     async (request) => {
       const user = requireUser(request)
+      if (user.role === 'teacher') {
+        const enrollments = await app.prisma.enrollment.findMany({
+          where: {
+            userId: user.id,
+            role: 'teacher',
+          },
+          include: {
+            course: {
+              include: {
+                enrollments: {
+                  where: { role: 'teacher' },
+                  include: {
+                    user: {
+                      select: { name: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        return enrollments
+          .sort((left, right) => {
+            const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER
+            const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER
+            return leftPosition - rightPosition || left.course.code.localeCompare(right.course.code)
+          })
+          .map((enrollment) => ({
+            id: enrollment.course.id,
+            title: enrollment.course.title,
+            code: enrollment.course.code,
+            description: enrollment.course.description,
+            teacherName: enrollment.course.enrollments[0]?.user.name ?? null,
+            visible: enrollment.course.visible,
+          }))
+      }
+
       const courses = await app.prisma.course.findMany({
         where: {
-          ...(user.role === 'teacher' ? {} : { visible: true }),
+          visible: true,
           enrollments: {
             some: {
               userId: user.id,
@@ -538,7 +576,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
             },
           },
         },
-        orderBy: [{ position: 'asc' }, { code: 'asc' }],
+        orderBy: { code: 'asc' },
       })
 
       return courses.map((course) => ({
@@ -571,14 +609,10 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         throw new AppError(409, `A course with code "${payload.code}" already exists`)
       }
 
-      const maxPosition = await app.prisma.course.aggregate({
+      const maxPosition = await app.prisma.enrollment.aggregate({
         where: {
-          enrollments: {
-            some: {
-              userId: user.id,
-              role: 'teacher',
-            },
-          },
+          userId: user.id,
+          role: 'teacher',
         },
         _max: { position: true },
       })
@@ -590,11 +624,11 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           code: payload.code,
           description: payload.description ?? null,
           visible: true,
-          position: (maxPosition._max.position ?? -1) + 1,
           enrollments: {
             create: {
               userId: user.id,
               role: 'teacher',
+              position: (maxPosition._max.position ?? -1) + 1,
             },
           },
         },
@@ -1318,22 +1352,31 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       await findTeacherCourse(app, courseId)
       await assertTeacherForCourse(app, courseId, user.id)
 
-      const siblings = await app.prisma.course.findMany({
+      const siblingEnrollments = await app.prisma.enrollment.findMany({
         where: {
-          enrollments: {
-            some: {
-              userId: user.id,
-              role: 'teacher',
-            },
-          },
+          userId: user.id,
+          role: 'teacher',
         },
-        orderBy: { position: 'asc' },
-        select: { id: true, position: true },
+        select: { id: true, courseId: true, position: true },
       })
+      const siblings = siblingEnrollments.map((enrollment) => ({
+        id: enrollment.courseId,
+        enrollmentId: enrollment.id,
+        position: enrollment.position ?? 0,
+      }))
 
       await app.prisma.$transaction(async (tx) => {
         await swapSiblingPositions(
-          (id, position) => tx.course.update({ where: { id }, data: { position } }),
+          (id, position) => {
+            const enrollmentId = siblings.find((item) => item.id === id)?.enrollmentId
+            if (!enrollmentId) {
+              throw new AppError(404, 'Course not found')
+            }
+            return tx.enrollment.update({
+              where: { id: enrollmentId },
+              data: { position },
+            })
+          },
           siblings,
           courseId,
           payload.direction,

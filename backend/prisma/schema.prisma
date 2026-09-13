@@ -57,13 +57,10 @@ model Course {
   code        String       @unique
   description String?
   visible     Boolean      @default(true)
-  position    Int
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   enrollments Enrollment[]
   units       Unit[]
-
-  @@index([position])
 }
 
 model Enrollment {
@@ -71,6 +68,7 @@ model Enrollment {
   userId    String
   courseId  String
   role      EnrollmentRole
+  position  Int?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -78,6 +76,7 @@ model Enrollment {
 
   @@unique([userId, courseId])
   @@index([courseId])
+  @@index([userId, role, position])
 }
 
 model Unit {
