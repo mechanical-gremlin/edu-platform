@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ActivityCard } from '../activity/ActivityCard'
 import type { Course, GradebookEntry } from '../../types/models'
+import { ActionMenu } from '../ui/ActionMenu'
 
 interface CourseHierarchyProps {
   course: Course
@@ -24,66 +25,6 @@ interface CourseHierarchyProps {
   onToggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
   onToggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   onToggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
-}
-
-interface ActionMenuItem {
-  label: string
-  onClick: () => void | Promise<void>
-  disabled?: boolean
-  danger?: boolean
-}
-
-interface ActionMenuProps {
-  ariaLabel: string
-  items: ActionMenuItem[]
-}
-
-const ActionMenu = ({ ariaLabel, items }: ActionMenuProps) => {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handler = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  const visibleItems = items.filter((item) => !item.disabled)
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-        onClick={(event) => {
-          event.stopPropagation()
-          setOpen((value) => !value)
-        }}
-        aria-label={ariaLabel}
-      >
-        ⋮
-      </button>
-      {open && visibleItems.length > 0 && (
-        <div className="absolute right-0 z-20 mt-1 min-w-[180px] rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-          {visibleItems.map((item) => (
-            <button
-              key={item.label}
-              className={`block w-full px-4 py-2 text-left text-sm hover:bg-slate-50 ${
-                item.danger ? 'text-rose-600' : 'text-slate-700'
-              }`}
-              onClick={() => {
-                setOpen(false)
-                item.onClick()
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
 }
 
 interface NameDescModalProps {

@@ -132,6 +132,9 @@ export const CoursePage = ({
         open={editingActivity !== null && user.role === 'teacher'}
         activity={editingActivity}
         onClose={() => setEditingActivityId(null)}
+        executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
+        runUserId={user.id}
+        courseId={course.id}
         onSave={async (input) => {
           if (!editingActivityId) return
           await onUpdateActivity(editingActivityId, input)

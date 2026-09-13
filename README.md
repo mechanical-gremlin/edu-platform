@@ -18,7 +18,8 @@ Educational platform prototype with a React frontend for teacher/student workflo
 - Student coding drafts now auto-save in browser storage, support manual checkpoints/restore, and can reset back to the teacher starter template.
 - HTML activities render an in-app browser preview, and the web multi-file workspace is labeled **Web Development Kit** with the file explorer collapsed by default.
 - Teachers can optionally enable an autograder for executable coding activities, provide a reference solution, define exact-code/output/input-output checks, and auto-apply 100/50/0 grades that remain teacher-overridable.
-- Teachers can now manage course hierarchy items in-place with menu actions to edit, delete, reorder, and hide/show units, lessons, and assignments.
+- Teachers can now manage courses, units, lessons, and assignments in-place with menu actions to edit, delete, reorder, and hide/show content.
+- Editing a coding activity now reuses the full multi-step activity setup flow (minus the type-selection step), so starter code/files and autograder settings can be updated after creation.
 - Returning to the site while still logged in now lands users back on the dashboard instead of reopening the last lesson view.
 - Course hierarchy and grade views now use collapsible sections, scrollable containers, and wrapped controls to behave more cleanly on tablet-width screens.
 - Render deployment provisions:

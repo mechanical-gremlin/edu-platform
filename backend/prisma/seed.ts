@@ -11,12 +11,12 @@ const users = [
 ] as const
 
 const courses = [
-  { id: 'c-1', title: 'Game Development with Godot', code: 'CSP-201' },
-  { id: 'c-2', title: 'Web Development Fundamentals', code: 'CSP-110' },
+  { id: 'c-1', title: 'Game Development with Godot', code: 'CSP-201', visible: true },
+  { id: 'c-2', title: 'Web Development Fundamentals', code: 'CSP-110', visible: true },
 ] as const
 
 const enrollments = [
-  ...courses.map((course) => ({ userId: 't-1', courseId: course.id, role: 'teacher' as const })),
+  ...courses.map((course, index) => ({ userId: 't-1', courseId: course.id, role: 'teacher' as const, position: index })),
   ...courses.flatMap((course) => ['s-1', 's-2', 's-3', 's-4'].map((userId) => ({ userId, courseId: course.id, role: 'student' as const }))),
 ]
 

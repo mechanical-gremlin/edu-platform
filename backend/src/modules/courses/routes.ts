@@ -29,7 +29,7 @@ const starterFileSchema = z.object({
   content: z.string().max(50_000),
 })
 
-const createActivityBodySchema = z.object({
+const createActivityBodyBaseSchema = z.object({
   title: z.string().trim().min(1).max(200),
   type: activityTypeSchema,
   description: z.string().trim().min(1).max(5000),
@@ -52,7 +52,8 @@ const createActivityBodySchema = z.object({
   pointsPossible: z.int().min(0).max(1000),
   resourceUrl: z.url().optional().nullable(),
   visible: z.boolean().optional(),
-}).superRefine((value, context) => {
+})
+const validateActivityBody = (value: z.infer<typeof createActivityBodyBaseSchema>, context: z.RefinementCtx) => {
   if (!value.autograderEnabled) {
     return
   }
@@ -102,7 +103,8 @@ const createActivityBodySchema = z.object({
       message: 'Reference output is required when output matching is enabled',
     })
   }
-})
+}
+const createActivityBodySchema = createActivityBodyBaseSchema.superRefine(validateActivityBody)
 const visibilitySchema = z.object({
   visible: z.boolean(),
 })
@@ -120,14 +122,7 @@ const moveActivitySchema = z.union([
 const directionsSchema = z.object({
   directions: z.string().trim().max(20000).optional().nullable(),
 })
-const updateActivityBodySchema = z.object({
-  title: z.string().trim().min(1).max(200),
-  description: z.string().trim().min(1).max(5000),
-  directions: z.string().trim().max(20000).optional().nullable(),
-  dueAt: z.iso.datetime().optional().nullable(),
-  pointsPossible: z.int().min(0).max(1000),
-  resourceUrl: z.url().optional().nullable(),
-})
+const updateActivityBodySchema = z.record(z.string(), z.unknown())
 const submissionBodySchema = z.object({
   content: z.record(z.string(), z.unknown()).optional().nullable(),
 })
@@ -160,6 +155,7 @@ const courseListSchema = z.array(
     code: z.string(),
     description: z.string().nullable(),
     teacherName: z.string().nullable(),
+    visible: z.boolean(),
   }),
 )
 
@@ -169,6 +165,7 @@ const courseTreeSchema = z.object({
   code: z.string(),
   description: z.string().nullable(),
   teacherName: z.string().nullable(),
+  visible: z.boolean(),
   units: z.array(
     z.object({
       id: z.string(),
@@ -197,6 +194,11 @@ const courseTreeSchema = z.object({
               studentEntrypointSelectionEnabled: z.boolean(),
               expectedOutput: z.string().nullable(),
               autograderEnabled: z.boolean(),
+              autograderReferenceSolution: z.string().nullable().optional(),
+              autograderReferenceOutput: z.string().nullable().optional(),
+              autograderCodeMatch: z.boolean().optional(),
+              autograderOutputMatch: z.boolean().optional(),
+              autograderTestCases: z.array(autograderTestCaseSchema).nullable().optional(),
               resourceUrl: z.string().nullable(),
               visible: z.boolean(),
               dueAt: z.string().nullable(),
@@ -214,6 +216,10 @@ const mutationResponseSchema = z.object({
   title: z.string(),
   description: z.string().nullable(),
 })
+const courseMutationResponseSchema = mutationResponseSchema.extend({
+  code: z.string(),
+  visible: z.boolean(),
+})
 
 const activityResponseSchema = z.object({
   id: z.string(),
@@ -230,6 +236,11 @@ const activityResponseSchema = z.object({
   studentEntrypointSelectionEnabled: z.boolean(),
   expectedOutput: z.string().nullable(),
   autograderEnabled: z.boolean(),
+  autograderReferenceSolution: z.string().nullable().optional(),
+  autograderReferenceOutput: z.string().nullable().optional(),
+  autograderCodeMatch: z.boolean().optional(),
+  autograderOutputMatch: z.boolean().optional(),
+  autograderTestCases: z.array(autograderTestCaseSchema).nullable().optional(),
   resourceUrl: z.string().nullable(),
   visible: z.boolean(),
   dueAt: z.string().nullable(),
@@ -307,6 +318,36 @@ const assertTeacherForCourse = async (app: Parameters<FastifyPluginAsync>[0], co
   }
 }
 
+const requireTeacherCourseAccess = async (app: Parameters<FastifyPluginAsync>[0], courseId: string, userId: string) => {
+  const course = await app.prisma.course.findUnique({
+    where: { id: courseId },
+    select: {
+      id: true,
+      title: true,
+      code: true,
+      description: true,
+      visible: true,
+      enrollments: {
+        where: {
+          userId,
+          role: 'teacher',
+        },
+        select: { id: true },
+      },
+    },
+  })
+
+  if (!course) {
+    throw new AppError(404, 'Course not found')
+  }
+
+  if (course.enrollments.length === 0) {
+    throw new AppError(403, 'Teacher access required for this course')
+  }
+
+  return course
+}
+
 const findTeacherCourseIdFromUnit = async (app: Parameters<FastifyPluginAsync>[0], unitId: string) => {
   const unit = await app.prisma.unit.findUnique({
     where: { id: unitId },
@@ -339,7 +380,27 @@ const findTeacherActivity = async (app: Parameters<FastifyPluginAsync>[0], activ
     select: {
       id: true,
       title: true,
+      type: true,
+      description: true,
+      directions: true,
+      language: true,
+      languageLocked: true,
+      starterCode: true,
+      starterFiles: true,
+      studentFileTreeEnabled: true,
+      studentEntrypointSelectionEnabled: true,
+      expectedOutput: true,
+      autograderEnabled: true,
+      autograderReferenceSolution: true,
+      autograderReferenceOutput: true,
+      autograderCodeMatch: true,
+      autograderOutputMatch: true,
+      autograderTestCases: true,
+      dueAt: true,
       pointsPossible: true,
+      resourceUrl: true,
+      visible: true,
+      lessonId: true,
       lesson: { select: { unit: { select: { courseId: true } } } },
     },
   })
@@ -408,11 +469,17 @@ const serializeActivity = (
     studentEntrypointSelectionEnabled: boolean
     expectedOutput: string | null
     autograderEnabled: boolean
+    autograderReferenceSolution?: string | null
+    autograderReferenceOutput?: string | null
+    autograderCodeMatch?: boolean
+    autograderOutputMatch?: boolean
+    autograderTestCases?: Prisma.JsonValue | null
     resourceUrl: string | null
     visible: boolean
     dueAt: Date | null
     pointsPossible: number
   },
+  options?: { includeTeacherConfig?: boolean },
 ) => ({
   ...(() => {
     const workspace = parseStarterProjectWorkspace(activity.starterFiles)
@@ -421,6 +488,17 @@ const serializeActivity = (
       entrypoint: workspace.entrypoint,
     }
   })(),
+  ...(
+    options?.includeTeacherConfig
+      ? {
+          autograderReferenceSolution: activity.autograderReferenceSolution ?? null,
+          autograderReferenceOutput: activity.autograderReferenceOutput ?? null,
+          autograderCodeMatch: activity.autograderCodeMatch ?? false,
+          autograderOutputMatch: activity.autograderOutputMatch ?? false,
+          autograderTestCases: parseAutograderTestCases(activity.autograderTestCases ?? null),
+        }
+      : {}
+  ),
   id: activity.id,
   title: activity.title,
   type: activity.type,
@@ -478,8 +556,47 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     },
     async (request) => {
       const user = requireUser(request)
+      if (user.role === 'teacher') {
+        const enrollments = await app.prisma.enrollment.findMany({
+          where: {
+            userId: user.id,
+            role: 'teacher',
+          },
+          include: {
+            course: {
+              include: {
+                enrollments: {
+                  where: { role: 'teacher' },
+                  include: {
+                    user: {
+                      select: { name: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        return enrollments
+          .sort((left, right) => {
+            const leftPosition = left.position ?? Number.MAX_SAFE_INTEGER
+            const rightPosition = right.position ?? Number.MAX_SAFE_INTEGER
+            return leftPosition - rightPosition || left.course.code.localeCompare(right.course.code)
+          })
+          .map((enrollment) => ({
+            id: enrollment.course.id,
+            title: enrollment.course.title,
+            code: enrollment.course.code,
+            description: enrollment.course.description,
+            teacherName: enrollment.course.enrollments[0]?.user.name ?? null,
+            visible: enrollment.course.visible,
+          }))
+      }
+
       const courses = await app.prisma.course.findMany({
         where: {
+          visible: true,
           enrollments: {
             some: {
               userId: user.id,
@@ -505,6 +622,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         code: course.code,
         description: course.description,
         teacherName: course.enrollments[0]?.user.name ?? null,
+        visible: course.visible,
       }))
     },
   )
@@ -515,7 +633,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       schema: {
         body: createCourseBodySchema,
         response: {
-          201: mutationResponseSchema,
+          201: courseMutationResponseSchema,
         },
       },
     },
@@ -528,16 +646,26 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         throw new AppError(409, `A course with code "${payload.code}" already exists`)
       }
 
+      const maxPosition = await app.prisma.enrollment.aggregate({
+        where: {
+          userId: user.id,
+          role: 'teacher',
+        },
+        _max: { position: true },
+      })
+
       const course = await app.prisma.course.create({
         data: {
           id: randomUUID(),
           title: payload.title,
           code: payload.code,
           description: payload.description ?? null,
+          visible: true,
           enrollments: {
             create: {
               userId: user.id,
               role: 'teacher',
+              position: (maxPosition._max.position ?? -1) + 1,
             },
           },
         },
@@ -548,6 +676,51 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
         id: course.id,
         title: course.title,
         description: course.description,
+        code: course.code,
+        visible: course.visible,
+      }
+    },
+  )
+
+  app.patch(
+    '/courses/:courseId',
+    {
+      schema: {
+        params: courseParamsSchema,
+        body: createCourseBodySchema,
+        response: {
+          200: courseMutationResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { courseId } = courseParamsSchema.parse(request.params)
+      const payload = createCourseBodySchema.parse(request.body)
+      const course = await requireTeacherCourseAccess(app, courseId, user.id)
+
+      if (payload.code !== course.code) {
+        const existing = await app.prisma.course.findUnique({ where: { code: payload.code }, select: { id: true } })
+        if (existing) {
+          throw new AppError(409, `A course with code "${payload.code}" already exists`)
+        }
+      }
+
+      const updated = await app.prisma.course.update({
+        where: { id: courseId },
+        data: {
+          title: payload.title,
+          code: payload.code,
+          description: payload.description ?? null,
+        },
+      })
+
+      return {
+        id: updated.id,
+        title: updated.title,
+        code: updated.code,
+        description: updated.description,
+        visible: updated.visible,
       }
     },
   )
@@ -605,12 +778,17 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const { course } = await getCourseForUser(app, courseId, user.id)
       const isTeacher = user.role === 'teacher'
 
+      if (!isTeacher && !course.visible) {
+        throw new AppError(404, 'Course not found')
+      }
+
       return {
         id: course.id,
         title: course.title,
         code: course.code,
         description: course.description,
         teacherName: course.enrollments.find((item) => item.role === 'teacher')?.user.name ?? null,
+        visible: course.visible,
         units: course.units
           .filter((unit) => isTeacher || unit.visible)
           .map((unit) => ({
@@ -628,7 +806,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
                 activities: lesson.activities
                   .filter((activity) => isTeacher || activity.visible)
                   .map((activity) => ({
-                    ...serializeActivity(activity),
+                    ...serializeActivity(activity, { includeTeacherConfig: isTeacher }),
                   })),
               })),
           })),
@@ -817,7 +995,7 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       })
 
       reply.code(201)
-      return serializeActivity(activity)
+      return serializeActivity(activity, { includeTeacherConfig: true })
     },
   )
 
@@ -903,9 +1081,72 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
     async (request) => {
       const user = requireRole(request, 'teacher')
       const { activityId } = activityParamsSchema.parse(request.params)
-      const payload = updateActivityBodySchema.parse(request.body)
+      const partialPayload = updateActivityBodySchema.parse(request.body)
       const activity = await findTeacherActivity(app, activityId)
       await assertTeacherForCourse(app, activity.lesson.unit.courseId, user.id)
+      const currentWorkspace = parseStarterProjectWorkspace(activity.starterFiles)
+      const payload = createActivityBodySchema.parse({
+        title: activity.title,
+        description: activity.description,
+        directions: activity.directions,
+        language: activity.language,
+        languageLocked: activity.languageLocked,
+        starterCode: activity.starterCode,
+        starterFiles: currentWorkspace.files,
+        entrypoint: currentWorkspace.entrypoint,
+        studentFileTreeEnabled: activity.studentFileTreeEnabled,
+        studentEntrypointSelectionEnabled: activity.studentEntrypointSelectionEnabled,
+        expectedOutput: activity.expectedOutput,
+        autograderEnabled: activity.autograderEnabled,
+        autograderReferenceSolution: activity.autograderReferenceSolution,
+        autograderReferenceOutput: activity.autograderReferenceOutput,
+        autograderCodeMatch: activity.autograderCodeMatch,
+        autograderOutputMatch: activity.autograderOutputMatch,
+        autograderTestCases: Array.isArray(activity.autograderTestCases) ? activity.autograderTestCases : null,
+        dueAt: activity.dueAt?.toISOString() ?? null,
+        pointsPossible: activity.pointsPossible,
+        resourceUrl: activity.resourceUrl,
+        visible: activity.visible,
+        ...partialPayload,
+        type: partialPayload.type ?? activity.type,
+      })
+
+      if (payload.type !== activity.type) {
+        throw new AppError(400, 'Activity type cannot be changed after creation')
+      }
+
+      const workspaceCapable = payload.type === 'coding' && typeof payload.language === 'string' && payload.language.trim().length > 0
+      const normalizedWorkspace = workspaceCapable && payload.starterFiles
+        ? normalizeProjectWorkspaceFiles(payload.starterFiles)
+        : null
+      if (workspaceCapable && normalizedWorkspace && (!normalizedWorkspace.files || normalizedWorkspace.errorCode || normalizedWorkspace.errorMessage)) {
+        throw new AppError(
+          400,
+          normalizedWorkspace.errorMessage ?? 'Starter project workspace includes an invalid file path.',
+          undefined,
+          true,
+          normalizedWorkspace.errorCode ?? 'FILE_PATH_INVALID',
+          false,
+        )
+      }
+      const starterFiles = normalizedWorkspace?.files ?? null
+      const entrypoint = workspaceCapable && payload.entrypoint ? normalizeWorkspacePath(payload.entrypoint) : null
+      if (workspaceCapable && payload.entrypoint && !entrypoint) {
+        throw new AppError(400, 'Entrypoint path is invalid.', undefined, true, 'ENTRYPOINT_INVALID', false)
+      }
+      if (workspaceCapable && entrypoint && !starterFiles?.length) {
+        throw new AppError(
+          400,
+          'Entrypoint requires at least one starter project file.',
+          undefined,
+          true,
+          'ENTRYPOINT_MISSING',
+          false,
+        )
+      }
+      if (workspaceCapable && entrypoint && starterFiles && !starterFiles.some((file) => file.path === entrypoint)) {
+        throw new AppError(400, 'Entrypoint must reference a starter project file.', undefined, true, 'ENTRYPOINT_INVALID', false)
+      }
 
       const updated = await app.prisma.activity.update({
         where: { id: activityId },
@@ -913,13 +1154,42 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           title: payload.title,
           description: payload.description,
           directions: payload.directions ?? null,
+          language: payload.type === 'coding' ? payload.language ?? null : null,
+          languageLocked: payload.type === 'coding' ? payload.languageLocked ?? false : false,
+          studentFileTreeEnabled: payload.type === 'coding' ? payload.studentFileTreeEnabled ?? true : true,
+          studentEntrypointSelectionEnabled:
+            payload.type === 'coding' ? payload.studentEntrypointSelectionEnabled ?? true : true,
+          starterCode: payload.type === 'coding' ? payload.starterCode ?? null : null,
+          starterFiles: workspaceCapable
+            ? starterFiles
+              ? ({
+                  files: starterFiles,
+                  entrypoint,
+                } as Prisma.InputJsonValue)
+              : Prisma.JsonNull
+            : Prisma.JsonNull,
+          expectedOutput: payload.type === 'coding' ? payload.expectedOutput ?? null : null,
+          autograderEnabled: payload.type === 'coding' ? payload.autograderEnabled ?? false : false,
+          autograderReferenceSolution:
+            payload.type === 'coding' && payload.autograderEnabled ? payload.autograderReferenceSolution ?? null : null,
+          autograderReferenceOutput:
+            payload.type === 'coding' && payload.autograderEnabled ? payload.autograderReferenceOutput ?? null : null,
+          autograderCodeMatch:
+            payload.type === 'coding' && payload.autograderEnabled ? payload.autograderCodeMatch ?? false : false,
+          autograderOutputMatch:
+            payload.type === 'coding' && payload.autograderEnabled ? payload.autograderOutputMatch ?? false : false,
+          autograderTestCases:
+            payload.type === 'coding' && payload.autograderEnabled && payload.autograderTestCases
+              ? (payload.autograderTestCases as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           dueAt: payload.dueAt ? new Date(payload.dueAt) : null,
           pointsPossible: payload.pointsPossible,
           resourceUrl: payload.resourceUrl ?? null,
+          visible: payload.visible ?? true,
         },
       })
 
-      return serializeActivity(updated)
+      return serializeActivity(updated, { includeTeacherConfig: true })
     },
   )
 
@@ -947,6 +1217,66 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return serializeActivity(updated)
+    },
+  )
+
+  app.patch(
+    '/courses/:courseId/visibility',
+    {
+      schema: {
+        params: courseParamsSchema,
+        body: visibilitySchema,
+        response: {
+          200: visibilityResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { courseId } = courseParamsSchema.parse(request.params)
+      const payload = visibilitySchema.parse(request.body)
+      await requireTeacherCourseAccess(app, courseId, user.id)
+
+      await app.prisma.$transaction(async (tx) => {
+        await tx.activity.updateMany({
+          where: {
+            lesson: {
+              unit: {
+                courseId,
+              },
+            },
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.lesson.updateMany({
+          where: {
+            unit: {
+              courseId,
+            },
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.unit.updateMany({
+          where: {
+            courseId,
+          },
+          data: {
+            visible: payload.visible,
+          },
+        })
+        await tx.course.update({
+          where: { id: courseId },
+          data: {
+            visible: payload.visible,
+          },
+        })
+      })
+
+      return { id: courseId, visible: payload.visible }
     },
   )
 
@@ -1062,6 +1392,58 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       })
 
       return { id: updated.id, visible: updated.visible }
+    },
+  )
+
+  app.patch(
+    '/courses/:courseId/move',
+    {
+      schema: {
+        params: courseParamsSchema,
+        body: moveDirectionSchema,
+        response: {
+          200: reorderResponseSchema,
+        },
+      },
+    },
+    async (request) => {
+      const user = requireRole(request, 'teacher')
+      const { courseId } = courseParamsSchema.parse(request.params)
+      const payload = moveDirectionSchema.parse(request.body)
+      await requireTeacherCourseAccess(app, courseId, user.id)
+
+      const siblingEnrollments = await app.prisma.enrollment.findMany({
+        where: {
+          userId: user.id,
+          role: 'teacher',
+        },
+        select: { id: true, courseId: true, position: true },
+      })
+      const siblings = siblingEnrollments.map((enrollment) => ({
+        id: enrollment.courseId,
+        enrollmentId: enrollment.id,
+        position: enrollment.position ?? 0,
+      }))
+
+      await app.prisma.$transaction(async (tx) => {
+        await swapSiblingPositions(
+          (id, position) => {
+            const enrollmentId = siblings.find((item) => item.id === id)?.enrollmentId
+            if (!enrollmentId) {
+              throw new AppError(404, 'Course not found')
+            }
+            return tx.enrollment.update({
+              where: { id: enrollmentId },
+              data: { position },
+            })
+          },
+          siblings,
+          courseId,
+          payload.direction,
+        )
+      })
+
+      return { id: courseId }
     },
   )
 
@@ -1248,6 +1630,24 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       }
 
       return { id: activityId }
+    },
+  )
+
+  app.delete(
+    '/courses/:courseId',
+    {
+      schema: {
+        params: courseParamsSchema,
+      },
+    },
+    async (request, reply) => {
+      const user = requireRole(request, 'teacher')
+      const { courseId } = courseParamsSchema.parse(request.params)
+      await requireTeacherCourseAccess(app, courseId, user.id)
+
+      await app.prisma.course.delete({ where: { id: courseId } })
+      reply.code(204)
+      return null
     },
   )
 

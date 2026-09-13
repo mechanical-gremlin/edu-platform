@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ActivityType, CreateActivityInput, StarterFile } from '../../types/models'
+import type { Activity, ActivityType, CreateActivityInput, StarterFile } from '../../types/models'
 import { DirectionsEditor } from './DirectionsEditor'
 import { MonacoEditor, CODING_LANGUAGES } from '../coding/MonacoEditor'
 import { ProjectWorkspaceEditor } from '../coding/ProjectWorkspaceEditor'
@@ -17,6 +17,7 @@ interface ActivityCreationModalProps {
   executeUrl?: string
   runUserId?: string
   courseId?: string
+  activity?: Activity | null
 }
 
 const suggestedResourceUrls: Record<ActivityType, string> = {
@@ -34,6 +35,7 @@ export const ActivityCreationModal = ({
   executeUrl,
   runUserId,
   courseId,
+  activity = null,
 }: ActivityCreationModalProps) => {
   const [step, setStep] = useState(1)
   const [type, setType] = useState<ActivityType>('video')
@@ -62,6 +64,9 @@ export const ActivityCreationModal = ({
   const [autograderRunInput, setAutograderRunInput] = useState('')
   const [autograderTestCases, setAutograderTestCases] = useState([{ input: '', expectedOutput: '' }])
 
+  const isEditing = Boolean(activity)
+  const minStep = isEditing ? 2 : 1
+  const activeStep = isEditing && step < minStep ? minStep : step
   const totalSteps = type === 'coding' ? 4 : 3
 
   useEffect(() => {
@@ -92,8 +97,70 @@ export const ActivityCreationModal = ({
       setAutograderOutputMatch(true)
       setAutograderRunInput('')
       setAutograderTestCases([{ input: '', expectedOutput: '' }])
+      return
     }
-  }, [open])
+
+    if (!activity) {
+      setStep(1)
+      setType('video')
+      setTitle('')
+      setDescription('')
+      setDueDate('')
+      setPointsPossible('10')
+      setResourceUrl('')
+      setDirections('')
+      setVisible(true)
+      setError(null)
+      setSaving(false)
+      setStarterLanguage('javascript')
+      setLanguageLocked(false)
+      setStarterCode('')
+      setStarterFiles(null)
+      setStarterEntrypoint(null)
+      setStudentFileTreeEnabled(true)
+      setStudentEntrypointSelectionEnabled(true)
+      setExpectedOutput('')
+      setAutograderEnabled(false)
+      setAutograderReferenceSolution('')
+      setAutograderReferenceOutput('')
+      setAutograderCodeMatch(false)
+      setAutograderOutputMatch(true)
+      setAutograderRunInput('')
+      setAutograderTestCases([{ input: '', expectedOutput: '' }])
+      return
+    }
+
+    setStep(2)
+    setType(activity.type)
+    setTitle(activity.title)
+    setDescription(activity.description)
+    setDueDate(activity.dueDate ?? '')
+    setPointsPossible(String(activity.points))
+    setResourceUrl(activity.resourceUrl ?? '')
+    setDirections(activity.directions ?? '')
+    setVisible(activity.visible !== false)
+    setError(null)
+    setSaving(false)
+    setStarterLanguage(activity.language ?? 'javascript')
+    setLanguageLocked(activity.languageLocked ?? false)
+    setStarterCode(activity.starterCode ?? '')
+    setStarterFiles(activity.starterFiles ?? null)
+    setStarterEntrypoint(activity.entrypoint ?? null)
+    setStudentFileTreeEnabled(activity.studentFileTreeEnabled ?? true)
+    setStudentEntrypointSelectionEnabled(activity.studentEntrypointSelectionEnabled ?? true)
+    setExpectedOutput(activity.expectedOutput ?? '')
+    setAutograderEnabled(activity.autograderEnabled ?? false)
+    setAutograderReferenceSolution(activity.autograderReferenceSolution ?? '')
+    setAutograderReferenceOutput(activity.autograderReferenceOutput ?? '')
+    setAutograderCodeMatch(activity.autograderCodeMatch ?? false)
+    setAutograderOutputMatch(activity.autograderOutputMatch ?? true)
+    setAutograderRunInput('')
+    setAutograderTestCases(
+      activity.autograderTestCases && activity.autograderTestCases.length > 0
+        ? activity.autograderTestCases
+        : [{ input: '', expectedOutput: '' }],
+    )
+  }, [activity, open])
 
   if (!open) {
     return null
@@ -101,7 +168,7 @@ export const ActivityCreationModal = ({
 
   const points = Number(pointsPossible)
   const detailsValid = title.trim() && description.trim() && Number.isInteger(points) && points >= 0
-  const modalWidthClass = step === 4 && type === 'coding' ? 'max-w-6xl' : 'max-w-3xl'
+  const modalWidthClass = activeStep === 4 && type === 'coding' ? 'max-w-6xl' : 'max-w-3xl'
   const autograderSupported = type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
   const activeAutograderCases = autograderTestCases.filter(
     (testCase) => testCase.input.trim() || testCase.expectedOutput.trim(),
@@ -109,6 +176,8 @@ export const ActivityCreationModal = ({
   const autograderCasesValid = activeAutograderCases.every(
     (testCase) => testCase.expectedOutput.trim(),
   )
+  const displayStep = isEditing ? activeStep - 1 : activeStep
+  const displayTotalSteps = isEditing ? totalSteps - 1 : totalSteps
   const resolvedStarterFiles = starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage)
   const starterRuntimeProfile = resolveRuntimeProfile({
     language: starterLanguage,
@@ -147,14 +216,14 @@ export const ActivityCreationModal = ({
       <div className={`max-h-[90vh] w-full overflow-y-auto rounded-2xl bg-white p-6 shadow-xl ${modalWidthClass}`}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-semibold text-slate-900">
-            Create Activity • Step {step} of {totalSteps}
+            {isEditing ? 'Edit Activity' : 'Create Activity'} • Step {displayStep} of {displayTotalSteps}
           </h3>
           <button onClick={onClose} className="text-slate-500">
             ✕
           </button>
         </div>
 
-        {step === 1 && (
+        {!isEditing && activeStep === 1 && (
           <div className="space-y-3">
             <p className="text-sm text-slate-600">Choose an activity type.</p>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -174,7 +243,7 @@ export const ActivityCreationModal = ({
           </div>
         )}
 
-        {step === 2 && (
+        {activeStep === 2 && (
           <div className="space-y-3 text-sm">
             <p className="text-slate-600">Set the assignment details for this {type} activity.</p>
             <input
@@ -225,14 +294,14 @@ export const ActivityCreationModal = ({
           </div>
         )}
 
-        {step === 3 && (
+        {activeStep === 3 && (
           <>
             <p className="text-sm text-slate-600">Add student directions in the basic online editor.</p>
             <DirectionsEditor value={directions} onChange={setDirections} />
           </>
         )}
 
-        {step === 4 && type === 'coding' && (
+        {activeStep === 4 && type === 'coding' && (
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
               Choose a language and write starter code students will see pre-loaded in their editor.
@@ -500,17 +569,17 @@ export const ActivityCreationModal = ({
         <div className="mt-6 flex justify-between">
           <button
             className="rounded-lg border border-slate-200 px-4 py-2 text-sm"
-            onClick={() => setStep((current) => Math.max(1, current - 1))}
-            disabled={saving}
+            onClick={() => setStep((current) => Math.max(minStep, current - 1))}
+            disabled={saving || activeStep === minStep}
           >
             Back
           </button>
           <button
             className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={(step === 2 && !detailsValid) || (step === 4 && type === 'coding' && !autograderValid) || saving}
+            disabled={(activeStep === 2 && !detailsValid) || (activeStep === 4 && type === 'coding' && !autograderValid) || saving}
             onClick={async () => {
-              if (step < totalSteps) {
-                setStep(step + 1)
+              if (activeStep < totalSteps) {
+                setStep(activeStep + 1)
                 return
               }
 
@@ -586,7 +655,7 @@ export const ActivityCreationModal = ({
               }
             }}
           >
-            {step < totalSteps ? 'Next' : saving ? 'Saving…' : 'Save activity'}
+            {activeStep < totalSteps ? 'Next' : saving ? 'Saving…' : isEditing ? 'Save changes' : 'Save activity'}
           </button>
         </div>
       </div>

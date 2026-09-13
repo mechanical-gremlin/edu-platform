@@ -39,7 +39,7 @@ This list is reordered to match the current development sequence request.
 ## P2 — UX/UI cleanup (sleek, modern, intuitive)
 
 - [x] **VS Code-style file manager UX** — the Web Development Kit now ships with a side file tree plus a show/hide toggle, and the explorer starts collapsed to protect the editor/preview layout.
-- [ ] **CRUD interface completeness** — unit, Lessons and Activity modules edit, delete, hide features are non-functional and must be working for production.
+- [x] **CRUD interface completeness** — teachers can now edit, delete, hide/show, and reorder courses, units, lessons, and activities; coding activity edits reuse the full multi-step setup flow (minus type selection).
 - [ ] **Indicator icons** — integrate icons to indicate states of activities, lessons, and units.
 - [ ] **Drag-and-drop hierarchy management** — replace the current move-up/move-down course organizer with direct drag-and-drop reordering and cross-unit / cross-lesson moves.
 - [ ] **Accessibility hardening** — complete a11y audit and fix critical findings.
@@ -55,13 +55,15 @@ This list is reordered to match the current development sequence request.
 - [ ] **Environment parity** — keep `render.yaml` and live Render service settings fully aligned.
 - [ ] **Error monitoring + structured logs** — add centralized error tracking and request-correlated backend logs.
 - [ ] **E2E regression coverage** — automate smoke flows (login, coding run, submit, gradebook).
-- [ ] **Frontend regression coverage for teacher hierarchy tools** — add automated browser coverage for edit/delete/visibility/reorder flows on units, lessons, and activities.
+- [ ] **Frontend regression coverage for teacher hierarchy tools** — add automated browser coverage for edit/delete/visibility/reorder flows on courses, units, lessons, and activities.
 - [ ] **Migrate Prisma config from package.json** — move `prisma` configuration from `backend/package.json` to a `prisma.config.ts` file before Prisma 7 upgrade, as the package.json approach is deprecated.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects). External hosted framework/runtime resources are acceptable for this stage; domain allowlisting and related security hardening are deferred to pre-production hardening before deployment.
 ---
 
 ## P4 — Post-production enhancements
 
+- [ ] **Course sharing controls** — add safe teacher workflows for sharing full courses or templates with other teachers/classes.
+- [ ] **Course archive / restore controls** — support archiving courses without deleting their history, plus explicit restore/unarchive flows.
 - [ ] **Advanced AI autograder** — use hosted AI with objective/requirements context to evaluate rubric alignment, code quality signals, and result correctness (advisory scoring with teacher override).
 - [ ] **Additional CS learning tools** — integrate more computer science tools and open source programs for extended learning paths.
 - [ ] **Cybersecurity VM track** — investigate virtual machine setup for cybersecurity programs.

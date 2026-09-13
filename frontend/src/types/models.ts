@@ -62,6 +62,11 @@ export interface Activity {
   studentEntrypointSelectionEnabled?: boolean
   expectedOutput?: string | null
   autograderEnabled?: boolean
+  autograderReferenceSolution?: string | null
+  autograderReferenceOutput?: string | null
+  autograderCodeMatch?: boolean
+  autograderOutputMatch?: boolean
+  autograderTestCases?: AutograderTestCase[] | null
   resourceUrl?: string | null
   visible?: boolean
 }
@@ -88,6 +93,7 @@ export interface Course {
   code: string
   teacherName: string
   description?: string | null
+  visible?: boolean
   units: Unit[]
 }
 
@@ -152,11 +158,4 @@ export interface UpdateActivityDirectionsInput {
   directions?: string | null
 }
 
-export interface UpdateActivityInput {
-  title: string
-  description: string
-  directions?: string | null
-  dueAt?: string | null
-  pointsPossible: number
-  resourceUrl?: string | null
-}
+export type UpdateActivityInput = CreateActivityInput

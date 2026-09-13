@@ -12,14 +12,16 @@
 
 ## Dashboard + Course Hierarchy
 - `src/pages/DashboardPage.tsx`: course grid landing view
-- `src/components/dashboard/CourseCard.tsx`: responsive course card + progress bar
+- `src/components/dashboard/CourseCard.tsx`: responsive course card + teacher course action menu
 - `src/pages/CoursePage.tsx`: hierarchy + detail split view
-- `src/components/hierarchy/CourseHierarchy.tsx`: expandable units/lessons/activities
+- `src/components/hierarchy/CourseHierarchy.tsx`: expandable units/lessons/activities with teacher CRUD controls
 - `src/components/activity/ActivityCard.tsx`: activity row with type badge
+- `src/components/ui/ActionMenu.tsx`: shared fixed-position overflow-safe action menu used by hierarchy and course cards
 
 ## Activity Views
 - `src/components/activity/ActivityDetail.tsx`: detail renderer with per-type copy
-- `src/components/teacher/ActivityCreationModal.tsx`: teacher-only activity creation flow with coding starter code, optional expected output, and optional autograder setup
+- `src/components/teacher/ActivityCreationModal.tsx`: teacher activity create/edit wizard with coding starter code, optional expected output, and optional autograder setup
+- `src/components/teacher/ActivityEditModal.tsx`: thin wrapper that reuses the multi-step activity wizard for edits
 
 ## Gradebook
 - `src/pages/GradebookPage.tsx`: teacher-only gradebook page
