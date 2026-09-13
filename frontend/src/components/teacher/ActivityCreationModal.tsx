@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import type { ActivityType, CreateActivityInput, StarterFile } from '../../types/models'
 import { DirectionsEditor } from './DirectionsEditor'
 import { MonacoEditor, CODING_LANGUAGES } from '../coding/MonacoEditor'
-import { WebProjectEditor } from '../coding/WebProjectEditor'
+import { ProjectWorkspaceEditor } from '../coding/ProjectWorkspaceEditor'
+import {
+  buildDefaultWorkspaceFiles,
+  resolveDeterministicEntrypoint,
+} from '../../utils/projectWorkspace'
 
 interface ActivityCreationModalProps {
   open: boolean
@@ -42,7 +46,7 @@ export const ActivityCreationModal = ({
   const [saving, setSaving] = useState(false)
   const [starterLanguage, setStarterLanguage] = useState('javascript')
   const [languageLocked, setLanguageLocked] = useState(false)
-  const [starterCode, setStarterCode] = useState('')
+  const [, setStarterCode] = useState('')
   const [starterFiles, setStarterFiles] = useState<StarterFile[] | null>(null)
   const [starterEntrypoint, setStarterEntrypoint] = useState<string | null>(null)
   const [expectedOutput, setExpectedOutput] = useState('')
@@ -114,6 +118,16 @@ export const ActivityCreationModal = ({
   const computedResourceUrl = (): string | null => {
     if (resourceUrl.trim()) return resourceUrl.trim()
     return suggestedResourceUrls[type] || null
+  }
+
+  const resolveWorkspaceStarterCode = (files: StarterFile[] | null, language: string, entrypoint: string | null) => {
+    const workspaceFiles = files && files.length > 0 ? files : buildDefaultWorkspaceFiles(language)
+    const resolved = resolveDeterministicEntrypoint({
+      language,
+      files: workspaceFiles,
+      requestedEntrypoint: entrypoint,
+    })
+    return workspaceFiles.find((file) => file.path === resolved.entrypoint)?.content ?? ''
   }
 
   return (
@@ -210,7 +224,7 @@ export const ActivityCreationModal = ({
           <div className="space-y-4 text-sm">
             <p className="text-slate-600">
               Choose a language and write starter code students will see pre-loaded in their editor.
-              {starterLanguage !== 'web' && ' Optionally set expected output for automatic pass/fail feedback.'}
+              {starterLanguage !== 'web' && starterLanguage !== 'html' && ' Optionally set expected output for automatic pass/fail feedback.'}
             </p>
             <div className="flex items-center gap-2">
               <label className="text-xs font-medium text-slate-600">Language</label>
@@ -242,30 +256,31 @@ export const ActivityCreationModal = ({
               Lock language for students (sandbox activities can leave this unlocked)
             </label>
 
-            {starterLanguage === 'web' ? (
+            {type === 'coding' && (
               <div className="space-y-2">
                 <p className="text-xs text-slate-500">
-                  The file explorer starts collapsed so the editor and preview stay inside this window.
+                  The shared project workspace supports multi-file coding projects for every runtime.
+                  Preview refresh is manual for web/HTML activities, and other runtimes use the Run pane.
                 </p>
-                <WebProjectEditor
+                <ProjectWorkspaceEditor
+                  language={starterLanguage}
                   defaultFiles={starterFiles}
                   defaultEntrypoint={starterEntrypoint}
                   onChange={(files, entrypoint) => {
+                    setStarterCode(resolveWorkspaceStarterCode(files, starterLanguage, entrypoint))
                     setStarterFiles(files)
                     setStarterEntrypoint(entrypoint)
                   }}
+                  executeUrl={executeUrl}
+                  userId={runUserId}
+                  courseId={courseId}
+                  expectedOutput={starterLanguage !== 'web' && starterLanguage !== 'html' ? expectedOutput : null}
                   height="350px"
                 />
               </div>
-            ) : (
+            )}
+            {starterLanguage !== 'web' && starterLanguage !== 'html' && (
               <>
-                <MonacoEditor
-                  defaultValue={starterCode}
-                  language={starterLanguage}
-                  onChange={setStarterCode}
-                  courseId={courseId}
-                  minHeight="300px"
-                />
                 <div>
                   <label className="mb-1 block font-medium text-slate-700">
                     Expected Output{' '}
@@ -479,10 +494,23 @@ export const ActivityCreationModal = ({
                   directions: directions.trim() || null,
                   language: type === 'coding' ? starterLanguage : null,
                   languageLocked: type === 'coding' ? languageLocked : false,
-                  starterCode: type === 'coding' && starterLanguage !== 'web' ? (starterCode.trim() || null) : null,
-                  starterFiles: type === 'coding' && starterLanguage === 'web' ? (starterFiles ?? null) : null,
-                  entrypoint: type === 'coding' && starterLanguage === 'web' ? starterEntrypoint : null,
-                  expectedOutput: type === 'coding' && starterLanguage !== 'web' ? (expectedOutput.trim() || null) : null,
+                  starterCode:
+                    type === 'coding' && starterLanguage !== 'web'
+                      ? (resolveWorkspaceStarterCode(starterFiles, starterLanguage, starterEntrypoint).trim() || null)
+                      : null,
+                  starterFiles: type === 'coding' ? (starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage)) : null,
+                  entrypoint:
+                    type === 'coding'
+                      ? resolveDeterministicEntrypoint({
+                          language: starterLanguage,
+                          files: starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage),
+                          requestedEntrypoint: starterEntrypoint,
+                        }).entrypoint
+                      : null,
+                  expectedOutput:
+                    type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
+                      ? (expectedOutput.trim() || null)
+                      : null,
                   autograderEnabled: type === 'coding' && autograderEnabled && autograderSupported,
                   autograderReferenceSolution:
                     type === 'coding' && autograderEnabled && autograderSupported

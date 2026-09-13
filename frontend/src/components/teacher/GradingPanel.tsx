@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
-import { MonacoEditor } from '../coding/MonacoEditor'
-import { WebProjectEditor } from '../coding/WebProjectEditor'
+import { ProjectWorkspaceEditor } from '../coding/ProjectWorkspaceEditor'
 import type { ActivityType, GradebookEntry, StarterFile } from '../../types/models'
 import { parseSubmissionFiles } from '../../utils/codingDrafts'
+import {
+  buildDefaultWorkspaceFiles,
+  resolveDeterministicEntrypoint,
+} from '../../utils/projectWorkspace'
 
 interface GradingPanelProps {
   activityId: string
@@ -33,8 +36,10 @@ export const GradingPanel = ({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [reviewCode, setReviewCode] = useState('')
-  const [reviewFiles, setReviewFiles] = useState<StarterFile[]>([{ path: 'index.html', language: 'html', content: '' }])
+  const [reviewFiles, setReviewFiles] = useState<StarterFile[]>(
+    buildDefaultWorkspaceFiles(activityLanguage ?? 'javascript'),
+  )
+  const [reviewEntrypoint, setReviewEntrypoint] = useState<string | null>(activityEntrypoint ?? null)
   const [grades, setGrades] = useState<Record<string, { points: string; comment: string }>>(() => {
     const initial: Record<string, { points: string; comment: string }> = {}
     for (const entry of students) {
@@ -51,21 +56,34 @@ export const GradingPanel = ({
   const currentSubmissionFiles = current?.submissionFiles ?? null
   const autograderResult = current?.autograderResult ?? null
   const isAutograded = current?.gradingSource === 'autograder'
+  const resolvedActivityLanguage = activityLanguage ?? 'javascript'
 
   useEffect(() => {
-    if (activityType === 'coding' && activityLanguage === 'web') {
-      setReviewFiles(
-        currentSubmissionFiles && currentSubmissionFiles.length > 0
-          ? currentSubmissionFiles
-          : parseSubmissionFiles(currentSubmissionText),
-      )
-      setReviewCode('')
+    if (activityType !== 'coding') {
       return
     }
 
-    setReviewFiles([{ path: 'index.html', language: 'html', content: '' }])
-    setReviewCode(currentSubmissionText ?? '')
-  }, [activityLanguage, activityType, current?.studentId, currentSubmissionFiles, currentSubmissionText])
+    const fallbackFiles = buildDefaultWorkspaceFiles(resolvedActivityLanguage, currentSubmissionText)
+    const nextFiles =
+      currentSubmissionFiles && currentSubmissionFiles.length > 0
+        ? currentSubmissionFiles
+        : parseSubmissionFiles(currentSubmissionText, fallbackFiles)
+    const resolved = resolveDeterministicEntrypoint({
+      language: resolvedActivityLanguage,
+      files: nextFiles,
+      requestedEntrypoint: current?.submissionEntrypoint ?? activityEntrypoint ?? null,
+    })
+    setReviewFiles(nextFiles)
+    setReviewEntrypoint(resolved.entrypoint)
+  }, [
+    activityEntrypoint,
+    activityType,
+    current?.studentId,
+    current?.submissionEntrypoint,
+    currentSubmissionFiles,
+    currentSubmissionText,
+    resolvedActivityLanguage,
+  ])
 
   if (students.length === 0) {
     return (
@@ -152,28 +170,22 @@ export const GradingPanel = ({
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Submission</p>
           {activityType === 'coding' ? (
-            activityLanguage === 'web' ? (
-              <WebProjectEditor
-                key={`${activityId}-${activeStudent.studentId}`}
-                defaultFiles={reviewFiles}
-                defaultEntrypoint={current?.submissionEntrypoint ?? activityEntrypoint ?? null}
-                readOnly
-                entrypointEditable={false}
-                height="360px"
-              />
-            ) : (
-              <MonacoEditor
-                key={`${activityId}-${activeStudent.studentId}`}
-                defaultValue={reviewCode}
-                language={activityLanguage ?? 'javascript'}
-                onChange={setReviewCode}
-                readOnly
-                executeUrl={executeUrl}
-                userId={runUserId}
-                courseId={activeStudent.courseId}
-                minHeight="360px"
-              />
-            )
+            <ProjectWorkspaceEditor
+              key={`${activityId}-${activeStudent.studentId}`}
+              language={resolvedActivityLanguage}
+              defaultFiles={reviewFiles}
+              defaultEntrypoint={reviewEntrypoint}
+              onChange={(files, entrypoint) => {
+                setReviewFiles(files)
+                setReviewEntrypoint(entrypoint)
+              }}
+              readOnly
+              entrypointEditable={false}
+              executeUrl={executeUrl}
+              userId={runUserId}
+              courseId={activeStudent.courseId}
+              height="360px"
+            />
           ) : (
             <p className="whitespace-pre-wrap text-sm text-slate-700">
               {activeStudent.submissionText?.trim() || 'No submission text provided.'}

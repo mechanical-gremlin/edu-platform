@@ -226,16 +226,6 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
         }
         deterministicEntrypoint = resolvedEntrypoint.entrypoint
 
-        if (!['web', 'html'].includes(payload.language)) {
-          throw new AppError(
-            400,
-            `Multi-file project workspace is unsupported for runtime "${payload.language}".`,
-            undefined,
-            true,
-            'EXECUTION_FAILED',
-            false,
-          )
-        }
       }
 
       const maxSourceBytes = bytesFromKb(options.executionConfigState.config.maxSourceKb)
@@ -278,6 +268,13 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
         code: effectiveCode,
         stdin: payload.stdin,
         config: options.executionConfigState.config,
+        projectWorkspace:
+          normalizedWorkspaceFiles && deterministicEntrypoint
+            ? {
+                files: normalizedWorkspaceFiles,
+                entrypoint: deterministicEntrypoint,
+              }
+            : null,
       })
 
       request.log.info(
