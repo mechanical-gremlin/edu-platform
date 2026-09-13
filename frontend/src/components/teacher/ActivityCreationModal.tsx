@@ -8,6 +8,7 @@ import {
   resolveDeterministicEntrypoint,
   shouldPersistProjectWorkspace,
 } from '../../utils/projectWorkspace'
+import { resolveRuntimeProfile } from '../../utils/runtimeProfiles'
 
 interface ActivityCreationModalProps {
   open: boolean
@@ -108,6 +109,12 @@ export const ActivityCreationModal = ({
   const autograderCasesValid = activeAutograderCases.every(
     (testCase) => testCase.expectedOutput.trim(),
   )
+  const resolvedStarterFiles = starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage)
+  const starterRuntimeProfile = resolveRuntimeProfile({
+    language: starterLanguage,
+    files: resolvedStarterFiles,
+    requestedEntrypoint: starterEntrypoint,
+  })
   const autograderValid = !autograderEnabled || (
     autograderSupported
     && autograderReferenceSolution.trim()
@@ -287,6 +294,7 @@ export const ActivityCreationModal = ({
                   language={starterLanguage}
                   defaultFiles={starterFiles}
                   defaultEntrypoint={starterEntrypoint}
+                  runtimeProfile={starterRuntimeProfile}
                   onChange={(files, entrypoint) => {
                     setStarterCode(resolveWorkspaceStarterCode(files, starterLanguage, entrypoint))
                     setStarterFiles(files)

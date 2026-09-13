@@ -11,9 +11,9 @@ This list is reordered to match the current development sequence request.
 - [x] **Execution payload/output limits** — `/execute` now rejects oversized source/stdin payloads and includes structured truncation metadata when output is capped.
 - [x] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
   - Implemented fixed-window user burst + user sustained + shared course limits with deterministic `429` + `Retry-After` contract and backend unit/integration tests.
-- [ ] **Multi-file coding projects** — Web Development Kit now supports a project workspace model with explicit entrypoint resolution and deterministic run target validation in `/execute`.
-- [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
-- [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.
+- [x] **Multi-file coding projects** — the shared coding workspace now supports multi-file projects with deterministic entrypoint resolution and runnable target validation for both code runtimes and web preview contexts.
+- [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects). External hosted framework/runtime resources are acceptable for this stage; domain allowlisting and related security hardening are deferred to pre-production hardening before deployment.
+- [ ] **Run/step/stop debugging controls for coding runtimes** — code/runtime activities now use explicit Target/Run/Step/Stop toolbar controls, while web environments keep separate preview-oriented controls.
 - [ ] **Language/runtime coverage matrix** — define and validate which languages/runtimes are officially supported in MVP and production.
 - [ ] **Project template catalog** — provide starter templates by project type (single file, multi-file, web, game, and config-driven projects).
 - [x] **Autosave coding work** — student coding drafts now persist in browser localStorage so navigating away from an assignment no longer clears the in-progress editor.

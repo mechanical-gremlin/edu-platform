@@ -11,5 +11,5 @@ interface WebProjectEditorProps {
 }
 
 export const WebProjectEditor = (props: WebProjectEditorProps) => (
-  <ProjectWorkspaceEditor language="web" {...props} />
+  <ProjectWorkspaceEditor language="web" runtimeProfile="web" {...props} />
 )
