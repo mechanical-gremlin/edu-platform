@@ -24,6 +24,7 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
         response: {
           200: executeResponseSchema,
           400: executeErrorResponseSchema,
+          413: executeErrorResponseSchema,
           401: executeErrorResponseSchema,
           403: executeErrorResponseSchema,
           500: executeErrorResponseSchema,
@@ -54,21 +55,21 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
       const maxStdinBytes = bytesFromKb(options.executionConfigState.config.maxStdinKb)
       if (Buffer.byteLength(payload.code, 'utf8') > maxSourceBytes) {
         throw new AppError(
-          400,
+          413,
           `Source code exceeds EXEC_MAX_SOURCE_KB (${options.executionConfigState.config.maxSourceKb} KB).`,
           undefined,
           true,
-          'EXEC_BAD_REQUEST',
+          'EXEC_PAYLOAD_TOO_LARGE',
           false,
         )
       }
       if (Buffer.byteLength(payload.stdin ?? '', 'utf8') > maxStdinBytes) {
         throw new AppError(
-          400,
+          413,
           `Standard input exceeds EXEC_MAX_STDIN_KB (${options.executionConfigState.config.maxStdinKb} KB).`,
           undefined,
           true,
-          'EXEC_BAD_REQUEST',
+          'EXEC_PAYLOAD_TOO_LARGE',
           false,
         )
       }

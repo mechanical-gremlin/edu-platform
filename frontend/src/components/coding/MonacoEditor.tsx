@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 import { getExecuteErrorMessage, type ExecuteErrorResponse } from './executeErrors'
 
@@ -38,10 +38,25 @@ const MONACO_LANGUAGE_MAP: Record<string, string> = {
   kotlin: 'kotlin',
 }
 
+const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
+  const parsed = Number.parseInt(String(envValue ?? ''), 10)
+  const kb = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackKb
+  return kb * 1024
+}
+
+const utf8Encoder = new TextEncoder()
+const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
+const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
+
 interface ExecuteResult {
   stdout: string | null
   stderr: string | null
   compile_output: string | null
+  truncation?: {
+    stdout: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+    stderr: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+    compile_output: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+  }
   status: { id: number; description: string }
   time: string | null
   memory: number | null
@@ -93,11 +108,20 @@ export const MonacoEditor = ({
   const [output, setOutput] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  const [truncationNotice, setTruncationNotice] = useState<string | null>(null)
   const [passed, setPassed] = useState<boolean | null>(null)
   const initialCodeRef = useRef(defaultValue)
   const htmlPreviewHelpId = useId()
   const showExecution = Boolean(executeUrl && language !== 'html')
   const showHtmlPreview = language === 'html'
+  const sourceBytes = useMemo(() => utf8Encoder.encode(code).length, [code])
+  const stdinBytes = useMemo(() => utf8Encoder.encode(stdin ?? '').length, [stdin])
+  const preflightWarning =
+    sourceBytes > maxSourceBytesLimit
+      ? `Source code exceeds the ${Math.round(maxSourceBytesLimit / 1024)} KB limit.`
+      : stdinBytes > maxStdinBytesLimit
+        ? `Program input exceeds the ${Math.round(maxStdinBytesLimit / 1024)} KB limit.`
+        : null
 
   // Only reset editor content when the starterCode prop itself changes (new activity)
   useEffect(() => {
@@ -106,6 +130,7 @@ export const MonacoEditor = ({
       setCode(defaultValue)
       setOutput(null)
       setRunError(null)
+      setTruncationNotice(null)
       setPassed(null)
     }
   }, [defaultValue])
@@ -124,8 +149,16 @@ export const MonacoEditor = ({
 
   const handleRun = async () => {
     if (!executeUrl) return
+    if (preflightWarning) {
+      setRunError(preflightWarning)
+      setOutput(null)
+      setPassed(null)
+      setTruncationNotice(null)
+      return
+    }
     setRunning(true)
     setRunError(null)
+    setTruncationNotice(null)
     setOutput(null)
     setPassed(null)
 
@@ -154,6 +187,18 @@ export const MonacoEditor = ({
       else if (stderrText) displayOutput = `${stdoutText}\n[Error]\n${stderrText}`.trim()
 
       setOutput(displayOutput || `(${result.status.description} — no output)`)
+      if (result.truncation) {
+        const truncatedFieldLimits: string[] = []
+        if (result.truncation.stdout.truncated) truncatedFieldLimits.push(`stdout (${result.truncation.stdout.maxSizeBytes} bytes)`)
+        if (result.truncation.stderr.truncated) truncatedFieldLimits.push(`stderr (${result.truncation.stderr.maxSizeBytes} bytes)`)
+        if (result.truncation.compile_output.truncated) {
+          truncatedFieldLimits.push(`compile output (${result.truncation.compile_output.maxSizeBytes} bytes)`)
+        }
+
+        if (truncatedFieldLimits.length > 0) {
+          setTruncationNotice(`Output truncated for ${truncatedFieldLimits.join(', ')}.`)
+        }
+      }
       onExecutionComplete?.(result)
 
       if (expectedOutput) {
@@ -224,7 +269,7 @@ export const MonacoEditor = ({
             <div className="flex items-center gap-3">
               <button
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                disabled={running || !code.trim()}
+                disabled={running || !code.trim() || Boolean(preflightWarning)}
                 onClick={handleRun}
               >
                 {running ? '▶ Running…' : '▶ Run'}
@@ -244,6 +289,12 @@ export const MonacoEditor = ({
 
             {runError && (
               <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{runError}</p>
+            )}
+            {!runError && preflightWarning && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{preflightWarning}</p>
+            )}
+            {truncationNotice && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{truncationNotice}</p>
             )}
 
             <div className="flex-1 rounded-xl border border-slate-200 bg-slate-900 px-4 py-3">
