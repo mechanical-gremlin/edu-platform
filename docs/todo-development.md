@@ -48,7 +48,7 @@ This list is reordered to match the current development sequence request.
 ## P3 — Pre-production hardening (auth, DB, reliability, operations)
 
 - [ ] **Replace `x-user-id` auth** — implement real authentication/authorization for teacher and student accounts.
-- [ ] **Support additional LMS login criteria** — add integration points for required LMS auth/login methods before production rollout.
+- [ ] **Support LMS SSO/LTI login integration** — after core platform auth is in place, add LMS-specific sign-in flows (for example LTI/SSO) required for district/platform adoption.
 - [ ] **Backups and data durability** — enable managed backups and move off ephemeral/free DB tiers before real usage.
 - [ ] **Environment parity** — keep `render.yaml` and live Render service settings fully aligned.
 - [ ] **Error monitoring + structured logs** — add centralized error tracking and request-correlated backend logs.
@@ -59,7 +59,7 @@ This list is reordered to match the current development sequence request.
 
 ## P4 — Post-production enhancements
 
-- [ ] **Advanced AI autograder** — use hosted AI with objective/requirements context to analyze student code and results.
+- [ ] **Advanced AI autograder** — use hosted AI with objective/requirements context to evaluate rubric alignment, code quality signals, and result correctness (advisory scoring with teacher override).
 - [ ] **Additional CS learning tools** — integrate more computer science tools and open source programs for extended learning paths.
 - [ ] **Cybersecurity VM track** — investigate virtual machine setup for cybersecurity programs.
 - [ ] **Achievement system** — add profile achievements with in-app notifications and progress display.
