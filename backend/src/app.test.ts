@@ -189,6 +189,28 @@ test('GET /me returns the authenticated user', async () => {
   await app.close()
 })
 
+test('CORS preflight allows teacher CRUD request methods', async () => {
+  const app = await buildApp({ prisma: prismaStub })
+
+  try {
+    const response = await app.inject({
+      method: 'OPTIONS',
+      url: '/units/u-1',
+      headers: {
+        origin: 'https://cs-lms-frontend.onrender.com',
+        'access-control-request-method': 'PATCH',
+      },
+    })
+
+    assert.equal(response.statusCode, 204)
+    assert.equal(response.headers['access-control-allow-origin'], 'https://cs-lms-frontend.onrender.com')
+    assert.match(response.headers['access-control-allow-methods'] ?? '', /\bPATCH\b/)
+    assert.match(response.headers['access-control-allow-methods'] ?? '', /\bDELETE\b/)
+  } finally {
+    await app.close()
+  }
+})
+
 test('buildApp fails fast in production when execution config is missing', async () => {
   const restoreEnv = withExecutionEnv({
     NODE_ENV: 'production',
