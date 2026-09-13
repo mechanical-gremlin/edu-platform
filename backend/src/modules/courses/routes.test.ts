@@ -39,6 +39,84 @@ const buildCoursePrismaStub = () => {
 
         return null
       },
+      course: {
+        findMany: async () => [
+          {
+            id: 'c-1',
+            title: 'Course 1',
+            code: 'COURSE-1',
+            description: 'Course description',
+            enrollments: [{ user: { name: 'Ms. Ramirez' } }],
+          },
+        ],
+        findUnique: async ({ where }: { where: { id?: string; code?: string } }) => {
+          if (where.code) {
+            return null
+          }
+          if (where.id !== 'c-1') {
+            return null
+          }
+          return {
+            id: 'c-1',
+            title: 'Course 1',
+            code: 'COURSE-1',
+            description: 'Course description',
+            enrollments: [
+              {
+                userId: 't-1',
+                role: 'teacher',
+                user: { id: 't-1', name: 'Ms. Ramirez', role: 'teacher' },
+              },
+            ],
+            units: [
+              {
+                id: 'u-1',
+                title: 'Unit 1',
+                description: 'Original unit',
+                visible: true,
+                lessons: [
+                  {
+                    id: 'l-1',
+                    title: 'Lesson 1',
+                    description: 'Original lesson',
+                    visible: true,
+                    activities: [
+                      {
+                        id: 'a-1',
+                        title: 'Assignment 1',
+                        type: 'coding',
+                        description: 'Assignment summary',
+                        directions: null,
+                        language: 'python',
+                        languageLocked: false,
+                        starterCode: 'print("hello")',
+                        starterFiles: {
+                          files: [{ path: 'main.py', content: 'print("hello")', language: 'python' }],
+                          entrypoint: 'main.py',
+                        },
+                        studentFileTreeEnabled: false,
+                        studentEntrypointSelectionEnabled: false,
+                        expectedOutput: null,
+                        autograderEnabled: false,
+                        resourceUrl: null,
+                        visible: true,
+                        dueAt: null,
+                        pointsPossible: 10,
+                        lessonId: 'l-1',
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }
+        },
+        create: async ({ data }: { data: Record<string, unknown> }) => ({
+          id: 'c-new',
+          title: String(data.title ?? 'Course'),
+          description: (data.description as string | null | undefined) ?? null,
+        }),
+      },
     },
     unit: {
       findUnique: async ({ where }: { where: { id: string } }) => {
@@ -325,7 +403,7 @@ test('PATCH /units/:unitId updates unit metadata', async () => {
       },
     })
 
-    assert.equal(response.statusCode, 200)
+    assert.equal(response.statusCode, 200, response.body)
     assert.deepEqual(response.json(), {
       id: 'u-1',
       title: 'Updated Unit',
@@ -429,6 +507,8 @@ test('PATCH /activities/:activityId updates teacher-editable assignment fields',
 
     assert.equal(response.statusCode, 200)
     assert.equal(response.json().title, 'Updated Assignment')
+    assert.equal(typeof response.json().studentFileTreeEnabled, 'boolean')
+    assert.equal(typeof response.json().studentEntrypointSelectionEnabled, 'boolean')
     assert.deepEqual(prisma.getActivityPatchData(), {
       title: 'Updated Assignment',
       description: 'New prompt',
