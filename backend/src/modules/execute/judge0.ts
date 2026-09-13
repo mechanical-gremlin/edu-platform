@@ -179,8 +179,11 @@ const buildMultiFileScripts = ({
       }
     }
     case 'rust':
+      if (entrypoint.includes('/')) {
+        return null
+      }
       return {
-        compile: `#!/bin/bash\nset -e\nrustc ${shellQuote(entrypoint)} -O -o program\n`,
+        compile: `#!/bin/bash\nset -e\nrustc --edition=2021 ${shellQuote(entrypoint)} -O -o program\n`,
         run: '#!/bin/bash\nset -e\n./program\n',
       }
     case 'swift': {

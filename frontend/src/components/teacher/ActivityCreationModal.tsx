@@ -6,6 +6,7 @@ import { ProjectWorkspaceEditor } from '../coding/ProjectWorkspaceEditor'
 import {
   buildDefaultWorkspaceFiles,
   resolveDeterministicEntrypoint,
+  shouldPersistProjectWorkspace,
 } from '../../utils/projectWorkspace'
 
 interface ActivityCreationModalProps {
@@ -487,6 +488,20 @@ export const ActivityCreationModal = ({
               try {
                 setSaving(true)
                 setError(null)
+                const resolvedWorkspaceFiles = starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage)
+                const resolvedWorkspaceEntrypoint = resolveDeterministicEntrypoint({
+                  language: starterLanguage,
+                  files: resolvedWorkspaceFiles,
+                  requestedEntrypoint: starterEntrypoint,
+                }).entrypoint
+                const persistWorkspace =
+                  type === 'coding'
+                  && resolvedWorkspaceEntrypoint
+                  && shouldPersistProjectWorkspace({
+                    language: starterLanguage,
+                    files: resolvedWorkspaceFiles,
+                    entrypoint: resolvedWorkspaceEntrypoint,
+                  })
                 await onSave({
                   title: title.trim(),
                   type,
@@ -498,15 +513,9 @@ export const ActivityCreationModal = ({
                     type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
                       ? (resolveWorkspaceStarterCode(starterFiles, starterLanguage, starterEntrypoint).trim() || null)
                       : null,
-                  starterFiles: type === 'coding' ? (starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage)) : null,
+                  starterFiles: persistWorkspace ? resolvedWorkspaceFiles : null,
                   entrypoint:
-                    type === 'coding'
-                      ? resolveDeterministicEntrypoint({
-                          language: starterLanguage,
-                          files: starterFiles ?? buildDefaultWorkspaceFiles(starterLanguage),
-                          requestedEntrypoint: starterEntrypoint,
-                        }).entrypoint
-                      : null,
+                    type === 'coding' && persistWorkspace ? resolvedWorkspaceEntrypoint : null,
                   expectedOutput:
                     type === 'coding' && starterLanguage !== 'web' && starterLanguage !== 'html'
                       ? (expectedOutput.trim() || null)

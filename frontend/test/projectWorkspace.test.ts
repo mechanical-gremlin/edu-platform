@@ -6,6 +6,7 @@ import {
   getDefaultWorkspaceEntrypoint,
   isPreviewRuntimeLanguage,
   resolveDeterministicEntrypoint,
+  shouldPersistProjectWorkspace,
 } from '../src/utils/projectWorkspace.ts'
 
 test('workspace defaults provide deterministic entrypoints for non-web runtimes', () => {
@@ -49,5 +50,26 @@ test('default workspace state resets files and entrypoint when switching runtime
   assert.deepEqual(
     javascriptWorkspace.files.map((file) => file.path),
     ['index.js'],
+  )
+})
+
+test('default single-file runtimes do not need persisted workspace metadata', () => {
+  const javascriptWorkspace = buildDefaultWorkspaceState('javascript')
+
+  assert.equal(
+    shouldPersistProjectWorkspace({
+      language: 'javascript',
+      files: javascriptWorkspace.files,
+      entrypoint: javascriptWorkspace.entrypoint,
+    }),
+    false,
+  )
+  assert.equal(
+    shouldPersistProjectWorkspace({
+      language: 'web',
+      files: buildDefaultWorkspaceFiles('web'),
+      entrypoint: 'index.html',
+    }),
+    true,
   )
 })

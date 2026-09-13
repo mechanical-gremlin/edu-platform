@@ -72,6 +72,7 @@ test('createJudge0MultiFileArchive runs the entrypoint package for Go workspaces
     files: [
       { path: 'go.mod', content: 'module example.com/demo\n\ngo 1.22\n' },
       { path: 'cmd/app/main.go', content: 'package main\n\nfunc main() {}\n' },
+      { path: 'cmd/app/helpers.go', content: 'package main\n\nfunc helper() {}\n' },
       { path: 'internal/math/add.go', content: 'package math\n' },
     ],
   })

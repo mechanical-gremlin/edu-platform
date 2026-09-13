@@ -85,6 +85,27 @@ export const buildDefaultWorkspaceState = (language: string, starterCode?: strin
   }
 }
 
+export const shouldPersistProjectWorkspace = ({
+  language,
+  files,
+  entrypoint,
+}: {
+  language: string
+  files: StarterFile[]
+  entrypoint: string | null
+}) => {
+  if (isPreviewRuntimeLanguage(language)) {
+    return true
+  }
+
+  const defaultWorkspace = buildDefaultWorkspaceState(language)
+  return (
+    files.length !== 1
+    || files[0]?.path !== defaultWorkspace.files[0]?.path
+    || entrypoint !== defaultWorkspace.entrypoint
+  )
+}
+
 export const normalizeWorkspacePath = (value: string) => {
   const normalized = value.trim().replaceAll('\\', '/').replaceAll(/\/+/g, '/')
   if (!normalized || normalized.startsWith('/') || normalized.endsWith('/')) {

@@ -432,12 +432,28 @@ export const ActivityFullScreen = ({
                 onChange={(event) => {
                   const nextLanguage = event.target.value
                   const nextWorkspace = buildDefaultWorkspaceState(nextLanguage)
+                  const nextSubmissionText = getWorkspaceSubmissionText(
+                    nextLanguage,
+                    nextWorkspace.files,
+                    nextWorkspace.entrypoint,
+                  )
                   setWorkspaceLanguage(nextLanguage)
                   setWorkspaceFiles(nextWorkspace.files)
                   setWorkspaceEntrypoint(nextWorkspace.entrypoint)
-                  setSubmissionText(
-                    getWorkspaceSubmissionText(nextLanguage, nextWorkspace.files, nextWorkspace.entrypoint),
-                  )
+                  setSubmissionText(nextSubmissionText)
+                  if (currentUser.role === 'student') {
+                    const savedDraft = saveCodingDraft({
+                      activityId: activity.id,
+                      history: draftHistoryRef.current,
+                      language: nextLanguage,
+                      submissionFiles: nextWorkspace.files,
+                      submissionEntrypoint: nextWorkspace.entrypoint,
+                      submissionText: serializeSubmissionFiles(nextWorkspace.files),
+                      userId: currentUser.id,
+                    })
+                    setDraftSavedAt(savedDraft?.updatedAt ?? null)
+                    savedDraftSignatureRef.current = `${nextLanguage}:${serializeSubmissionFiles(nextWorkspace.files)}:${nextWorkspace.entrypoint ?? ''}`
+                  }
                   setWorkspaceEditorResetKey((value) => value + 1)
                 }}
               >
