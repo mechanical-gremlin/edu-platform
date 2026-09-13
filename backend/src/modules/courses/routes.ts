@@ -12,6 +12,10 @@ import {
   parseAutograderTestCases,
 } from '../autograder/service.js'
 import { executeWithJudge0 } from '../execute/judge0.js'
+import {
+  normalizeProjectWorkspaceFiles,
+  normalizeWorkspacePath,
+} from '../execute/projectWorkspace.js'
 
 const activityTypeSchema = z.enum(['video', 'coding', 'quiz', 'project', 'godot'])
 const namedEntitySchema = z.object({
@@ -341,20 +345,6 @@ const findTeacherActivity = async (app: Parameters<FastifyPluginAsync>[0], activ
   return activity
 }
 
-const normalizeWorkspacePath = (value: string) => {
-  const normalized = value.trim().replaceAll('\\', '/').replaceAll(/\/+/g, '/')
-  if (!normalized || normalized.startsWith('/') || normalized.endsWith('/')) {
-    return null
-  }
-
-  const segments = normalized.split('/')
-  if (segments.some((segment) => !segment || segment === '.' || segment === '..')) {
-    return null
-  }
-
-  return segments.join('/')
-}
-
 const parseStarterProjectWorkspace = (value: Prisma.JsonValue | null) => {
   if (!value) {
     return {
@@ -368,19 +358,8 @@ const parseStarterProjectWorkspace = (value: Prisma.JsonValue | null) => {
     if (!parsed.success) {
       return null
     }
-
-    return parsed.data.reduce<Array<{ path: string; language?: string; content: string }>>((normalized, file) => {
-        const path = normalizeWorkspacePath(file.path ?? file.name ?? '')
-        if (!path) {
-          return normalized
-        }
-        normalized.push({
-          path,
-          language: file.language,
-          content: file.content,
-        })
-        return normalized
-      }, [])
+    const normalized = normalizeProjectWorkspaceFiles(parsed.data)
+    return normalized.files ?? null
   }
 
   if (Array.isArray(value)) {
@@ -746,31 +725,20 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const { lessonId } = lessonParamsSchema.parse(request.params)
       const payload = createActivityBodySchema.parse(request.body)
       const workspaceCapable = payload.type === 'coding' && payload.language === 'web'
-      const normalizedStarterFiles = workspaceCapable && payload.starterFiles
-        ? payload.starterFiles.map((file) => ({
-            path: normalizeWorkspacePath(file.path ?? file.name ?? ''),
-            language: file.language,
-            content: file.content,
-          }))
+      const normalizedWorkspace = workspaceCapable && payload.starterFiles
+        ? normalizeProjectWorkspaceFiles(payload.starterFiles)
         : null
-      if (normalizedStarterFiles?.some((file) => !file.path)) {
-        throw new AppError(400, 'Starter project workspace includes an invalid file path.', undefined, true, 'FILE_PATH_INVALID', false)
+      if (workspaceCapable && normalizedWorkspace && (!normalizedWorkspace.files || normalizedWorkspace.errorCode || normalizedWorkspace.errorMessage)) {
+        throw new AppError(
+          400,
+          normalizedWorkspace.errorMessage ?? 'Starter project workspace includes an invalid file path.',
+          undefined,
+          true,
+          normalizedWorkspace.errorCode ?? 'FILE_PATH_INVALID',
+          false,
+        )
       }
-
-      const starterFiles = normalizedStarterFiles?.map((file) => ({
-        path: file.path!,
-        language: file.language,
-        content: file.content,
-      })) ?? null
-      if (starterFiles) {
-        const pathSet = new Set<string>()
-        for (const file of starterFiles) {
-          if (pathSet.has(file.path)) {
-            throw new AppError(400, `Duplicate starter project file path "${file.path}".`, undefined, true, 'FILE_PATH_INVALID', false)
-          }
-          pathSet.add(file.path)
-        }
-      }
+      const starterFiles = normalizedWorkspace?.files ?? null
       const entrypoint = workspaceCapable && payload.entrypoint ? normalizeWorkspacePath(payload.entrypoint) : null
       if (workspaceCapable && payload.entrypoint && !entrypoint) {
         throw new AppError(400, 'Entrypoint path is invalid.', undefined, true, 'ENTRYPOINT_INVALID', false)

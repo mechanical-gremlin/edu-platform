@@ -143,17 +143,18 @@ export const WebProjectEditor = ({
   }
 
   const publish = (nextFiles: StarterFile[], requestedEntrypoint: string | null) => {
+    const canonicalFiles = normalizeProjectWorkspaceFiles(nextFiles)
     const resolved = resolveDeterministicEntrypoint({
       language: 'web',
-      files: nextFiles,
+      files: canonicalFiles,
       requestedEntrypoint,
     })
 
-    setFiles(nextFiles)
+    setFiles(canonicalFiles)
     setEntrypoint(resolved.entrypoint)
     setEntrypointError(resolved.error?.message ?? null)
-    onChange?.(nextFiles, resolved.entrypoint)
-    refreshPreview(nextFiles, resolved.entrypoint)
+    onChange?.(canonicalFiles, resolved.entrypoint)
+    refreshPreview(canonicalFiles, resolved.entrypoint)
   }
 
   useEffect(() => {
@@ -217,6 +218,9 @@ export const WebProjectEditor = ({
       setFolders((current) => [...current, nextPath])
       setSelectedFolder(nextPath)
     } else {
+      const folderSegments = nextPath.split('/').slice(0, -1)
+      const parentFolders = folderSegments.map((_, index) => folderSegments.slice(0, index + 1).join('/'))
+      setFolders((current) => Array.from(new Set([...current, ...parentFolders])))
       const nextFiles = [...files, { path: nextPath, language: langForFile(nextPath), content: '' }]
       setActivePath(nextPath)
       publish(nextFiles, entrypoint)
@@ -391,15 +395,18 @@ export const WebProjectEditor = ({
         <div className="space-y-2 border-t border-slate-700 p-2">
           {!showCreator ? (
             <div className="flex gap-2">
-              <button type="button" className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('file') }}>
+              <button type="button" aria-pressed={showCreator && newItemType === 'file'} className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('file') }}>
                 + New File
               </button>
-              <button type="button" className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('folder') }}>
+              <button type="button" aria-pressed={showCreator && newItemType === 'folder'} className="flex-1 rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600" onClick={() => { setShowCreator(true); setNewItemType('folder') }}>
                 + New Folder
               </button>
             </div>
           ) : (
             <div className="space-y-2">
+              <p className="text-[11px] text-slate-400" aria-live="polite">
+                Creating a new {newItemType}
+              </p>
               <label className="block text-[11px] text-slate-400">
                 Create in {selectedFolder || 'project root'}
               </label>
