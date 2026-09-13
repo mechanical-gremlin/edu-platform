@@ -34,7 +34,7 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
       },
     },
     async (request) => {
-      ;(request as typeof request & { executeStartedAt?: number }).executeStartedAt = Date.now()
+      request.executeStartedAt = Date.now()
       requireUser(request)
 
       if (!options.executionConfigState.config) {
@@ -49,7 +49,7 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
       }
 
       const payload = executeBodySchema.parse(request.body)
-      const durationStartedAt = (request as typeof request & { executeStartedAt?: number }).executeStartedAt ?? Date.now()
+      const durationStartedAt = request.executeStartedAt ?? Date.now()
       const maxSourceBytes = bytesFromKb(options.executionConfigState.config.maxSourceKb)
       const maxStdinBytes = bytesFromKb(options.executionConfigState.config.maxStdinKb)
       if (Buffer.byteLength(payload.code, 'utf8') > maxSourceBytes) {

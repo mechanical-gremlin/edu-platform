@@ -27,6 +27,7 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
 
   app.setValidatorCompiler(validatorCompiler)
   app.setSerializerCompiler(serializerCompiler)
+  app.decorateRequest('executeStartedAt', null)
   await app.register(cors, { origin: true })
 
   app.addHook('onSend', (_request, reply, _payload, done) => {
@@ -38,8 +39,7 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
     if (isExecuteRoute(request.url)) {
       const { statusCode, body } = toExecuteErrorResponse(error, request.id)
       const requestBody = typeof request.body === 'object' && request.body !== null ? (request.body as Record<string, unknown>) : {}
-      const executeStartedAtValue = (request as typeof request & { executeStartedAt?: number }).executeStartedAt
-      const executeStartedAt = typeof executeStartedAtValue === 'number' ? executeStartedAtValue : Date.now()
+      const executeStartedAt = request.executeStartedAt ?? Date.now()
       const headerUserId = request.headers['x-user-id']
 
       request.log.warn(
