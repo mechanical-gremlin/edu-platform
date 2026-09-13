@@ -12,6 +12,10 @@ import {
   parseAutograderTestCases,
 } from '../autograder/service.js'
 import { executeWithJudge0 } from '../execute/judge0.js'
+import {
+  normalizeProjectWorkspaceFiles,
+  normalizeWorkspacePath,
+} from '../execute/projectWorkspace.js'
 
 const activityTypeSchema = z.enum(['video', 'coding', 'quiz', 'project', 'godot'])
 const namedEntitySchema = z.object({
@@ -19,8 +23,9 @@ const namedEntitySchema = z.object({
   description: z.string().trim().max(2000).optional().nullable(),
 })
 const starterFileSchema = z.object({
-  name: z.string().trim().min(1).max(100),
-  language: z.string().trim().min(1).max(50),
+  path: z.string().trim().min(1).max(200).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
+  language: z.string().trim().min(1).max(50).optional(),
   content: z.string().max(50_000),
 })
 
@@ -33,6 +38,7 @@ const createActivityBodySchema = z.object({
   languageLocked: z.boolean().optional(),
   starterCode: z.string().trim().max(50_000).optional().nullable(),
   starterFiles: z.array(starterFileSchema).max(20).optional().nullable(),
+  entrypoint: z.string().trim().max(200).optional().nullable(),
   expectedOutput: z.string().trim().max(4096).optional().nullable(),
   autograderEnabled: z.boolean().optional(),
   autograderReferenceSolution: z.string().trim().max(50_000).optional().nullable(),
@@ -184,6 +190,7 @@ const courseTreeSchema = z.object({
               languageLocked: z.boolean(),
               starterCode: z.string().nullable(),
               starterFiles: z.array(starterFileSchema).nullable(),
+              entrypoint: z.string().nullable(),
               expectedOutput: z.string().nullable(),
               autograderEnabled: z.boolean(),
               resourceUrl: z.string().nullable(),
@@ -214,6 +221,7 @@ const activityResponseSchema = z.object({
   languageLocked: z.boolean(),
   starterCode: z.string().nullable(),
   starterFiles: z.array(starterFileSchema).nullable(),
+  entrypoint: z.string().nullable(),
   expectedOutput: z.string().nullable(),
   autograderEnabled: z.boolean(),
   resourceUrl: z.string().nullable(),
@@ -337,6 +345,48 @@ const findTeacherActivity = async (app: Parameters<FastifyPluginAsync>[0], activ
   return activity
 }
 
+const parseStarterProjectWorkspace = (value: Prisma.JsonValue | null) => {
+  if (!value) {
+    return {
+      files: null as Array<{ path: string; language?: string; content: string }> | null,
+      entrypoint: null as string | null,
+    }
+  }
+
+  const parseFiles = (rawFiles: unknown) => {
+    const parsed = z.array(starterFileSchema).safeParse(rawFiles)
+    if (!parsed.success) {
+      return null
+    }
+    const normalized = normalizeProjectWorkspaceFiles(parsed.data)
+    return normalized.files ?? null
+  }
+
+  if (Array.isArray(value)) {
+    return {
+      files: parseFiles(value),
+      entrypoint: null,
+    }
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const files = parseFiles(Reflect.get(value, 'files'))
+    const rawEntrypoint = Reflect.get(value, 'entrypoint')
+    return {
+      files,
+      entrypoint:
+        typeof rawEntrypoint === 'string' && normalizeWorkspacePath(rawEntrypoint)
+          ? normalizeWorkspacePath(rawEntrypoint)
+          : null,
+    }
+  }
+
+  return {
+    files: null as Array<{ path: string; language?: string; content: string }> | null,
+    entrypoint: null as string | null,
+  }
+}
+
 const serializeActivity = (
   activity: {
     id: string
@@ -356,6 +406,13 @@ const serializeActivity = (
     pointsPossible: number
   },
 ) => ({
+  ...(() => {
+    const workspace = parseStarterProjectWorkspace(activity.starterFiles)
+    return {
+      starterFiles: workspace.files,
+      entrypoint: workspace.entrypoint,
+    }
+  })(),
   id: activity.id,
   title: activity.title,
   type: activity.type,
@@ -364,7 +421,6 @@ const serializeActivity = (
   language: activity.language,
   languageLocked: activity.languageLocked,
   starterCode: activity.starterCode,
-  starterFiles: (activity.starterFiles as { name: string; language: string; content: string }[] | null) ?? null,
   expectedOutput: activity.expectedOutput,
   autograderEnabled: activity.autograderEnabled,
   resourceUrl: activity.resourceUrl,
@@ -668,6 +724,39 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
       const user = requireRole(request, 'teacher')
       const { lessonId } = lessonParamsSchema.parse(request.params)
       const payload = createActivityBodySchema.parse(request.body)
+      const workspaceCapable = payload.type === 'coding' && payload.language === 'web'
+      const normalizedWorkspace = workspaceCapable && payload.starterFiles
+        ? normalizeProjectWorkspaceFiles(payload.starterFiles)
+        : null
+      if (workspaceCapable && normalizedWorkspace && (!normalizedWorkspace.files || normalizedWorkspace.errorCode || normalizedWorkspace.errorMessage)) {
+        throw new AppError(
+          400,
+          normalizedWorkspace.errorMessage ?? 'Starter project workspace includes an invalid file path.',
+          undefined,
+          true,
+          normalizedWorkspace.errorCode ?? 'FILE_PATH_INVALID',
+          false,
+        )
+      }
+      const starterFiles = normalizedWorkspace?.files ?? null
+      const entrypoint = workspaceCapable && payload.entrypoint ? normalizeWorkspacePath(payload.entrypoint) : null
+      if (workspaceCapable && payload.entrypoint && !entrypoint) {
+        throw new AppError(400, 'Entrypoint path is invalid.', undefined, true, 'ENTRYPOINT_INVALID', false)
+      }
+      if (workspaceCapable && entrypoint && !starterFiles?.length) {
+        throw new AppError(
+          400,
+          'Entrypoint requires at least one starter project file.',
+          undefined,
+          true,
+          'ENTRYPOINT_MISSING',
+          false,
+        )
+      }
+      if (workspaceCapable && entrypoint && starterFiles && !starterFiles.some((file) => file.path === entrypoint)) {
+        throw new AppError(400, 'Entrypoint must reference a starter project file.', undefined, true, 'ENTRYPOINT_INVALID', false)
+      }
+
       const lesson = await findTeacherLesson(app, lessonId)
       await assertTeacherForCourse(app, lesson.unit.courseId, user.id)
 
@@ -687,7 +776,16 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           language: payload.language ?? null,
           languageLocked: payload.languageLocked ?? false,
           starterCode: payload.starterCode ?? null,
-          starterFiles: payload.starterFiles ? (payload.starterFiles as Prisma.InputJsonValue) : Prisma.JsonNull,
+          starterFiles: workspaceCapable
+            ? starterFiles
+              ? ({
+                  files: starterFiles,
+                  entrypoint,
+                } as Prisma.InputJsonValue)
+              : Prisma.JsonNull
+            : payload.starterFiles
+              ? (payload.starterFiles as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
           expectedOutput: payload.expectedOutput ?? null,
           autograderEnabled: payload.autograderEnabled ?? false,
           autograderReferenceSolution: payload.autograderEnabled ? payload.autograderReferenceSolution ?? null : null,

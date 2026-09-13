@@ -44,6 +44,7 @@ export const ActivityCreationModal = ({
   const [languageLocked, setLanguageLocked] = useState(false)
   const [starterCode, setStarterCode] = useState('')
   const [starterFiles, setStarterFiles] = useState<StarterFile[] | null>(null)
+  const [starterEntrypoint, setStarterEntrypoint] = useState<string | null>(null)
   const [expectedOutput, setExpectedOutput] = useState('')
   const [autograderEnabled, setAutograderEnabled] = useState(false)
   const [autograderReferenceSolution, setAutograderReferenceSolution] = useState('')
@@ -72,6 +73,7 @@ export const ActivityCreationModal = ({
       setLanguageLocked(false)
       setStarterCode('')
       setStarterFiles(null)
+      setStarterEntrypoint(null)
       setExpectedOutput('')
       setAutograderEnabled(false)
       setAutograderReferenceSolution('')
@@ -220,6 +222,7 @@ export const ActivityCreationModal = ({
                   setStarterLanguage(nextLanguage)
                   setStarterCode('')
                   setStarterFiles(null)
+                  setStarterEntrypoint(null)
                   if (nextLanguage === 'web' || nextLanguage === 'html') {
                     setAutograderEnabled(false)
                   }
@@ -246,7 +249,11 @@ export const ActivityCreationModal = ({
                 </p>
                 <WebProjectEditor
                   defaultFiles={starterFiles}
-                  onChange={setStarterFiles}
+                  defaultEntrypoint={starterEntrypoint}
+                  onChange={(files, entrypoint) => {
+                    setStarterFiles(files)
+                    setStarterEntrypoint(entrypoint)
+                  }}
                   height="350px"
                 />
               </div>
@@ -474,6 +481,7 @@ export const ActivityCreationModal = ({
                   languageLocked: type === 'coding' ? languageLocked : false,
                   starterCode: type === 'coding' && starterLanguage !== 'web' ? (starterCode.trim() || null) : null,
                   starterFiles: type === 'coding' && starterLanguage === 'web' ? (starterFiles ?? null) : null,
+                  entrypoint: type === 'coding' && starterLanguage === 'web' ? starterEntrypoint : null,
                   expectedOutput: type === 'coding' && starterLanguage !== 'web' ? (expectedOutput.trim() || null) : null,
                   autograderEnabled: type === 'coding' && autograderEnabled && autograderSupported,
                   autograderReferenceSolution:

@@ -11,7 +11,7 @@ This list is reordered to match the current development sequence request.
 - [x] **Execution payload/output limits** — `/execute` now rejects oversized source/stdin payloads and includes structured truncation metadata when output is capped.
 - [x] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
   - Implemented fixed-window user burst + user sustained + shared course limits with deterministic `429` + `Retry-After` contract and backend unit/integration tests.
-- [ ] **Multi-file coding projects** — support multiple files (for example Python + text/config files) and run them as a single project workspace.
+- [x] **Multi-file coding projects** — Web Development Kit now supports a project workspace model with explicit entrypoint resolution and deterministic run target validation in `/execute`.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
 - [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.
 - [ ] **Language/runtime coverage matrix** — define and validate which languages/runtimes are officially supported in MVP and production.
@@ -40,7 +40,7 @@ This list is reordered to match the current development sequence request.
 ## P2 — UX/UI cleanup (sleek, modern, intuitive)
 
 - [x] **VS Code-style file manager UX** — the Web Development Kit now ships with a side file tree plus a show/hide toggle, and the explorer starts collapsed to protect the editor/preview layout.
-- [ ] **CRUD interface completeness** — make sure menu system has full functionality to edit, delete, hide, etc.
+- [x] **CRUD interface completeness** — Web Development Kit file tree now supports beginner-friendly folder/file create, collision-safe rename, delete confirmations, and path normalization.
 - [ ] **Indicator icons** — integrate icons to indicate states of activities, lessons, and units.
 - [ ] **Drag-and-drop hierarchy management** — replace the current move-up/move-down course organizer with direct drag-and-drop reordering and cross-unit / cross-lesson moves.
 - [ ] **Accessibility hardening** — complete a11y audit and fix critical findings.

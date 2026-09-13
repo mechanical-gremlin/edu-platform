@@ -4,8 +4,9 @@ import { AppError, iso, requireRole } from '../../lib.js'
 import { autograderResultSchema, parseAutograderResult } from '../autograder/service.js'
 
 const starterFileSchema = z.object({
-  name: z.string(),
-  language: z.string(),
+  path: z.string().optional(),
+  name: z.string().optional(),
+  language: z.string().optional(),
   content: z.string(),
 })
 
@@ -43,6 +44,7 @@ const gradebookResponseSchema = z.object({
           submittedAt: z.string().nullable(),
           submissionText: z.string().nullable(),
           submissionFiles: z.array(starterFileSchema).nullable(),
+          submissionEntrypoint: z.string().nullable(),
           autograderResult: autograderResultSchema.nullable(),
         }),
       ),
@@ -77,6 +79,7 @@ const meGradesResponseSchema = z.array(
     submittedAt: z.string().nullable(),
     submissionText: z.string().nullable(),
     submissionFiles: z.array(starterFileSchema).nullable(),
+    submissionEntrypoint: z.string().nullable(),
     autograderResult: autograderResultSchema.nullable(),
   }),
 )
@@ -98,7 +101,12 @@ const getSubmissionFiles = (content: unknown) => {
   const submissionFiles = Reflect.get(content, 'submissionFiles')
   const parsed = z.array(starterFileSchema).safeParse(submissionFiles)
   if (parsed.success && parsed.data.length > 0) {
-    return parsed.data
+    const normalized = parsed.data.map((file) => ({
+      path: file.path ?? file.name ?? '',
+      language: file.language,
+      content: file.content,
+    })).filter((file) => Boolean(file.path))
+    return normalized.length > 0 ? normalized : null
   }
 
   const responseText = Reflect.get(content, 'responseText')
@@ -110,10 +118,27 @@ const getSubmissionFiles = (content: unknown) => {
     const fallbackParsed = z.array(starterFileSchema).safeParse(
       JSON.parse(responseText),
     )
-    return fallbackParsed.success && fallbackParsed.data.length > 0 ? fallbackParsed.data : null
+    if (fallbackParsed.success && fallbackParsed.data.length > 0) {
+      const normalized = fallbackParsed.data.map((file) => ({
+        path: file.path ?? file.name ?? '',
+        language: file.language,
+        content: file.content,
+      })).filter((file) => Boolean(file.path))
+      return normalized.length > 0 ? normalized : null
+    }
+    return null
   } catch {
     return null
   }
+}
+
+const getSubmissionEntrypoint = (content: unknown) => {
+  if (!content || typeof content !== 'object' || Array.isArray(content)) {
+    return null
+  }
+
+  const entrypoint = Reflect.get(content, 'submissionEntrypoint')
+  return typeof entrypoint === 'string' && entrypoint.trim() ? entrypoint : null
 }
 
 const assertTeacherForCourse = async (app: Parameters<FastifyPluginAsync>[0], courseId: string, userId: string) => {
@@ -218,6 +243,7 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
               submittedAt: iso(submission?.submittedAt),
               submissionText: getSubmissionText(submission?.content),
               submissionFiles: getSubmissionFiles(submission?.content),
+              submissionEntrypoint: getSubmissionEntrypoint(submission?.content),
               autograderResult: parseAutograderResult(grade?.autograderResult),
             }
           }),
@@ -375,6 +401,7 @@ export const gradeRoutes: FastifyPluginAsync = async (app) => {
                   submittedAt: iso(submission?.submittedAt),
                   submissionText: getSubmissionText(submission?.content),
                   submissionFiles: getSubmissionFiles(submission?.content),
+                  submissionEntrypoint: getSubmissionEntrypoint(submission?.content),
                   autograderResult: parseAutograderResult(grade?.autograderResult),
                 }
               }),
