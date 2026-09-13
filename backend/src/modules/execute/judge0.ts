@@ -1,7 +1,6 @@
 import { z } from 'zod'
 import { AppError } from '../../lib.js'
-
-const DEFAULT_JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com'
+import { resolveExecutionConfig, type ExecutionConfig } from '../../config/executionConfig.js'
 
 export const JUDGE0_LANGUAGE_MAP: Record<string, number> = {
   javascript: 93,
@@ -39,10 +38,12 @@ export const executeWithJudge0 = async ({
   language,
   code,
   stdin,
+  config,
 }: {
   language: string
   code: string
   stdin?: string | null
+  config?: ExecutionConfig
 }): Promise<ExecuteResponse> => {
   if (!(language in JUDGE0_LANGUAGE_MAP)) {
     throw new AppError(400, `Unsupported language: ${language}`)
@@ -59,31 +60,19 @@ export const executeWithJudge0 = async ({
     }
   }
 
-  const judge0ApiUrl = process.env.JUDGE0_API_URL?.trim().replace(/\/+$/, '') || DEFAULT_JUDGE0_API_URL
-  const judge0ApiKey = process.env.JUDGE0_API_KEY?.trim() || ''
-  let judge0Host: string
-  try {
-    judge0Host = new URL(judge0ApiUrl).hostname
-  } catch {
-    throw new AppError(503, 'Code execution is not configured. JUDGE0_API_URL must be a valid URL.', undefined, true)
+  const resolvedConfig = config ?? resolveExecutionConfig(process.env).config
+  if (!resolvedConfig) {
+    throw new AppError(503, 'Code execution is not configured. Check execution environment variables.', undefined, true)
   }
+
+  const judge0ApiUrl = resolvedConfig.judge0BaseUrl
+  const judge0ApiKey = resolvedConfig.judge0ApiKey
+  const judge0Host = new URL(judge0ApiUrl).hostname
   const isRapidApiJudge0 = /(^|\.)p\.rapidapi\.com$/i.test(judge0Host)
 
-  if (isRapidApiJudge0 && !judge0ApiKey) {
-    throw new AppError(
-      503,
-      'Code execution is not configured. Set JUDGE0_API_KEY in backend environment variables.',
-      undefined,
-      true,
-    )
-  }
-
-  const judge0TimeoutMs = Number(process.env.JUDGE0_REQUEST_TIMEOUT_MS ?? 12_000)
-  const pollIntervalMs = Number(process.env.JUDGE0_POLL_INTERVAL_MS ?? 300)
-  const maxPollAttempts = Number(process.env.JUDGE0_MAX_POLL_ATTEMPTS ?? 30)
-  const requestTimeoutMs = Number.isFinite(judge0TimeoutMs) && judge0TimeoutMs > 0 ? judge0TimeoutMs : 12_000
-  const pollDelayMs = Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 300
-  const pollAttempts = Number.isFinite(maxPollAttempts) && maxPollAttempts > 0 ? maxPollAttempts : 30
+  const requestTimeoutMs = resolvedConfig.timeoutMs
+  const pollDelayMs = 300
+  const pollAttempts = Math.max(1, Math.ceil(requestTimeoutMs / pollDelayMs))
 
   const headers = {
     'Content-Type': 'application/json',
@@ -169,10 +158,22 @@ export const executeWithJudge0 = async ({
     throw new AppError(504, 'Code execution timed out. Try again with smaller input.', undefined, true)
   }
 
+  const maxOutputBytes = resolvedConfig.maxOutputKb * 1024
+  const truncateOutput = (value: string | null) => {
+    if (!value) {
+      return null
+    }
+    const outputSize = Buffer.byteLength(value, 'utf8')
+    if (outputSize <= maxOutputBytes) {
+      return value
+    }
+    return `${value.slice(0, maxOutputBytes)}\n[output truncated]`
+  }
+
   return {
-    stdout: result.stdout ?? null,
-    stderr: result.stderr ?? null,
-    compile_output: result.compile_output ?? null,
+    stdout: truncateOutput(result.stdout ?? null),
+    stderr: truncateOutput(result.stderr ?? null),
+    compile_output: truncateOutput(result.compile_output ?? null),
     status: result.status ?? {
       id: 11,
       description: 'Runtime Error',

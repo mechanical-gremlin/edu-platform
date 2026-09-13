@@ -72,12 +72,15 @@ loads but run requests return a clear configuration error from the backend.
 
 ```dotenv
 JUDGE0_API_KEY=your_rapidapi_key_here
-JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com
-JUDGE0_REQUEST_TIMEOUT_MS=12000
+JUDGE0_BASE_URL=https://judge0-ce.p.rapidapi.com
+EXEC_TIMEOUT_MS=12000
+EXEC_MAX_SOURCE_KB=64
+EXEC_MAX_STDIN_KB=8
+EXEC_MAX_OUTPUT_KB=32
 ```
 
-Leave `JUDGE0_API_KEY` blank only if you are pointing `JUDGE0_API_URL` to a
-self-hosted Judge0 instance that does not require RapidAPI authentication.
+Use your provider token in `JUDGE0_API_KEY` and point `JUDGE0_BASE_URL` to the
+Judge0-compatible endpoint.
 
 ### 2. Get a free RapidAPI Judge0 key
 
@@ -127,7 +130,7 @@ definitions. You must supply the actual key value manually in the Render dashboa
 2. In the Render dashboard, navigate to the **edu-platform-api** service
 3. Go to **Environment → Environment Variables**
 4. Set `JUDGE0_API_KEY` to your RapidAPI key
-5. Set `JUDGE0_API_URL` to `https://judge0-ce.p.rapidapi.com` (already set as default in `render.yaml`)
+5. Set `JUDGE0_BASE_URL` to `https://judge0-ce.p.rapidapi.com` (already set as default in `render.yaml`)
 6. Trigger a manual deploy (or the next push will pick it up automatically)
 
 The `JUDGE0_API_KEY` value is intentionally absent from `render.yaml` and must
@@ -155,7 +158,7 @@ infrastructure you fully control.
 
 1. Fork the [Judge0 CE repository](https://github.com/judge0/judge0)
 2. Add a new **Docker** web service to your Render account (or add it to `render.yaml`)
-3. Point `JUDGE0_API_URL` to your self-hosted service URL
+3. Point `JUDGE0_BASE_URL` to your self-hosted service URL
 4. Remove the `X-RapidAPI-*` headers from the proxy — Judge0 CE does not use them
    when self-hosted (update `backend/src/modules/execute/routes.ts` accordingly)
 
@@ -207,8 +210,8 @@ The starter code and expected output are stored in the database (`activities.sta
   and now also supports optional stdin when teachers run reference solutions while building an autograder.
 - Teacher grading now reuses the same editor components to load and execute student submissions in-context while scoring.
 - Draft/checkpoint persistence is currently browser-local (`localStorage`), so it survives refresh/navigation on the same device but is not yet synchronized across devices.
-- If `JUDGE0_API_KEY` is missing while using the RapidAPI URL, the backend returns
-  HTTP 503 with a configuration message so the failure is actionable.
+- If execution env vars are invalid (or missing in production), the backend returns
+  a clear configuration failure so setup issues are actionable.
 - HTML and **Web Development Kit** activities still fall back to manual grading because they do not yet execute in the server-side Judge0 pipeline.
 
 ---

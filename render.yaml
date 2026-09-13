@@ -13,10 +13,18 @@ services:
         fromDatabase:
           name: edu-platform-db
           property: connectionString
-      - key: JUDGE0_API_URL
+      - key: JUDGE0_BASE_URL
         value: https://judge0-ce.p.rapidapi.com
       - key: JUDGE0_API_KEY
         sync: false
+      - key: EXEC_TIMEOUT_MS
+        value: 12000
+      - key: EXEC_MAX_SOURCE_KB
+        value: 64
+      - key: EXEC_MAX_STDIN_KB
+        value: 8
+      - key: EXEC_MAX_OUTPUT_KB
+        value: 32
   - type: web
     name: edu-platform-frontend
     env: static

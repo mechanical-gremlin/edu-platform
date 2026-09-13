@@ -1,7 +1,13 @@
 import type { FastifyPluginAsync } from 'fastify'
 import { z } from 'zod'
+import type { ExecutionConfigState } from '../../config/executionConfig.js'
+import { getExecutionUpstreamStatus } from '../../config/executionConfig.js'
 
-export const healthRoutes: FastifyPluginAsync = async (app) => {
+interface HealthRoutesOptions {
+  executionConfigState: ExecutionConfigState
+}
+
+export const healthRoutes: FastifyPluginAsync<HealthRoutesOptions> = async (app, options) => {
   app.get(
     '/',
     {
@@ -27,10 +33,24 @@ export const healthRoutes: FastifyPluginAsync = async (app) => {
     {
       schema: {
         response: {
-          200: z.object({ status: z.literal('ok') }),
+          200: z.object({
+            status: z.literal('ok'),
+            execution: z.object({
+              configured: z.boolean(),
+              upstream: z.enum(['reachable', 'unreachable', 'unknown']),
+              errors: z.array(z.string()),
+            }),
+          }),
         },
       },
     },
-    async () => ({ status: 'ok' }),
+    async () => ({
+      status: 'ok',
+      execution: {
+        configured: Boolean(options.executionConfigState.config),
+        upstream: await getExecutionUpstreamStatus(options.executionConfigState.config),
+        errors: options.executionConfigState.errors,
+      },
+    }),
   )
 }
