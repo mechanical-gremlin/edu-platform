@@ -309,6 +309,39 @@ test('PATCH /units/:unitId updates unit metadata', async () => {
   }
 })
 
+test('POST /lessons/:lessonId/activities rejects mismatched web starter entrypoint', async () => {
+  const prisma = buildCoursePrismaStub()
+  const app = await buildApp({ prisma: prisma.stub })
+
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/lessons/l-1/activities',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        title: 'Web Starter',
+        type: 'coding',
+        description: 'Create a starter project workspace',
+        language: 'web',
+        starterFiles: [
+          { path: 'index.html', content: '<h1>Hello</h1>' },
+        ],
+        entrypoint: 'missing.html',
+        pointsPossible: 10,
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.deepEqual(response.json(), {
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Entrypoint must reference a starter project file.',
+    })
+  } finally {
+    await app.close()
+  }
+})
+
 test('PATCH /activities/:activityId updates teacher-editable assignment fields', async () => {
   const prisma = buildCoursePrismaStub()
   const app = await buildApp({ prisma: prisma.stub })

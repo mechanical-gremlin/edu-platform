@@ -248,17 +248,15 @@ export const WebProjectEditor = ({
       const prefix = `${targetPath}/`
       const nextFiles = files.filter((file) => !(file.path === targetPath || file.path.startsWith(prefix)))
       const nextFolders = folders.filter((folder) => !(folder === targetPath || folder.startsWith(prefix)))
-      setFolders(nextFolders)
       if (nextFiles.length === 0) {
-        const fallbackFile = { path: 'index.html', language: 'html', content: '<!DOCTYPE html>\n<html></html>' }
-        setActivePath(fallbackFile.path)
-        publish([fallbackFile], fallbackFile.path)
-      } else {
-        if (activePath === targetPath || activePath.startsWith(prefix)) {
-          setActivePath(nextFiles[0].path)
-        }
-        publish(nextFiles, entrypoint)
+        setPathError('Project workspace must keep at least one file.')
+        return
       }
+      setFolders(nextFolders)
+      if (activePath === targetPath || activePath.startsWith(prefix)) {
+        setActivePath(nextFiles[0].path)
+      }
+      publish(nextFiles, entrypoint)
       return
     }
 
@@ -353,7 +351,7 @@ export const WebProjectEditor = ({
       <div className="border-b border-slate-700 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
         File tree
       </div>
-      <div className="flex-1 overflow-auto px-2 py-2" role="tree" aria-label="Project files">
+      <div className="flex-1 overflow-auto px-2 py-2" role="listbox" aria-label="Project files">
         {treeRows.map((row) => {
           const depth = Math.max(0, row.path.split('/').length - 1)
           const selected = row.type === 'file' ? activePath === row.path : selectedFolder === row.path
@@ -361,6 +359,8 @@ export const WebProjectEditor = ({
           return (
             <div
               key={`${row.type}:${row.path}`}
+              role="option"
+              aria-selected={selected}
               className={`mb-1 flex items-center gap-1 rounded px-2 py-1 text-xs ${selected ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
               style={{ paddingLeft: `${8 + depth * 10}px` }}
             >
