@@ -38,10 +38,21 @@ const MONACO_LANGUAGE_MAP: Record<string, string> = {
   kotlin: 'kotlin',
 }
 
+const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
+  const parsed = Number.parseInt(String(envValue ?? ''), 10)
+  const kb = Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackKb
+  return kb * 1024
+}
+
 interface ExecuteResult {
   stdout: string | null
   stderr: string | null
   compile_output: string | null
+  truncation?: {
+    stdout: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+    stderr: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+    compile_output: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+  }
   status: { id: number; description: string }
   time: string | null
   memory: number | null
@@ -93,11 +104,23 @@ export const MonacoEditor = ({
   const [output, setOutput] = useState<string | null>(null)
   const [running, setRunning] = useState(false)
   const [runError, setRunError] = useState<string | null>(null)
+  const [truncationNotice, setTruncationNotice] = useState<string | null>(null)
   const [passed, setPassed] = useState<boolean | null>(null)
   const initialCodeRef = useRef(defaultValue)
   const htmlPreviewHelpId = useId()
   const showExecution = Boolean(executeUrl && language !== 'html')
   const showHtmlPreview = language === 'html'
+  const maxSourceBytes = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
+  const maxStdinBytes = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
+  const textEncoder = new TextEncoder()
+  const sourceBytes = textEncoder.encode(code).length
+  const stdinBytes = textEncoder.encode(stdin ?? '').length
+  const preflightWarning =
+    sourceBytes > maxSourceBytes
+      ? `Source code exceeds the ${Math.round(maxSourceBytes / 1024)} KB limit.`
+      : stdinBytes > maxStdinBytes
+        ? `Program input exceeds the ${Math.round(maxStdinBytes / 1024)} KB limit.`
+        : null
 
   // Only reset editor content when the starterCode prop itself changes (new activity)
   useEffect(() => {
@@ -106,6 +129,7 @@ export const MonacoEditor = ({
       setCode(defaultValue)
       setOutput(null)
       setRunError(null)
+      setTruncationNotice(null)
       setPassed(null)
     }
   }, [defaultValue])
@@ -124,8 +148,12 @@ export const MonacoEditor = ({
 
   const handleRun = async () => {
     if (!executeUrl) return
+    if (preflightWarning) {
+      return
+    }
     setRunning(true)
     setRunError(null)
+    setTruncationNotice(null)
     setOutput(null)
     setPassed(null)
 
@@ -154,6 +182,16 @@ export const MonacoEditor = ({
       else if (stderrText) displayOutput = `${stdoutText}\n[Error]\n${stderrText}`.trim()
 
       setOutput(displayOutput || `(${result.status.description} — no output)`)
+      if (result.truncation) {
+        const truncatedLabels: string[] = []
+        if (result.truncation.stdout.truncated) truncatedLabels.push('stdout')
+        if (result.truncation.stderr.truncated) truncatedLabels.push('stderr')
+        if (result.truncation.compile_output.truncated) truncatedLabels.push('compile output')
+
+        if (truncatedLabels.length > 0) {
+          setTruncationNotice(`Output truncated for ${truncatedLabels.join(', ')} to ${result.truncation.stdout.maxSizeBytes} bytes per field.`)
+        }
+      }
       onExecutionComplete?.(result)
 
       if (expectedOutput) {
@@ -224,7 +262,7 @@ export const MonacoEditor = ({
             <div className="flex items-center gap-3">
               <button
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-                disabled={running || !code.trim()}
+                disabled={running || !code.trim() || Boolean(preflightWarning)}
                 onClick={handleRun}
               >
                 {running ? '▶ Running…' : '▶ Run'}
@@ -244,6 +282,12 @@ export const MonacoEditor = ({
 
             {runError && (
               <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{runError}</p>
+            )}
+            {!runError && preflightWarning && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{preflightWarning}</p>
+            )}
+            {truncationNotice && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">{truncationNotice}</p>
             )}
 
             <div className="flex-1 rounded-xl border border-slate-200 bg-slate-900 px-4 py-3">

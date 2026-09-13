@@ -36,16 +36,22 @@ Use this checklist after deploying backend changes related to `/execute`.
 ## 4) Input size enforcement
 
 1. Send source code bigger than `EXEC_MAX_SOURCE_KB`.
-2. Confirm backend returns `400` with:
-   - `code: "EXEC_BAD_REQUEST"`
+2. Confirm backend returns `413` with:
+   - `code: "EXEC_PAYLOAD_TOO_LARGE"`
    - `retryable: false`
    - `requestId`
    - `message: "Source code exceeds EXEC_MAX_SOURCE_KB (...)"`.
+3. Repeat with oversized `stdin` (`EXEC_MAX_STDIN_KB`) and confirm the same `413` schema and limit-specific message.
 
 ## 5) Output size enforcement
 
 1. Execute code that returns output larger than `EXEC_MAX_OUTPUT_KB`.
-2. Confirm response output is truncated and ends with `[output truncated]`.
+2. Confirm response `stdout`/`stderr`/`compile_output` are truncated as needed and end with `[output truncated]`.
+3. Confirm `truncation.<field>` metadata is present with:
+   - `truncated`
+   - `originalSizeBytes`
+   - `maxSizeBytes`
+4. Confirm truncation does not break UTF-8 characters at boundaries.
 
 ## 6) Timeout mapping
 
@@ -75,3 +81,5 @@ Use this checklist after deploying backend changes related to `/execute`.
 1. In the coding editor, trigger an `EXEC_TIMEOUT` response and confirm the UI shows a timeout-specific message plus retry guidance.
 2. Trigger an `EXEC_UPSTREAM_ERROR` response and confirm the UI shows a temporary-unavailable message plus retry guidance.
 3. Trigger a non-retryable `EXEC_BAD_REQUEST` response and confirm the UI surfaces the backend message without retry guidance.
+4. With source/stdin over configured frontend limits, confirm a preflight warning appears and Run stays disabled.
+5. Trigger output truncation and confirm the output panel shows a truncation notice.

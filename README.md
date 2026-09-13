@@ -67,6 +67,10 @@ API default URL: `http://localhost:3001`
 > - `JUDGE0_API_KEY` (required in production),
 > - `EXEC_TIMEOUT_MS`, `EXEC_MAX_SOURCE_KB`, `EXEC_MAX_STDIN_KB`, and `EXEC_MAX_OUTPUT_KB`.
 > See `docs/deployment/env.md` for provider-agnostic examples.
+>
+> Frontend preflight warnings for oversized submissions use:
+> - `VITE_EXEC_MAX_SOURCE_KB`
+> - `VITE_EXEC_MAX_STDIN_KB`
 
 Demo auth header:
 

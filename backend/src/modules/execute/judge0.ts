@@ -24,6 +24,23 @@ export const executeResponseSchema = z.object({
   stdout: z.string().nullable(),
   stderr: z.string().nullable(),
   compile_output: z.string().nullable(),
+  truncation: z.object({
+    stdout: z.object({
+      truncated: z.boolean(),
+      originalSizeBytes: z.int(),
+      maxSizeBytes: z.int(),
+    }),
+    stderr: z.object({
+      truncated: z.boolean(),
+      originalSizeBytes: z.int(),
+      maxSizeBytes: z.int(),
+    }),
+    compile_output: z.object({
+      truncated: z.boolean(),
+      originalSizeBytes: z.int(),
+      maxSizeBytes: z.int(),
+    }),
+  }),
   status: z.object({
     id: z.int(),
     description: z.string(),
@@ -46,6 +63,7 @@ export type ExecuteErrorCode =
   | 'EXEC_FORBIDDEN'
   | 'EXEC_INTERNAL_ERROR'
   | 'EXEC_NOT_CONFIGURED'
+  | 'EXEC_PAYLOAD_TOO_LARGE'
   | 'EXEC_TIMEOUT'
   | 'EXEC_UNAUTHORIZED'
   | 'EXEC_UPSTREAM_ERROR'
@@ -87,6 +105,8 @@ export const getExecuteErrorCode = (statusCode: number): ExecuteErrorCode => {
       return 'EXEC_UNAUTHORIZED'
     case 403:
       return 'EXEC_FORBIDDEN'
+    case 413:
+      return 'EXEC_PAYLOAD_TOO_LARGE'
     case 502:
     case 503:
       return 'EXEC_UPSTREAM_ERROR'
@@ -148,18 +168,39 @@ export const executeWithJudge0 = async ({
     })
   }
 
+  const resolvedConfig = config ?? resolveExecutionConfig(process.env).config
+
   if (language === 'html' || language === 'web') {
+    const webPreviewMessage = '(Web project is rendered in the browser preview — no server execution needed)'
+    const webPreviewMessageBytes = Buffer.byteLength(webPreviewMessage, 'utf8')
+    const maxOutputBytes = resolvedConfig ? resolvedConfig.maxOutputKb * 1024 : webPreviewMessageBytes
     return {
-      stdout: '(Web project is rendered in the browser preview — no server execution needed)',
+      stdout: webPreviewMessage,
       stderr: null,
       compile_output: null,
+      truncation: {
+        stdout: {
+          truncated: false,
+          originalSizeBytes: webPreviewMessageBytes,
+          maxSizeBytes: maxOutputBytes,
+        },
+        stderr: {
+          truncated: false,
+          originalSizeBytes: 0,
+          maxSizeBytes: maxOutputBytes,
+        },
+        compile_output: {
+          truncated: false,
+          originalSizeBytes: 0,
+          maxSizeBytes: maxOutputBytes,
+        },
+      },
       status: { id: 3, description: 'Accepted' },
       time: null,
       memory: null,
     }
   }
 
-  const resolvedConfig = config ?? resolveExecutionConfig(process.env).config
   if (!resolvedConfig) {
    throw createExecuteError({
      statusCode: 503,
@@ -380,12 +421,26 @@ export const executeWithJudge0 = async ({
   const truncationSuffix = '\n[output truncated]'
   const truncationSuffixBytes = Buffer.byteLength(truncationSuffix, 'utf8')
   const truncateOutput = (value: string | null) => {
+    const originalSizeBytes = value ? Buffer.byteLength(value, 'utf8') : 0
     if (!value) {
-      return null
+      return {
+        value: null,
+        metadata: {
+          truncated: false,
+          originalSizeBytes,
+          maxSizeBytes: maxOutputBytes,
+        },
+      }
     }
-    const outputSize = Buffer.byteLength(value, 'utf8')
-    if (outputSize <= maxOutputBytes) {
-      return value
+    if (originalSizeBytes <= maxOutputBytes) {
+      return {
+        value,
+        metadata: {
+          truncated: false,
+          originalSizeBytes,
+          maxSizeBytes: maxOutputBytes,
+        },
+      }
     }
     const outputBudgetBytes = Math.max(0, maxOutputBytes - truncationSuffixBytes)
     let safeOutput = ''
@@ -398,13 +453,29 @@ export const executeWithJudge0 = async ({
       safeOutput += character
       safeBytes += characterBytes
     }
-    return `${safeOutput}${truncationSuffix}`
+    return {
+      value: `${safeOutput}${truncationSuffix}`,
+      metadata: {
+        truncated: true,
+        originalSizeBytes,
+        maxSizeBytes: maxOutputBytes,
+      },
+    }
   }
 
+  const truncatedStdout = truncateOutput(result.stdout ?? null)
+  const truncatedStderr = truncateOutput(result.stderr ?? null)
+  const truncatedCompileOutput = truncateOutput(result.compile_output ?? null)
+
   return {
-    stdout: truncateOutput(result.stdout ?? null),
-    stderr: truncateOutput(result.stderr ?? null),
-    compile_output: truncateOutput(result.compile_output ?? null),
+    stdout: truncatedStdout.value,
+    stderr: truncatedStderr.value,
+    compile_output: truncatedCompileOutput.value,
+    truncation: {
+      stdout: truncatedStdout.metadata,
+      stderr: truncatedStderr.metadata,
+      compile_output: truncatedCompileOutput.metadata,
+    },
     status: result.status ?? {
       id: 11,
       description: 'Runtime Error',

@@ -2,6 +2,12 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { autogradeCodingSubmission, getAutograderPoints } from './service.js'
 
+const noTruncation = {
+  stdout: { truncated: false, originalSizeBytes: 0, maxSizeBytes: 32768 },
+  stderr: { truncated: false, originalSizeBytes: 0, maxSizeBytes: 32768 },
+  compile_output: { truncated: false, originalSizeBytes: 0, maxSizeBytes: 32768 },
+}
+
 test('autograder returns 100 when all enabled checks pass', async () => {
   const result = await autogradeCodingSubmission({
     language: 'javascript',
@@ -15,6 +21,7 @@ test('autograder returns 100 when all enabled checks pass', async () => {
       stdout: 'Alex: 1500\n',
       stderr: null,
       compile_output: null,
+      truncation: noTruncation,
       status: { id: 3, description: 'Accepted' },
       time: '0.01',
       memory: 1024,
@@ -40,6 +47,7 @@ test('autograder returns 50 when only some checks pass', async () => {
       stdout: 'Alex: 1500\n',
       stderr: null,
       compile_output: null,
+      truncation: noTruncation,
       status: { id: 3, description: 'Accepted' },
       time: '0.01',
       memory: 1024,
@@ -67,6 +75,7 @@ test('autograder returns 0 when every check fails', async () => {
       stdout: stdin ? '1500\n' : '1500\n',
       stderr: null,
       compile_output: null,
+      truncation: noTruncation,
       status: { id: 3, description: 'Accepted' },
       time: '0.01',
       memory: 1024,
@@ -93,6 +102,7 @@ test('autograder treats compile output as a failed output match', async () => {
       stdout: null,
       stderr: null,
       compile_output: 'SyntaxError: Unexpected token',
+      truncation: noTruncation,
       status: { id: 6, description: 'Compilation Error' },
       time: null,
       memory: null,

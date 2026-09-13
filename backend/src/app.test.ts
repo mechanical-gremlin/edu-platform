@@ -342,9 +342,9 @@ test('POST /execute rejects code that exceeds configured source limit', { concur
       },
     })
 
-    assert.equal(response.statusCode, 400)
+    assert.equal(response.statusCode, 413)
     assert.deepEqual(response.json(), {
-      code: 'EXEC_BAD_REQUEST',
+      code: 'EXEC_PAYLOAD_TOO_LARGE',
       message: 'Source code exceeds EXEC_MAX_SOURCE_KB (1 KB).',
       retryable: false,
       requestId: 'req-1',
@@ -370,15 +370,64 @@ test('POST /execute rejects stdin that exceeds configured stdin limit', { concur
       },
     })
 
-    assert.equal(response.statusCode, 400)
+    assert.equal(response.statusCode, 413)
     assert.deepEqual(response.json(), {
-      code: 'EXEC_BAD_REQUEST',
+      code: 'EXEC_PAYLOAD_TOO_LARGE',
       message: 'Standard input exceeds EXEC_MAX_STDIN_KB (1 KB).',
       retryable: false,
       requestId: 'req-1',
     })
   } finally {
     await app.close()
+    restoreEnv()
+  }
+})
+
+test('POST /execute accepts source and stdin at configured byte limits', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_MAX_SOURCE_KB: '1', EXEC_MAX_STDIN_KB: '1' })
+  const originalFetch = globalThis.fetch
+  let totalCalls = 0
+  globalThis.fetch = async (input) => {
+    totalCalls += 1
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-limit-ok' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(
+      JSON.stringify({
+        stdout: 'ok\n',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.02',
+        memory: 900,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'a'.repeat(1024),
+        stdin: 's'.repeat(1024),
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(totalCalls, 2)
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
     restoreEnv()
   }
 })
@@ -612,13 +661,85 @@ test('POST /execute truncates oversized output using configured output limit', {
     })
 
     assert.equal(response.statusCode, 200)
-    const body = response.json() as { stdout: string | null; stderr: string | null; compile_output: string | null }
+    const body = response.json() as {
+      stdout: string | null
+      stderr: string | null
+      compile_output: string | null
+      truncation: {
+        stdout: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+        stderr: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+        compile_output: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+      }
+    }
     assert.ok(body.stdout?.endsWith('\n[output truncated]'))
     assert.ok(body.stderr?.endsWith('\n[output truncated]'))
     assert.ok(body.compile_output?.endsWith('\n[output truncated]'))
     assert.ok(Buffer.byteLength(body.stdout ?? '', 'utf8') <= 1024)
     assert.ok(Buffer.byteLength(body.stderr ?? '', 'utf8') <= 1024)
     assert.ok(Buffer.byteLength(body.compile_output ?? '', 'utf8') <= 1024)
+    assert.deepEqual(body.truncation, {
+      stdout: { truncated: true, originalSizeBytes: 1500, maxSizeBytes: 1024 },
+      stderr: { truncated: true, originalSizeBytes: 1500, maxSizeBytes: 1024 },
+      compile_output: { truncated: true, originalSizeBytes: 1500, maxSizeBytes: 1024 },
+    })
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
+test('POST /execute truncates output on UTF-8 boundaries', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_MAX_OUTPUT_KB: '1' })
+  const originalFetch = globalThis.fetch
+  const oversizedUtf8Output = '🙂'.repeat(500)
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-utf8-truncation' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(
+      JSON.stringify({
+        stdout: oversizedUtf8Output,
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 1000,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("utf8")',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    const body = response.json() as {
+      stdout: string | null
+      truncation: {
+        stdout: { truncated: boolean; originalSizeBytes: number; maxSizeBytes: number }
+      }
+    }
+    assert.equal(body.truncation.stdout.truncated, true)
+    assert.ok((body.stdout ?? '').endsWith('\n[output truncated]'))
+    assert.ok(!(body.stdout ?? '').includes('\uFFFD'))
+    assert.ok(Buffer.byteLength(body.stdout ?? '', 'utf8') <= 1024)
+    assert.equal(body.truncation.stdout.originalSizeBytes, Buffer.byteLength(oversizedUtf8Output, 'utf8'))
+    assert.equal(body.truncation.stdout.maxSizeBytes, 1024)
   } finally {
     await app.close()
     globalThis.fetch = originalFetch

@@ -23,6 +23,27 @@ The API validates execution configuration at startup from a single contract.
 - Timeouts return `504` with `{ code: "EXEC_TIMEOUT", message, retryable, requestId }`.
 - Transient Judge0/network failures return `502` with `{ code: "EXEC_UPSTREAM_ERROR", message, retryable, requestId }`.
 - Client validation and upstream 4xx execution rejections return `400` with `{ code: "EXEC_BAD_REQUEST", message, retryable, requestId }`.
+- Oversized source/stdin payloads return `413` with `{ code: "EXEC_PAYLOAD_TOO_LARGE", message, retryable, requestId }`.
+
+## `/execute` output truncation contract
+
+- `stdout`, `stderr`, and `compile_output` are each capped to `EXEC_MAX_OUTPUT_KB` per field.
+- Every execute response includes:
+  - `truncation.stdout`
+  - `truncation.stderr`
+  - `truncation.compile_output`
+- Each truncation entry has:
+  - `truncated` (`true` when the field was capped)
+  - `originalSizeBytes`
+  - `maxSizeBytes`
+- Truncation is UTF-8 safe and appends `"[output truncated]"` when content is shortened.
+
+## Frontend preflight limit vars
+
+Set these in frontend env so the editor can warn before oversized submissions:
+
+- `VITE_EXEC_MAX_SOURCE_KB` (defaults to `64` when unset/invalid)
+- `VITE_EXEC_MAX_STDIN_KB` (defaults to `8` when unset/invalid)
 
 ## Provider-agnostic examples
 
