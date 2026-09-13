@@ -369,19 +369,18 @@ const parseStarterProjectWorkspace = (value: Prisma.JsonValue | null) => {
       return null
     }
 
-    return parsed.data
-      .map((file) => {
+    return parsed.data.reduce<Array<{ path: string; language?: string; content: string }>>((normalized, file) => {
         const path = normalizeWorkspacePath(file.path ?? file.name ?? '')
         if (!path) {
-          return null
+          return normalized
         }
-        return {
+        normalized.push({
           path,
           language: file.language,
           content: file.content,
-        }
-      })
-      .filter((file): file is { path: string; language?: string; content: string } => Boolean(file))
+        })
+        return normalized
+      }, [])
   }
 
   if (Array.isArray(value)) {

@@ -42,17 +42,22 @@ const normalizeFiles = (value: unknown): StarterFile[] | null => {
     return null
   }
 
-  const files = value.filter(isStarterFile).map((file) => {
+  const files = value.reduce<StarterFile[]>((current, file) => {
+    if (!isStarterFile(file)) {
+      return current
+    }
     const path = (file.path ?? file.name ?? '').trim()
-    return path
-      ? {
-          path,
-          name: file.name,
-          language: file.language,
-          content: file.content,
-        }
-      : null
-  }).filter((file): file is StarterFile => Boolean(file))
+    if (!path) {
+      return current
+    }
+    current.push({
+      path,
+      name: file.name,
+      language: file.language,
+      content: file.content,
+    })
+    return current
+  }, [])
   return files.length > 0 ? files : null
 }
 

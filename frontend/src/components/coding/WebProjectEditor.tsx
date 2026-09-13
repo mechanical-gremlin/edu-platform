@@ -170,8 +170,21 @@ export const WebProjectEditor = ({
       setEntrypoint(resolved.entrypoint)
       setEntrypointError(resolved.error?.message ?? null)
       refreshPreview(nextFiles, resolved.entrypoint)
+      onChange?.(nextFiles, resolved.entrypoint)
     }
-  }, [defaultEntrypoint, defaultFiles])
+  }, [defaultEntrypoint, defaultFiles, onChange])
+
+  useEffect(() => {
+    const resolved = resolveDeterministicEntrypoint({
+      language: 'web',
+      files,
+      requestedEntrypoint: entrypoint,
+    })
+    setEntrypoint(resolved.entrypoint)
+    setEntrypointError(resolved.error?.message ?? null)
+    refreshPreview(files, resolved.entrypoint)
+    onChange?.(files, resolved.entrypoint)
+  }, [onChange])
 
   useEffect(() => {
     if (!srcdoc) {

@@ -101,11 +101,12 @@ const getSubmissionFiles = (content: unknown) => {
   const submissionFiles = Reflect.get(content, 'submissionFiles')
   const parsed = z.array(starterFileSchema).safeParse(submissionFiles)
   if (parsed.success && parsed.data.length > 0) {
-    return parsed.data.map((file) => ({
+    const normalized = parsed.data.map((file) => ({
       path: file.path ?? file.name ?? '',
       language: file.language,
       content: file.content,
     })).filter((file) => Boolean(file.path))
+    return normalized.length > 0 ? normalized : null
   }
 
   const responseText = Reflect.get(content, 'responseText')
@@ -117,13 +118,15 @@ const getSubmissionFiles = (content: unknown) => {
     const fallbackParsed = z.array(starterFileSchema).safeParse(
       JSON.parse(responseText),
     )
-    return fallbackParsed.success && fallbackParsed.data.length > 0
-      ? fallbackParsed.data.map((file) => ({
-          path: file.path ?? file.name ?? '',
-          language: file.language,
-          content: file.content,
-        })).filter((file) => Boolean(file.path))
-      : null
+    if (fallbackParsed.success && fallbackParsed.data.length > 0) {
+      const normalized = fallbackParsed.data.map((file) => ({
+        path: file.path ?? file.name ?? '',
+        language: file.language,
+        content: file.content,
+      })).filter((file) => Boolean(file.path))
+      return normalized.length > 0 ? normalized : null
+    }
+    return null
   } catch {
     return null
   }

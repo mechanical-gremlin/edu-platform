@@ -43,19 +43,18 @@ export const normalizeWorkspacePath = (value: string) => {
 }
 
 export const normalizeProjectWorkspaceFiles = (files: StarterFile[]) =>
-  files
-    .map((file) => {
-      const path = normalizeWorkspacePath(file.path ?? file.name ?? '')
-      if (!path) {
-        return null
-      }
-      return {
-        path,
-        language: file.language,
-        content: file.content,
-      } satisfies StarterFile
+  files.reduce<StarterFile[]>((normalized, file) => {
+    const path = normalizeWorkspacePath(file.path ?? file.name ?? '')
+    if (!path) {
+      return normalized
+    }
+    normalized.push({
+      path,
+      language: file.language,
+      content: file.content,
     })
-    .filter((file): file is StarterFile => Boolean(file))
+    return normalized
+  }, [])
 
 export const resolveDeterministicEntrypoint = ({
   language,
@@ -101,4 +100,3 @@ export const resolveDeterministicEntrypoint = ({
     error: null,
   }
 }
-
