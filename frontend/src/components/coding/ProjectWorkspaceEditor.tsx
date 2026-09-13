@@ -211,6 +211,7 @@ export const ProjectWorkspaceEditor = ({
   const fileTreeId = useId()
   const showPreview = isPreviewRuntimeLanguage(language)
   const showExecution = Boolean(executeUrl && !showPreview)
+  const showFileTree = fileTreeToggleVisible && fileTreeOpen
 
   const directorySet = useMemo(() => {
     const computed = getDirectoryPaths(files)
@@ -872,13 +873,13 @@ export const ProjectWorkspaceEditor = ({
       )}
 
       <div className="relative flex min-w-0 gap-3 overflow-hidden" style={{ height }}>
-        {fileTreeOpen && (
+        {showFileTree && (
           <div id={fileTreeId} className="hidden md:block">
             {renderTreePanel(false)}
           </div>
         )}
 
-        {fileTreeOpen && (
+        {showFileTree && (
           <div className="absolute inset-0 z-20 md:hidden" role="dialog" aria-label="Project file tree">
             <button
               className="absolute inset-0 bg-slate-950/40"

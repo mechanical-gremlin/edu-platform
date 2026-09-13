@@ -785,8 +785,9 @@ export const courseRoutes: FastifyPluginAsync = async (app) => {
           directions: payload.directions ?? null,
           language: payload.language ?? null,
           languageLocked: payload.languageLocked ?? false,
-          studentFileTreeEnabled: payload.studentFileTreeEnabled ?? true,
-          studentEntrypointSelectionEnabled: payload.studentEntrypointSelectionEnabled ?? true,
+          studentFileTreeEnabled: payload.type === 'coding' ? payload.studentFileTreeEnabled ?? true : true,
+          studentEntrypointSelectionEnabled:
+            payload.type === 'coding' ? payload.studentEntrypointSelectionEnabled ?? true : true,
           starterCode: payload.starterCode ?? null,
           starterFiles: workspaceCapable
             ? starterFiles
