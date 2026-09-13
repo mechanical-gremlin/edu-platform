@@ -9,6 +9,7 @@ interface GradingPanelProps {
   activityTitle: string
   activityType: ActivityType
   activityLanguage: string | null | undefined
+  activityEntrypoint: string | null | undefined
   entries: GradebookEntry[]
   executeUrl?: string
   runUserId?: string
@@ -21,6 +22,7 @@ export const GradingPanel = ({
   activityTitle,
   activityType,
   activityLanguage,
+  activityEntrypoint,
   entries,
   executeUrl,
   runUserId,
@@ -32,7 +34,7 @@ export const GradingPanel = ({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [reviewCode, setReviewCode] = useState('')
-  const [reviewFiles, setReviewFiles] = useState<StarterFile[]>([{ name: 'index.html', language: 'html', content: '' }])
+  const [reviewFiles, setReviewFiles] = useState<StarterFile[]>([{ path: 'index.html', language: 'html', content: '' }])
   const [grades, setGrades] = useState<Record<string, { points: string; comment: string }>>(() => {
     const initial: Record<string, { points: string; comment: string }> = {}
     for (const entry of students) {
@@ -61,7 +63,7 @@ export const GradingPanel = ({
       return
     }
 
-    setReviewFiles([{ name: 'index.html', language: 'html', content: '' }])
+    setReviewFiles([{ path: 'index.html', language: 'html', content: '' }])
     setReviewCode(currentSubmissionText ?? '')
   }, [activityLanguage, activityType, current?.studentId, currentSubmissionFiles, currentSubmissionText])
 
@@ -154,7 +156,9 @@ export const GradingPanel = ({
               <WebProjectEditor
                 key={`${activityId}-${activeStudent.studentId}`}
                 defaultFiles={reviewFiles}
+                defaultEntrypoint={current?.submissionEntrypoint ?? activityEntrypoint ?? null}
                 readOnly
+                entrypointEditable={false}
                 height="360px"
               />
             ) : (

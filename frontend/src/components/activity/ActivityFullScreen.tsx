@@ -14,7 +14,7 @@ import {
 } from '../../utils/codingDrafts'
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/+$/, '') ?? ''
-const DEFAULT_WEB_FILE: StarterFile[] = [{ name: 'index.html', language: 'html', content: '' }]
+const DEFAULT_WEB_FILE: StarterFile[] = [{ path: 'index.html', language: 'html', content: '' }]
 
 const formatSavedAt = (value: string | null) => {
   if (!value) {
@@ -34,7 +34,12 @@ interface ActivityFullScreenProps {
   onClose: () => void
   onNavigate: (activityId: string) => void
   onSaveGrade?: (studentId: string, activityId: string, points: number, comment: string) => Promise<void>
-  onSubmitActivity?: (activityId: string, responseText: string, submissionFiles?: StarterFile[] | null) => Promise<void>
+  onSubmitActivity?: (
+    activityId: string,
+    responseText: string,
+    submissionFiles?: StarterFile[] | null,
+    submissionEntrypoint?: string | null,
+  ) => Promise<void>
   onUpdateActivityDirections?: (
     activityId: string,
     input: UpdateActivityDirectionsInput,
@@ -137,6 +142,7 @@ export const ActivityFullScreen = ({
   const [monacoLanguage, setMonacoLanguage] = useState(activity.language ?? 'javascript')
   const [monacoCode, setMonacoCode] = useState(activity.starterCode ?? '')
   const [webFiles, setWebFiles] = useState<StarterFile[]>(activity.starterFiles ?? [])
+  const [webEntrypoint, setWebEntrypoint] = useState<string | null>(activity.entrypoint ?? null)
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [draftHistory, setDraftHistory] = useState<CodingDraftSnapshot[]>([])
   const [historyOpen, setHistoryOpen] = useState(false)
@@ -169,6 +175,7 @@ export const ActivityFullScreen = ({
       setMonacoLanguage(activity.language ?? 'javascript')
       setMonacoCode(activity.starterCode ?? '')
       setWebFiles(activity.starterFiles ?? [])
+      setWebEntrypoint(activity.entrypoint ?? null)
       savedDraftSignatureRef.current = null
       return
     }
@@ -190,10 +197,17 @@ export const ActivityFullScreen = ({
           : gradeEntry?.submitted
             ? submittedFiles
             : fallbackFiles
+      const nextEntrypoint =
+        storedDraft?.submissionEntrypoint
+        ?? gradeEntry?.submissionEntrypoint
+        ?? activity.entrypoint
+        ?? nextFiles[0]?.path
+        ?? null
 
       setMonacoLanguage(activity.language ?? 'web')
       setMonacoCode('')
       setWebFiles(nextFiles)
+      setWebEntrypoint(nextEntrypoint)
       setWebEditorResetKey((value) => value + 1)
       setSubmissionText(storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles))
       savedDraftSignatureRef.current = `web:${storedDraft?.submissionText ?? gradeEntry?.submissionText ?? serializeSubmissionFiles(nextFiles)}`
@@ -203,6 +217,7 @@ export const ActivityFullScreen = ({
       setMonacoLanguage(nextLanguage)
       setMonacoCode(nextCode)
       setWebFiles(activity.starterFiles ?? [])
+      setWebEntrypoint(activity.entrypoint ?? null)
       setSubmissionText(nextCode)
       savedDraftSignatureRef.current = `${nextLanguage}:${nextCode}`
     }
@@ -216,9 +231,11 @@ export const ActivityFullScreen = ({
     activity.language,
     activity.starterCode,
     activity.starterFiles,
+    activity.entrypoint,
     currentUser.id,
     currentUser.role,
     gradeEntry?.submissionFiles,
+    gradeEntry?.submissionEntrypoint,
     gradeEntry?.submissionText,
     gradeEntry?.submitted,
     isCodingActivity,
@@ -248,6 +265,7 @@ export const ActivityFullScreen = ({
         history: draftHistoryRef.current,
         language: isWebActivity ? 'web' : monacoLanguage,
         submissionFiles: isWebActivity ? webFiles : null,
+        submissionEntrypoint: isWebActivity ? webEntrypoint : null,
         submissionText: codingSubmissionText,
         userId: currentUser.id,
       })
@@ -268,6 +286,7 @@ export const ActivityFullScreen = ({
     isCodingActivity,
     isWebActivity,
     monacoLanguage,
+    webEntrypoint,
     webFiles,
   ])
 
@@ -280,6 +299,7 @@ export const ActivityFullScreen = ({
       activityId: activity.id,
       language: isWebActivity ? 'web' : monacoLanguage,
       submissionFiles: isWebActivity ? webFiles : null,
+      submissionEntrypoint: isWebActivity ? webEntrypoint : null,
       submissionText: codingSubmissionText,
       userId: currentUser.id,
     })
@@ -297,7 +317,13 @@ export const ActivityFullScreen = ({
       const nextFiles = snapshot.submissionFiles && snapshot.submissionFiles.length > 0
         ? snapshot.submissionFiles
         : activity.starterFiles ?? DEFAULT_WEB_FILE
+      const nextEntrypoint =
+        snapshot.submissionEntrypoint
+        ?? activity.entrypoint
+        ?? nextFiles[0]?.path
+        ?? null
       setWebFiles(nextFiles)
+      setWebEntrypoint(nextEntrypoint)
       setSubmissionText(snapshot.submissionText || serializeSubmissionFiles(nextFiles))
       if (currentUser.role === 'student') {
         const savedDraft = saveCodingDraft({
@@ -305,6 +331,7 @@ export const ActivityFullScreen = ({
           history: draftHistoryRef.current,
           language: 'web',
           submissionFiles: nextFiles,
+          submissionEntrypoint: nextEntrypoint,
           submissionText: snapshot.submissionText || serializeSubmissionFiles(nextFiles),
           userId: currentUser.id,
         })
@@ -339,7 +366,9 @@ export const ActivityFullScreen = ({
       const nextFiles = activity.starterFiles && activity.starterFiles.length > 0
         ? activity.starterFiles
         : DEFAULT_WEB_FILE
+      const nextEntrypoint = activity.entrypoint ?? nextFiles[0]?.path ?? null
       setWebFiles(nextFiles)
+      setWebEntrypoint(nextEntrypoint)
       setSubmissionText(serializeSubmissionFiles(nextFiles))
       if (currentUser.role === 'student') {
         const savedDraft = saveCodingDraft({
@@ -347,6 +376,7 @@ export const ActivityFullScreen = ({
           history: draftHistoryRef.current,
           language: 'web',
           submissionFiles: nextFiles,
+          submissionEntrypoint: nextEntrypoint,
           submissionText: serializeSubmissionFiles(nextFiles),
           userId: currentUser.id,
         })
@@ -384,8 +414,11 @@ export const ActivityFullScreen = ({
           <WebProjectEditor
             key={`${activity.id}-${webEditorResetKey}`}
             defaultFiles={webFiles}
-            onChange={(files) => {
+            defaultEntrypoint={webEntrypoint}
+            entrypointEditable={currentUser.role === 'teacher' || !languageLockedForStudents}
+            onChange={(files, entrypoint) => {
               setWebFiles(files)
+              setWebEntrypoint(entrypoint)
               if (currentUser.role === 'student') {
                 setSubmissionText(serializeSubmissionFiles(files))
               }
@@ -766,12 +799,14 @@ export const ActivityFullScreen = ({
                       activity.id,
                       textToSubmit,
                       activity.type === 'coding' && activity.language === 'web' ? webFiles : null,
+                      activity.type === 'coding' && activity.language === 'web' ? webEntrypoint : null,
                     )
                     if (activity.type === 'coding' && currentUser.role === 'student') {
                       const savedDraft = saveCodingDraftCheckpoint({
                         activityId: activity.id,
                         language: isWebActivity ? 'web' : monacoLanguage,
                         submissionFiles: isWebActivity ? webFiles : null,
+                        submissionEntrypoint: isWebActivity ? webEntrypoint : null,
                         submissionText: textToSubmit,
                         userId: currentUser.id,
                       })
@@ -802,6 +837,7 @@ export const ActivityFullScreen = ({
           activityTitle={activity.title}
           activityType={activity.type}
           activityLanguage={activity.language}
+          activityEntrypoint={activity.entrypoint}
           entries={gradebookEntries}
           executeUrl={apiBaseUrl ? `${apiBaseUrl}/execute` : undefined}
           runUserId={currentUser.id}

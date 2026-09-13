@@ -6,6 +6,7 @@ export interface CodingDraftSnapshot {
   language: string
   submissionText: string
   submissionFiles: StarterFile[] | null
+  submissionEntrypoint: string | null
 }
 
 export interface CodingDraftRecord {
@@ -13,6 +14,7 @@ export interface CodingDraftRecord {
   language: string
   submissionText: string
   submissionFiles: StarterFile[] | null
+  submissionEntrypoint: string | null
   history: CodingDraftSnapshot[]
 }
 
@@ -21,6 +23,7 @@ interface SaveCodingDraftInput {
   history?: CodingDraftSnapshot[]
   language: string
   submissionFiles?: StarterFile[] | null
+  submissionEntrypoint?: string | null
   submissionText: string
   userId: string
 }
@@ -31,8 +34,7 @@ const HISTORY_LIMIT = 3
 const isStarterFile = (value: unknown): value is StarterFile =>
   typeof value === 'object'
   && value !== null
-  && typeof Reflect.get(value, 'name') === 'string'
-  && typeof Reflect.get(value, 'language') === 'string'
+  && (typeof Reflect.get(value, 'path') === 'string' || typeof Reflect.get(value, 'name') === 'string')
   && typeof Reflect.get(value, 'content') === 'string'
 
 const normalizeFiles = (value: unknown): StarterFile[] | null => {
@@ -40,7 +42,17 @@ const normalizeFiles = (value: unknown): StarterFile[] | null => {
     return null
   }
 
-  const files = value.filter(isStarterFile)
+  const files = value.filter(isStarterFile).map((file) => {
+    const path = (file.path ?? file.name ?? '').trim()
+    return path
+      ? {
+          path,
+          name: file.name,
+          language: file.language,
+          content: file.content,
+        }
+      : null
+  }).filter((file): file is StarterFile => Boolean(file))
   return files.length > 0 ? files : null
 }
 
@@ -51,7 +63,7 @@ export const serializeSubmissionFiles = (files: StarterFile[]) => JSON.stringify
 
 export const parseSubmissionFiles = (
   submissionText: string | null | undefined,
-  fallback: StarterFile[] = [{ name: 'index.html', language: 'html', content: '' }],
+  fallback: StarterFile[] = [{ path: 'index.html', language: 'html', content: '' }],
 ): StarterFile[] => {
   if (!submissionText?.trim()) {
     return fallback
@@ -98,6 +110,10 @@ export const readCodingDraft = (userId: string, activityId: string): CodingDraft
         ).map((entry) => ({
           ...entry,
           submissionFiles: normalizeFiles(entry.submissionFiles),
+          submissionEntrypoint:
+            typeof entry.submissionEntrypoint === 'string' && entry.submissionEntrypoint.trim()
+              ? entry.submissionEntrypoint
+              : null,
         }))
       : []
 
@@ -106,6 +122,10 @@ export const readCodingDraft = (userId: string, activityId: string): CodingDraft
       language: parsed.language,
       submissionText: parsed.submissionText,
       submissionFiles: normalizeFiles(parsed.submissionFiles),
+      submissionEntrypoint:
+        typeof parsed.submissionEntrypoint === 'string' && parsed.submissionEntrypoint.trim()
+          ? parsed.submissionEntrypoint
+          : null,
       history,
     }
   } catch {
@@ -118,6 +138,7 @@ export const saveCodingDraft = ({
   history = [],
   language,
   submissionFiles = null,
+  submissionEntrypoint = null,
   submissionText,
   userId,
 }: SaveCodingDraftInput): CodingDraftRecord | null => {
@@ -130,6 +151,7 @@ export const saveCodingDraft = ({
     language,
     submissionText,
     submissionFiles,
+    submissionEntrypoint,
     history: history.slice(0, HISTORY_LIMIT),
   }
 
@@ -145,6 +167,7 @@ export const saveCodingDraftCheckpoint = ({
   activityId,
   language,
   submissionFiles = null,
+  submissionEntrypoint = null,
   submissionText,
   userId,
 }: Omit<SaveCodingDraftInput, 'history'>): CodingDraftRecord | null => {
@@ -157,6 +180,7 @@ export const saveCodingDraftCheckpoint = ({
     && latest.language === language
     && latest.submissionText === submissionText
     && JSON.stringify(latest.submissionFiles ?? null) === JSON.stringify(submissionFiles ?? null)
+    && latest.submissionEntrypoint === submissionEntrypoint
       ? previousHistory
       : [
           {
@@ -165,6 +189,7 @@ export const saveCodingDraftCheckpoint = ({
             language,
             submissionText,
             submissionFiles,
+            submissionEntrypoint,
           },
           ...previousHistory,
         ].slice(0, HISTORY_LIMIT)
@@ -174,6 +199,7 @@ export const saveCodingDraftCheckpoint = ({
     history: nextHistory,
     language,
     submissionFiles,
+    submissionEntrypoint,
     submissionText,
     userId,
   })

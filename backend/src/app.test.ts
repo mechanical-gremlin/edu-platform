@@ -234,6 +234,68 @@ test('POST /execute returns actionable config error when execution env is missin
   }
 })
 
+test('POST /execute validates project workspace entrypoint for multi-file payloads', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({})
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'web',
+        files: [
+          { path: 'index.html', content: '<h1>Hello</h1>' },
+          { path: 'styles/site.css', content: 'h1 { color: red; }' },
+        ],
+        entrypoint: 'missing.html',
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.deepEqual(response.json(), {
+      code: 'ENTRYPOINT_INVALID',
+      message: 'Entrypoint \"missing.html\" does not exist in the project workspace.',
+      retryable: false,
+      requestId: 'req-1',
+    })
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
+test('POST /execute accepts multi-file web project workspace payloads', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({})
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'web',
+        files: [
+          { path: 'index.html', content: '<h1>Hello</h1>' },
+          { path: 'styles/site.css', content: 'h1 { color: red; }' },
+        ],
+        entrypoint: 'index.html',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    const body = response.json() as {
+      status: { id: number; description: string }
+      stdout: string | null
+    }
+    assert.equal(body.status.id, 3)
+    assert.match(body.stdout ?? '', /Web project is rendered in the browser preview/)
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
 test('POST /execute enforces per-user burst limits with 429 contract and Retry-After', { concurrency: false }, async () => {
   const restoreEnv = withExecutionEnv({
     EXEC_RATE_LIMIT_USER_BURST_MAX: '1',

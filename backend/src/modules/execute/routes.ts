@@ -5,6 +5,11 @@ import type { ExecutionConfigState } from '../../config/executionConfig.js'
 import { bytesFromKb } from '../../config/executionConfig.js'
 import { executeErrorResponseSchema, executeResponseSchema, executeWithJudge0 } from './judge0.js'
 import { evaluateExecuteRateLimit, hashIdentity, InMemoryRateLimitStore } from './rateLimit.js'
+import {
+  normalizeProjectWorkspaceFiles,
+  projectWorkspaceFileSchema,
+  resolveWorkspaceEntrypoint,
+} from './projectWorkspace.js'
 
 interface ExecuteRoutesOptions {
   executionConfigState: ExecutionConfigState
@@ -29,9 +34,21 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
   }
   const executeBodySchema = z.object({
     language: z.string().trim().min(1),
-    code: z.string().trim().min(1),
+    code: z.string().optional().nullable(),
     stdin: z.string().optional().nullable(),
+    files: z.array(projectWorkspaceFileSchema).max(50).optional().nullable(),
+    entrypoint: z.string().trim().optional().nullable(),
     courseId: z.string().trim().min(1).optional().nullable(),
+  }).superRefine((value, context) => {
+    const hasCode = typeof value.code === 'string' && value.code.trim().length > 0
+    const hasFiles = Array.isArray(value.files) && value.files.length > 0
+    if (!hasCode && !hasFiles) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['code'],
+        message: 'Code is required when no project workspace files are provided.',
+      })
+    }
   })
 
   app.post(
@@ -180,9 +197,62 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
         )
       }
 
+      let normalizedWorkspaceFiles:
+        | ReturnType<typeof normalizeProjectWorkspaceFiles>['files']
+        | null = null
+      let deterministicEntrypoint: string | null = null
+
+      if (payload.files?.length) {
+        const normalized = normalizeProjectWorkspaceFiles(payload.files)
+        if (!normalized.files || normalized.errorCode || normalized.errorMessage) {
+          throw new AppError(400, normalized.errorMessage ?? 'Invalid project workspace file path.', undefined, true, 'FILE_PATH_INVALID', false)
+        }
+        normalizedWorkspaceFiles = normalized.files
+
+        const resolvedEntrypoint = resolveWorkspaceEntrypoint({
+          language: payload.language,
+          files: normalizedWorkspaceFiles,
+          requestedEntrypoint: payload.entrypoint,
+        })
+        if (!resolvedEntrypoint.entrypoint || resolvedEntrypoint.errorCode || resolvedEntrypoint.errorMessage) {
+          throw new AppError(
+            400,
+            resolvedEntrypoint.errorMessage ?? 'Invalid entrypoint.',
+            undefined,
+            true,
+            resolvedEntrypoint.errorCode ?? 'ENTRYPOINT_INVALID',
+            false,
+          )
+        }
+        deterministicEntrypoint = resolvedEntrypoint.entrypoint
+
+        if (!['web', 'html'].includes(payload.language)) {
+          throw new AppError(
+            400,
+            `Multi-file project workspace is unsupported for runtime "${payload.language}".`,
+            undefined,
+            true,
+            'EXECUTION_FAILED',
+            false,
+          )
+        }
+      }
+
       const maxSourceBytes = bytesFromKb(options.executionConfigState.config.maxSourceKb)
       const maxStdinBytes = bytesFromKb(options.executionConfigState.config.maxStdinKb)
-      if (Buffer.byteLength(payload.code, 'utf8') > maxSourceBytes) {
+      const effectiveCode =
+        normalizedWorkspaceFiles && deterministicEntrypoint
+          ? normalizedWorkspaceFiles.find((file) => file.path === deterministicEntrypoint)?.content ?? ''
+          : payload.code?.trim() ?? ''
+      const sourceForLimits =
+        normalizedWorkspaceFiles && deterministicEntrypoint
+          ? JSON.stringify({
+              projectWorkspace: normalizedWorkspaceFiles,
+              entrypoint: deterministicEntrypoint,
+            })
+          : effectiveCode
+
+      if (Buffer.byteLength(sourceForLimits, 'utf8') > maxSourceBytes) {
         throw new AppError(
           413,
           `Source code exceeds EXEC_MAX_SOURCE_KB (${options.executionConfigState.config.maxSourceKb} KB).`,
@@ -204,7 +274,9 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
       }
 
       const result = await executeWithJudge0({
-        ...payload,
+        language: payload.language,
+        code: effectiveCode,
+        stdin: payload.stdin,
         config: options.executionConfigState.config,
       })
 

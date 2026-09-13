@@ -11,8 +11,9 @@ export interface User {
 }
 
 export interface StarterFile {
-  name: string
-  language: string
+  path: string
+  name?: string
+  language?: string
   content: string
 }
 
@@ -56,6 +57,7 @@ export interface Activity {
   languageLocked?: boolean
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
+  entrypoint?: string | null
   expectedOutput?: string | null
   autograderEnabled?: boolean
   resourceUrl?: string | null
@@ -104,6 +106,7 @@ export interface GradebookEntry {
   submittedAt?: string | null
   submissionText?: string | null
   submissionFiles?: StarterFile[] | null
+  submissionEntrypoint?: string | null
   autograderResult?: AutograderResult | null
 }
 
@@ -116,6 +119,7 @@ export interface CreateActivityInput {
   languageLocked?: boolean
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
+  entrypoint?: string | null
   expectedOutput?: string | null
   autograderEnabled?: boolean
   autograderReferenceSolution?: string | null

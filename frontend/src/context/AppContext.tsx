@@ -52,7 +52,12 @@ interface AppContextValue {
   toggleUnitVisibility: (unitId: string, visible: boolean) => Promise<void>
   toggleLessonVisibility: (lessonId: string, visible: boolean) => Promise<void>
   toggleActivityVisibility: (activityId: string, visible: boolean) => Promise<void>
-  submitActivity: (activityId: string, responseText: string, submissionFiles?: CreateActivityInput['starterFiles']) => Promise<void>
+  submitActivity: (
+    activityId: string,
+    responseText: string,
+    submissionFiles?: CreateActivityInput['starterFiles'],
+    submissionEntrypoint?: string | null,
+  ) => Promise<void>
   updateGradebookEntry: (
     studentId: string,
     activityId: string,
@@ -103,7 +108,8 @@ interface ApiActivity {
   language: string | null
   languageLocked: boolean
   starterCode: string | null
-  starterFiles: Array<{ name: string; language: string; content: string }> | null
+  starterFiles: Array<{ path: string; language?: string; content: string; name?: string }> | null
+  entrypoint: string | null
   expectedOutput: string | null
   autograderEnabled: boolean
   resourceUrl: string | null
@@ -154,7 +160,8 @@ interface ApiTeacherGradebook {
       gradedAt: string | null
       submittedAt: string | null
       submissionText: string | null
-      submissionFiles: Array<{ name: string; language: string; content: string }> | null
+      submissionFiles: Array<{ path: string; language?: string; content: string; name?: string }> | null
+      submissionEntrypoint: string | null
       autograderResult: AutograderResult | null
     }>
   }>
@@ -174,7 +181,8 @@ interface ApiStudentGrade {
   gradedAt: string | null
   submittedAt: string | null
   submissionText: string | null
-  submissionFiles: Array<{ name: string; language: string; content: string }> | null
+  submissionFiles: Array<{ path: string; language?: string; content: string; name?: string }> | null
+  submissionEntrypoint: string | null
   autograderResult: AutograderResult | null
 }
 
@@ -272,6 +280,7 @@ const mapCourse = (course: ApiCourse): Course => ({
         languageLocked: activity.languageLocked,
         starterCode: activity.starterCode,
         starterFiles: activity.starterFiles,
+        entrypoint: activity.entrypoint,
         expectedOutput: activity.expectedOutput,
         autograderEnabled: activity.autograderEnabled,
         resourceUrl: activity.resourceUrl,
@@ -308,6 +317,7 @@ const mapTeacherGradebookEntries = (
       submittedAt: grade.submittedAt,
       submissionText: grade.submissionText,
       submissionFiles: grade.submissionFiles,
+      submissionEntrypoint: grade.submissionEntrypoint,
       autograderResult: grade.autograderResult,
     })),
   )
@@ -335,6 +345,7 @@ const mapStudentGradebookEntries = (
     submittedAt: grade.submittedAt,
     submissionText: grade.submissionText,
     submissionFiles: grade.submissionFiles,
+    submissionEntrypoint: grade.submissionEntrypoint,
     autograderResult: grade.autograderResult,
   }))
 
@@ -600,6 +611,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                     languageLocked: response.languageLocked,
                     starterCode: response.starterCode,
                     starterFiles: response.starterFiles,
+                    entrypoint: response.entrypoint,
                     expectedOutput: response.expectedOutput,
                     autograderEnabled: response.autograderEnabled,
                     resourceUrl: response.resourceUrl,
@@ -641,6 +653,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               submittedAt: null,
               submissionText: null,
               submissionFiles: null,
+              submissionEntrypoint: null,
               autograderResult: null,
             })),
           ]
@@ -889,10 +902,21 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   )
 
   const submitActivity = useCallback(
-    async (activityId: string, responseText: string, submissionFiles?: CreateActivityInput['starterFiles']) => {
+    async (
+      activityId: string,
+      responseText: string,
+      submissionFiles?: CreateActivityInput['starterFiles'],
+      submissionEntrypoint?: string | null,
+    ) => {
       await request(`/activities/${activityId}/submissions`, {
         method: 'POST',
-        body: JSON.stringify({ content: { responseText, submissionFiles: submissionFiles ?? null } }),
+        body: JSON.stringify({
+          content: {
+            responseText,
+            submissionFiles: submissionFiles ?? null,
+            submissionEntrypoint: submissionEntrypoint ?? null,
+          },
+        }),
       })
       setGradebookEntries((previous) =>
         previous.map((entry) =>
@@ -903,6 +927,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
                 submittedAt: new Date().toISOString(),
                 submissionText: responseText,
                 submissionFiles: submissionFiles ?? null,
+                submissionEntrypoint: submissionEntrypoint ?? null,
               }
             : entry,
         ),
