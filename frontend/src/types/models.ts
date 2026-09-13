@@ -58,6 +58,8 @@ export interface Activity {
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   entrypoint?: string | null
+  studentFileTreeEnabled?: boolean
+  studentEntrypointSelectionEnabled?: boolean
   expectedOutput?: string | null
   autograderEnabled?: boolean
   resourceUrl?: string | null
@@ -120,6 +122,8 @@ export interface CreateActivityInput {
   starterCode?: string | null
   starterFiles?: StarterFile[] | null
   entrypoint?: string | null
+  studentFileTreeEnabled?: boolean
+  studentEntrypointSelectionEnabled?: boolean
   expectedOutput?: string | null
   autograderEnabled?: boolean
   autograderReferenceSolution?: string | null

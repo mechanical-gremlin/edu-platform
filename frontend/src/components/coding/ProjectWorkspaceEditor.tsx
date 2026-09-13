@@ -117,6 +117,22 @@ const getParentFolder = (path: string) => {
 
 const getLeafLabel = (path: string) => path.split('/').at(-1) ?? path
 
+const areWorkspaceFilesEqual = (left: StarterFile[], right: StarterFile[]) => {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  return left.every((file, index) => {
+    const other = right[index]
+    return (
+      other
+      && file.path === other.path
+      && file.language === other.language
+      && file.content === other.content
+    )
+  })
+}
+
 interface ProjectWorkspaceEditorProps {
   language: string
   defaultFiles?: StarterFile[] | null
@@ -124,6 +140,7 @@ interface ProjectWorkspaceEditorProps {
   onChange?: (files: StarterFile[], entrypoint: string | null) => void
   readOnly?: boolean
   entrypointEditable?: boolean
+  fileTreeToggleVisible?: boolean
   height?: string
   executeUrl?: string
   userId?: string
@@ -141,6 +158,7 @@ export const ProjectWorkspaceEditor = ({
   onChange,
   readOnly = false,
   entrypointEditable = true,
+  fileTreeToggleVisible = true,
   height = '500px',
   executeUrl,
   userId,
@@ -180,6 +198,7 @@ export const ProjectWorkspaceEditor = ({
   const [truncationNotice, setTruncationNotice] = useState<string | null>(null)
   const [passed, setPassed] = useState<boolean | null>(null)
   const [initialized, setInitialized] = useState(false)
+  const [previewNewTabUrl, setPreviewNewTabUrl] = useState<string | null>(null)
   const prevDefaultsRef = useRef<{
     files: StarterFile[] | null | undefined
     entrypoint: string | null | undefined
@@ -192,6 +211,7 @@ export const ProjectWorkspaceEditor = ({
   const fileTreeId = useId()
   const showPreview = isPreviewRuntimeLanguage(language)
   const showExecution = Boolean(executeUrl && !showPreview)
+  const showFileTree = fileTreeToggleVisible && fileTreeOpen
 
   const directorySet = useMemo(() => {
     const computed = getDirectoryPaths(files)
@@ -261,40 +281,72 @@ export const ProjectWorkspaceEditor = ({
   }
 
   useEffect(() => {
-    if (
+    const defaultsChanged =
       !initialized
       || defaultFiles !== prevDefaultsRef.current.files
       || defaultEntrypoint !== prevDefaultsRef.current.entrypoint
       || language !== prevDefaultsRef.current.language
-    ) {
-      prevDefaultsRef.current = { files: defaultFiles, entrypoint: defaultEntrypoint, language }
-      const nextFiles =
-        defaultFiles && defaultFiles.length > 0
-          ? normalizeProjectWorkspaceFiles(defaultFiles)
-          : buildDefaultWorkspaceFiles(language)
-      const resolved = resolveDeterministicEntrypoint({
-        language,
-        files: nextFiles,
-        requestedEntrypoint: defaultEntrypoint,
-      })
-      setFiles(nextFiles)
-      setFolders([])
-      setSelectedFolder('')
-      setActivePath(nextFiles[0]?.path ?? '')
-      setEntrypoint(resolved.entrypoint)
-      setEntrypointError(resolved.error?.message ?? null)
-      setOutput(null)
-      setRunError(null)
-      setTruncationNotice(null)
-      setPassed(null)
-      onChange?.(nextFiles, resolved.entrypoint)
-      if (showPreview) {
-        setPreviewDocument(resolved.entrypoint ? buildSrcdoc(nextFiles, resolved.entrypoint) : '')
-        setPreviewDirty(false)
-      }
-      setInitialized(true)
+
+    if (!defaultsChanged) {
+      return
     }
-  }, [defaultEntrypoint, defaultFiles, initialized, language, onChange, showPreview])
+
+    prevDefaultsRef.current = { files: defaultFiles, entrypoint: defaultEntrypoint, language }
+    const nextFiles =
+      defaultFiles && defaultFiles.length > 0
+        ? normalizeProjectWorkspaceFiles(defaultFiles)
+        : buildDefaultWorkspaceFiles(language)
+    const resolved = resolveDeterministicEntrypoint({
+      language,
+      files: nextFiles,
+      requestedEntrypoint: defaultEntrypoint,
+    })
+
+    if (
+      initialized
+      && areWorkspaceFilesEqual(nextFiles, files)
+      && resolved.entrypoint === entrypoint
+    ) {
+      return
+    }
+
+    setFiles(nextFiles)
+    setFolders([])
+    setSelectedFolder('')
+    setActivePath(nextFiles[0]?.path ?? '')
+    setEntrypoint(resolved.entrypoint)
+    setEntrypointError(resolved.error?.message ?? null)
+    setOutput(null)
+    setRunError(null)
+    setTruncationNotice(null)
+    setPassed(null)
+    if (showPreview) {
+      setPreviewDocument(resolved.entrypoint ? buildSrcdoc(nextFiles, resolved.entrypoint) : '')
+      setPreviewDirty(false)
+    }
+    setInitialized(true)
+  }, [defaultEntrypoint, defaultFiles, entrypoint, files, initialized, language, showPreview])
+
+  useEffect(() => {
+    if (fileTreeToggleVisible) {
+      return
+    }
+    setFileTreeOpen(false)
+  }, [fileTreeToggleVisible])
+
+  useEffect(() => {
+    if (!showPreview || !previewDocument) {
+      setPreviewNewTabUrl(null)
+      return
+    }
+
+    const nextUrl = URL.createObjectURL(new Blob([previewDocument], { type: 'text/html' }))
+    setPreviewNewTabUrl(nextUrl)
+
+    return () => {
+      URL.revokeObjectURL(nextUrl)
+    }
+  }, [previewDocument, showPreview])
 
   const createItem = () => {
     const baseName = newItemName.trim()
@@ -691,14 +743,16 @@ export const ProjectWorkspaceEditor = ({
 
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-800 px-3 py-2">
         <div className="flex min-w-0 items-center gap-2">
-          <button
-            className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
-            onClick={() => setFileTreeOpen((open) => !open)}
-            aria-expanded={fileTreeOpen}
-            aria-controls={fileTreeId}
-          >
-            {fileTreeOpen ? 'Hide file tree' : 'Show file tree'}
-          </button>
+          {fileTreeToggleVisible && (
+            <button
+              className="rounded border border-slate-600 px-2 py-1 text-xs text-slate-200 hover:bg-slate-700"
+              onClick={() => setFileTreeOpen((open) => !open)}
+              aria-expanded={fileTreeOpen}
+              aria-controls={fileTreeId}
+            >
+              {fileTreeOpen ? 'Hide file tree' : 'Show file tree'}
+            </button>
+          )}
           <span className="truncate text-xs text-slate-300">{activeFile?.path ?? 'No file selected'}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -719,12 +773,28 @@ export const ProjectWorkspaceEditor = ({
             </select>
           )}
           {showPreview && (
-            <button
-              className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-              onClick={() => refreshPreview()}
-            >
-              {previewDirty ? '▶ Refresh Preview *' : '▶ Refresh Preview'}
-            </button>
+            <>
+              <button
+                className="rounded bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700"
+                onClick={() => refreshPreview()}
+              >
+                {previewDirty ? '▶ Refresh Preview *' : '▶ Refresh Preview'}
+              </button>
+              <a
+                className={`rounded border px-3 py-1 text-xs font-medium ${previewNewTabUrl ? 'border-slate-600 text-slate-100 hover:bg-slate-700' : 'cursor-not-allowed border-slate-700 text-slate-500'}`}
+                href={previewNewTabUrl ?? '#'}
+                target="_blank"
+                rel="noreferrer"
+                aria-disabled={!previewNewTabUrl}
+                onClick={(event) => {
+                  if (!previewNewTabUrl) {
+                    event.preventDefault()
+                  }
+                }}
+              >
+                ↗ Open Preview Tab
+              </a>
+            </>
           )}
           {showExecution && (
             <button
@@ -793,13 +863,13 @@ export const ProjectWorkspaceEditor = ({
       )}
 
       <div className="relative flex min-w-0 gap-3 overflow-hidden" style={{ height }}>
-        {fileTreeOpen && (
+        {showFileTree && (
           <div id={fileTreeId} className="hidden md:block">
             {renderTreePanel(false)}
           </div>
         )}
 
-        {fileTreeOpen && (
+        {showFileTree && (
           <div className="absolute inset-0 z-20 md:hidden" role="dialog" aria-label="Project file tree">
             <button
               className="absolute inset-0 bg-slate-950/40"

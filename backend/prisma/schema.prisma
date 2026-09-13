@@ -115,6 +115,8 @@ model Activity {
   directions                  String?
   language                    String?
   languageLocked              Boolean      @default(false)
+  studentFileTreeEnabled      Boolean      @default(true)
+  studentEntrypointSelectionEnabled Boolean @default(true)
   starterCode                 String?
   starterFiles                Json?
   expectedOutput              String?

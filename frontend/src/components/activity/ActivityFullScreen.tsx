@@ -284,6 +284,9 @@ export const ActivityFullScreen = ({
   const embeddedUrl = useMemo(() => getEmbeddedUrl(activity), [activity])
   const launchUrl = useMemo(() => getLaunchUrl(activity), [activity])
   const languageLockedForStudents = Boolean(activity.languageLocked && activity.language)
+  const studentFileTreeEnabled = activity.studentFileTreeEnabled ?? true
+  const studentEntrypointSelectionEnabled =
+    activity.studentEntrypointSelectionEnabled ?? !languageLockedForStudents
   const workspaceSnapshot = useMemo(() => serializeSubmissionFiles(workspaceFiles), [workspaceFiles])
   const codingSubmissionText = useMemo(
     () => getWorkspaceSubmissionText(workspaceLanguage, workspaceFiles, workspaceEntrypoint),
@@ -470,7 +473,11 @@ export const ActivityFullScreen = ({
             language={workspaceLanguage}
             defaultFiles={workspaceFiles}
             defaultEntrypoint={workspaceEntrypoint}
-            entrypointEditable={currentUser.role === 'teacher' || !languageLockedForStudents}
+            entrypointEditable={
+              currentUser.role === 'teacher'
+              || studentEntrypointSelectionEnabled
+            }
+            fileTreeToggleVisible={currentUser.role === 'teacher' || studentFileTreeEnabled}
             onChange={(files, entrypoint) => {
               setWorkspaceFiles(files)
               setWorkspaceEntrypoint(entrypoint)
