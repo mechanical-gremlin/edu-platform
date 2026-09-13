@@ -384,6 +384,7 @@ function App() {
           allActivities={allActivities}
           currentUser={currentUser}
           gradebookEntries={gradebookEntries}
+          courseId={selectedCourseId}
           onClose={() => setSelectedActivityId(null)}
           onNavigate={setSelectedActivityId}
           onSaveGrade={updateGradebookEntry}

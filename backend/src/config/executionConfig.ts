@@ -4,9 +4,29 @@ const EXEC_TIMEOUT_MIN_MS = 1_000
 const EXEC_TIMEOUT_MAX_MS = 60_000
 const EXEC_LIMIT_MIN_KB = 1
 const EXEC_LIMIT_MAX_KB = 1_024
+const EXEC_RATE_LIMIT_MIN = 1
+const EXEC_RATE_LIMIT_WINDOW_MIN_SEC = 1
+const EXEC_RATE_LIMIT_WINDOW_MAX_SEC = 86_400
 const UPSTREAM_HEALTH_TIMEOUT_MS = 2_000
 const UPSTREAM_HEALTH_CACHE_MS = 30_000
 const RAPIDAPI_HOST_PATTERN = /(^|\.)p\.rapidapi\.com$/i
+
+const parseBooleanFlag = (value: unknown) => {
+  if (typeof value === 'boolean') {
+    return value
+  }
+  if (typeof value !== 'string') {
+    return value
+  }
+  const normalized = value.trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false
+  }
+  return value
+}
 
 const envSchema = z.object({
   NODE_ENV: z.string().optional(),
@@ -35,6 +55,62 @@ const envSchema = z.object({
     .int('EXEC_MAX_OUTPUT_KB must be an integer number of kilobytes')
     .min(EXEC_LIMIT_MIN_KB, `EXEC_MAX_OUTPUT_KB must be at least ${EXEC_LIMIT_MIN_KB}`)
     .max(EXEC_LIMIT_MAX_KB, `EXEC_MAX_OUTPUT_KB must be at most ${EXEC_LIMIT_MAX_KB}`),
+  EXEC_RATE_LIMIT_ENABLED: z.preprocess(
+    parseBooleanFlag,
+    z.boolean('EXEC_RATE_LIMIT_ENABLED must be a boolean-like value (true/false)')
+  ).default(true),
+  EXEC_RATE_LIMIT_KEY_PREFIX: z.string().trim().min(1).default('execute'),
+  EXEC_RATE_LIMIT_USER_BURST_MAX: z.coerce
+    .number()
+    .int('EXEC_RATE_LIMIT_USER_BURST_MAX must be an integer')
+    .min(EXEC_RATE_LIMIT_MIN, `EXEC_RATE_LIMIT_USER_BURST_MAX must be at least ${EXEC_RATE_LIMIT_MIN}`)
+    .default(8),
+  EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC: z.coerce
+    .number()
+    .int('EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC must be an integer number of seconds')
+    .min(
+      EXEC_RATE_LIMIT_WINDOW_MIN_SEC,
+      `EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC must be at least ${EXEC_RATE_LIMIT_WINDOW_MIN_SEC}`,
+    )
+    .max(
+      EXEC_RATE_LIMIT_WINDOW_MAX_SEC,
+      `EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC must be at most ${EXEC_RATE_LIMIT_WINDOW_MAX_SEC}`,
+    )
+    .default(60),
+  EXEC_RATE_LIMIT_USER_SUSTAINED_MAX: z.coerce
+    .number()
+    .int('EXEC_RATE_LIMIT_USER_SUSTAINED_MAX must be an integer')
+    .min(EXEC_RATE_LIMIT_MIN, `EXEC_RATE_LIMIT_USER_SUSTAINED_MAX must be at least ${EXEC_RATE_LIMIT_MIN}`)
+    .default(60),
+  EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC: z.coerce
+    .number()
+    .int('EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC must be an integer number of seconds')
+    .min(
+      EXEC_RATE_LIMIT_WINDOW_MIN_SEC,
+      `EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC must be at least ${EXEC_RATE_LIMIT_WINDOW_MIN_SEC}`,
+    )
+    .max(
+      EXEC_RATE_LIMIT_WINDOW_MAX_SEC,
+      `EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC must be at most ${EXEC_RATE_LIMIT_WINDOW_MAX_SEC}`,
+    )
+    .default(900),
+  EXEC_RATE_LIMIT_COURSE_MAX: z.coerce
+    .number()
+    .int('EXEC_RATE_LIMIT_COURSE_MAX must be an integer')
+    .min(EXEC_RATE_LIMIT_MIN, `EXEC_RATE_LIMIT_COURSE_MAX must be at least ${EXEC_RATE_LIMIT_MIN}`)
+    .default(300),
+  EXEC_RATE_LIMIT_COURSE_WINDOW_SEC: z.coerce
+    .number()
+    .int('EXEC_RATE_LIMIT_COURSE_WINDOW_SEC must be an integer number of seconds')
+    .min(
+      EXEC_RATE_LIMIT_WINDOW_MIN_SEC,
+      `EXEC_RATE_LIMIT_COURSE_WINDOW_SEC must be at least ${EXEC_RATE_LIMIT_WINDOW_MIN_SEC}`,
+    )
+    .max(
+      EXEC_RATE_LIMIT_WINDOW_MAX_SEC,
+      `EXEC_RATE_LIMIT_COURSE_WINDOW_SEC must be at most ${EXEC_RATE_LIMIT_WINDOW_MAX_SEC}`,
+    )
+    .default(300),
 })
 
 export interface ExecutionConfig {
@@ -44,6 +120,14 @@ export interface ExecutionConfig {
   maxSourceKb: number
   maxStdinKb: number
   maxOutputKb: number
+  rateLimitEnabled: boolean
+  rateLimitKeyPrefix: string
+  rateLimitUserBurstMax: number
+  rateLimitUserBurstWindowSec: number
+  rateLimitUserSustainedMax: number
+  rateLimitUserSustainedWindowSec: number
+  rateLimitCourseMax: number
+  rateLimitCourseWindowSec: number
 }
 
 export interface ExecutionConfigState {
@@ -93,6 +177,14 @@ export const resolveExecutionConfig = (env: NodeJS.ProcessEnv | Record<string, s
       maxSourceKb: parsed.data.EXEC_MAX_SOURCE_KB,
       maxStdinKb: parsed.data.EXEC_MAX_STDIN_KB,
       maxOutputKb: parsed.data.EXEC_MAX_OUTPUT_KB,
+      rateLimitEnabled: parsed.data.EXEC_RATE_LIMIT_ENABLED,
+      rateLimitKeyPrefix: parsed.data.EXEC_RATE_LIMIT_KEY_PREFIX,
+      rateLimitUserBurstMax: parsed.data.EXEC_RATE_LIMIT_USER_BURST_MAX,
+      rateLimitUserBurstWindowSec: parsed.data.EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC,
+      rateLimitUserSustainedMax: parsed.data.EXEC_RATE_LIMIT_USER_SUSTAINED_MAX,
+      rateLimitUserSustainedWindowSec: parsed.data.EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC,
+      rateLimitCourseMax: parsed.data.EXEC_RATE_LIMIT_COURSE_MAX,
+      rateLimitCourseWindowSec: parsed.data.EXEC_RATE_LIMIT_COURSE_WINDOW_SEC,
     },
     errors,
   }

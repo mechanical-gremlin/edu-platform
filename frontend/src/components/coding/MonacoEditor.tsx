@@ -77,6 +77,8 @@ interface MonacoEditorProps {
   executeUrl?: string
   /** x-user-id to pass to the execute endpoint */
   userId?: string
+  /** Optional course identity for backend per-course rate limiting */
+  courseId?: string
   /** Expected output for automatic pass/fail feedback */
   expectedOutput?: string | null
   stdin?: string
@@ -96,6 +98,7 @@ export const MonacoEditor = ({
   onChange,
   executeUrl,
   userId,
+  courseId,
   expectedOutput,
   stdin = '',
   showStdinField = false,
@@ -169,7 +172,7 @@ export const MonacoEditor = ({
       const response = await fetch(executeUrl, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ language, code, stdin }),
+        body: JSON.stringify({ language, code, stdin, courseId }),
       })
 
       if (!response.ok) {

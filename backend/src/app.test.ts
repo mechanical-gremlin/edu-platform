@@ -10,6 +10,14 @@ const EXECUTION_ENV_KEYS = [
   'EXEC_MAX_SOURCE_KB',
   'EXEC_MAX_STDIN_KB',
   'EXEC_MAX_OUTPUT_KB',
+  'EXEC_RATE_LIMIT_ENABLED',
+  'EXEC_RATE_LIMIT_KEY_PREFIX',
+  'EXEC_RATE_LIMIT_USER_BURST_MAX',
+  'EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC',
+  'EXEC_RATE_LIMIT_USER_SUSTAINED_MAX',
+  'EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC',
+  'EXEC_RATE_LIMIT_COURSE_MAX',
+  'EXEC_RATE_LIMIT_COURSE_WINDOW_SEC',
 ] as const
 
 const withExecutionEnv = (overrides: Partial<Record<(typeof EXECUTION_ENV_KEYS)[number], string | undefined>>) => {
@@ -22,6 +30,14 @@ const withExecutionEnv = (overrides: Partial<Record<(typeof EXECUTION_ENV_KEYS)[
   process.env.EXEC_MAX_SOURCE_KB = '64'
   process.env.EXEC_MAX_STDIN_KB = '8'
   process.env.EXEC_MAX_OUTPUT_KB = '32'
+  process.env.EXEC_RATE_LIMIT_ENABLED = 'true'
+  process.env.EXEC_RATE_LIMIT_KEY_PREFIX = 'execute'
+  process.env.EXEC_RATE_LIMIT_USER_BURST_MAX = '8'
+  process.env.EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC = '60'
+  process.env.EXEC_RATE_LIMIT_USER_SUSTAINED_MAX = '60'
+  process.env.EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC = '900'
+  process.env.EXEC_RATE_LIMIT_COURSE_MAX = '300'
+  process.env.EXEC_RATE_LIMIT_COURSE_WINDOW_SEC = '300'
   process.env.JUDGE0_BASE_URL = 'https://judge0.school.internal'
   process.env.NODE_ENV = 'test'
   delete process.env.JUDGE0_API_KEY
@@ -57,7 +73,27 @@ const prismaStub = {
           role: 'teacher',
         }
       }
+      if (where.id === 's-1') {
+        return {
+          id: 's-1',
+          name: 'Avery Chen',
+          email: 'student@example.edu',
+          role: 'student',
+        }
+      }
 
+      return null
+    },
+  },
+  enrollment: {
+    findUnique: async ({ where }: { where: { userId_courseId: { userId: string; courseId: string } } }) => {
+      const { userId, courseId } = where.userId_courseId
+      if (
+        (userId === 't-1' && ['c-1', 'c-shared'].includes(courseId))
+        || (userId === 's-1' && courseId === 'c-shared')
+      ) {
+        return { userId, courseId, role: userId === 't-1' ? 'teacher' : 'student' }
+      }
       return null
     },
   },
@@ -187,13 +223,285 @@ test('POST /execute returns actionable config error when execution env is missin
 
     assert.equal(response.statusCode, 503)
     assert.deepEqual(response.json(), {
-     code: 'EXEC_NOT_CONFIGURED',
-     message: 'Code execution is not configured. JUDGE0_BASE_URL is required',
-     retryable: false,
-     requestId: 'req-1',
+      code: 'EXEC_NOT_CONFIGURED',
+      message: 'Code execution is not configured. JUDGE0_BASE_URL is required',
+      retryable: false,
+      requestId: 'req-1',
     })
   } finally {
     await app.close()
+    restoreEnv()
+  }
+})
+
+test('POST /execute enforces per-user burst limits with 429 contract and Retry-After', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({
+    EXEC_RATE_LIMIT_USER_BURST_MAX: '1',
+    EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC: '60',
+    EXEC_RATE_LIMIT_USER_SUSTAINED_MAX: '20',
+    EXEC_RATE_LIMIT_COURSE_MAX: '20',
+  })
+  const originalFetch = globalThis.fetch
+  const originalDateNow = Date.now
+  let fetchCalls = 0
+  Date.now = () => 1_000
+  globalThis.fetch = async (input) => {
+    fetchCalls += 1
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-burst' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return new Response(
+      JSON.stringify({
+        stdout: 'ok',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 128,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const first = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("ok")',
+        courseId: 'c-1',
+      },
+    })
+    const second = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("blocked")',
+        courseId: 'c-1',
+      },
+    })
+
+    assert.equal(first.statusCode, 200)
+    assert.equal(second.statusCode, 429)
+    assert.equal(fetchCalls, 2)
+    assert.equal(second.headers['retry-after'], '59')
+    assert.deepEqual(second.json(), {
+      code: 'EXECUTE_RATE_LIMITED',
+      message: 'Execution rate limit exceeded. Please retry later.',
+      retryable: false,
+      requestId: 'req-2',
+      details: {
+        scope: 'user_burst',
+        retryAfterSeconds: 59,
+        limit: 1,
+        windowSeconds: 60,
+        remaining: 0,
+      },
+    })
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    Date.now = originalDateNow
+    restoreEnv()
+  }
+})
+
+test('POST /execute enforces per-user sustained limits', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({
+    EXEC_RATE_LIMIT_USER_BURST_MAX: '20',
+    EXEC_RATE_LIMIT_USER_SUSTAINED_MAX: '1',
+    EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC: '900',
+    EXEC_RATE_LIMIT_COURSE_MAX: '20',
+  })
+  const originalFetch = globalThis.fetch
+  let fetchCalls = 0
+  globalThis.fetch = async (input) => {
+    fetchCalls += 1
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: `tok-sustained-${fetchCalls}` }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return new Response(
+      JSON.stringify({
+        stdout: 'ok',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 128,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const first = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("one")',
+        courseId: 'c-1',
+      },
+    })
+    const second = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("two")',
+        courseId: 'c-1',
+      },
+    })
+
+    assert.equal(first.statusCode, 200)
+    assert.equal(second.statusCode, 429)
+    assert.equal(fetchCalls, 2)
+    assert.equal((second.json() as { details: { scope: string } }).details.scope, 'user_sustained')
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
+test('POST /execute enforces per-course limits shared across users', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({
+    EXEC_RATE_LIMIT_USER_BURST_MAX: '20',
+    EXEC_RATE_LIMIT_USER_SUSTAINED_MAX: '20',
+    EXEC_RATE_LIMIT_COURSE_MAX: '1',
+    EXEC_RATE_LIMIT_COURSE_WINDOW_SEC: '300',
+  })
+  const originalFetch = globalThis.fetch
+  let fetchCalls = 0
+  globalThis.fetch = async (input) => {
+    fetchCalls += 1
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-course' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return new Response(
+      JSON.stringify({
+        stdout: 'ok',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 128,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const first = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("u1")',
+        courseId: 'c-shared',
+      },
+    })
+    const second = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 's-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("u2")',
+        courseId: 'c-shared',
+      },
+    })
+
+    assert.equal(first.statusCode, 200)
+    assert.equal(second.statusCode, 429)
+    assert.equal(fetchCalls, 2)
+    assert.equal((second.json() as { details: { scope: string } }).details.scope, 'course')
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
+  }
+})
+
+test('POST /execute without course identity applies user-only limits', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({
+    EXEC_RATE_LIMIT_USER_BURST_MAX: '1',
+    EXEC_RATE_LIMIT_COURSE_MAX: '1',
+  })
+  const originalFetch = globalThis.fetch
+  let fetchCalls = 0
+  globalThis.fetch = async (input) => {
+    fetchCalls += 1
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-missing-course' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    return new Response(
+      JSON.stringify({
+        stdout: 'ok',
+        stderr: null,
+        compile_output: null,
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 128,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const first = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("one")',
+      },
+    })
+    const second = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("two")',
+      },
+    })
+
+    assert.equal(first.statusCode, 200)
+    assert.equal(second.statusCode, 429)
+    assert.equal(fetchCalls, 2)
+    assert.equal((second.json() as { details: { scope: string } }).details.scope, 'user_burst')
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
     restoreEnv()
   }
 })

@@ -9,7 +9,8 @@ This list is reordered to match the current development sequence request.
 - [x] **Production execution key configured** — set `JUDGE0_API_KEY` on the Render backend service so `/execute` can run student code in production.
 - [x] **Execution timeout + retry hardening** — `/execute` now enforces request deadlines, retries transient Judge0 failures, and returns a stable error contract for timeout/upstream failures.
 - [x] **Execution payload/output limits** — `/execute` now rejects oversized source/stdin payloads and includes structured truncation metadata when output is capped.
-- [ ] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
+- [x] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
+  - Implemented fixed-window user burst + user sustained + shared course limits with deterministic `429` + `Retry-After` contract and backend unit/integration tests.
 - [ ] **Multi-file coding projects** — support multiple files (for example Python + text/config files) and run them as a single project workspace.
 - [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects) without overwhelming beginner workflows.
 - [ ] **Run/step/stop debugging controls** — extend run-only execution with explicit stop/step UX plus backend-enforced runaway-program protections.

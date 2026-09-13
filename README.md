@@ -65,7 +65,8 @@ API default URL: `http://localhost:3001`
 > To enable code execution locally, set:
 > - `JUDGE0_BASE_URL` (Judge0-compatible endpoint),
 > - `JUDGE0_API_KEY` (required in production),
-> - `EXEC_TIMEOUT_MS`, `EXEC_MAX_SOURCE_KB`, `EXEC_MAX_STDIN_KB`, and `EXEC_MAX_OUTPUT_KB`.
+> - `EXEC_TIMEOUT_MS`, `EXEC_MAX_SOURCE_KB`, `EXEC_MAX_STDIN_KB`, and `EXEC_MAX_OUTPUT_KB`,
+> - `/execute` fair-use rate limit vars: `EXEC_RATE_LIMIT_ENABLED`, `EXEC_RATE_LIMIT_USER_BURST_MAX`, `EXEC_RATE_LIMIT_USER_BURST_WINDOW_SEC`, `EXEC_RATE_LIMIT_USER_SUSTAINED_MAX`, `EXEC_RATE_LIMIT_USER_SUSTAINED_WINDOW_SEC`, `EXEC_RATE_LIMIT_COURSE_MAX`, `EXEC_RATE_LIMIT_COURSE_WINDOW_SEC` (optional `EXEC_RATE_LIMIT_KEY_PREFIX`).
 > See `docs/deployment/env.md` for provider-agnostic examples.
 >
 > Frontend preflight warnings for oversized submissions use:
