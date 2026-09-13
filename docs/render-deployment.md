@@ -25,7 +25,11 @@ The `render.yaml` file in the repo root reflects the intended Blueprint configur
 | Node version | `22` (set this manually in the Render dashboard for the existing hand-created service) |
 | `DATABASE_URL` | from the linked `edu-platform-db` Postgres instance |
 | `JUDGE0_API_KEY` | set manually in Render dashboard — never commit to repo |
-| `JUDGE0_API_URL` | `https://judge0-ce.p.rapidapi.com` |
+| `JUDGE0_BASE_URL` | `https://judge0-ce.p.rapidapi.com` |
+| `EXEC_TIMEOUT_MS` | `12000` |
+| `EXEC_MAX_SOURCE_KB` | `64` |
+| `EXEC_MAX_STDIN_KB` | `8` |
+| `EXEC_MAX_OUTPUT_KB` | `32` |
 
 ### Frontend static site (`edu-platform-frontend`)
 
@@ -64,6 +68,7 @@ Open the frontend URL in a browser to verify the UI loads and connects to the AP
 - The API build installs dependencies, generates the Prisma client, and compiles TypeScript.
 - The start command runs outstanding Prisma migrations and seeds demo data only when the database is empty.
 - `JUDGE0_API_KEY` is marked `sync: false` in `render.yaml` and must never be committed to the repository. Set it directly in the Render dashboard under the API service's Environment settings.
+- Configure all execution env vars listed in `docs/deployment/env.md`; production boot fails fast when values are missing or invalid.
 - If you see `Route GET:/ not found` when hitting the API root directly, this is expected — the Fastify API does not serve the frontend. Open the frontend static site URL instead.
 
 ---

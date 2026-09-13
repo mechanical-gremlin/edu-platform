@@ -12,12 +12,16 @@ import { courseRoutes } from './modules/courses/routes.js'
 import { gradeRoutes } from './modules/grades/routes.js'
 import { progressRoutes } from './modules/progress/routes.js'
 import { AppError } from './lib.js'
+import { assertExecutionConfigAtStartup, resolveExecutionConfig } from './config/executionConfig.js'
 
 interface BuildAppOptions {
   prisma?: PrismaClient
 }
 
 export const buildApp = async (options: BuildAppOptions = {}) => {
+  const executionConfigState = resolveExecutionConfig(process.env)
+  assertExecutionConfigAtStartup(executionConfigState, process.env)
+
   const app = Fastify({ logger: true }).withTypeProvider<ZodTypeProvider>()
 
   app.setValidatorCompiler(validatorCompiler)
@@ -55,12 +59,12 @@ export const buildApp = async (options: BuildAppOptions = {}) => {
   await app.register(dbPlugin, { prisma: options.prisma })
   await app.register(loggingPlugin)
   await app.register(authPlugin)
-  await app.register(healthRoutes)
+  await app.register(healthRoutes, { executionConfigState })
   await app.register(userRoutes)
   await app.register(courseRoutes)
   await app.register(gradeRoutes)
   await app.register(progressRoutes)
-  await app.register(executeRoutes)
+  await app.register(executeRoutes, { executionConfigState })
 
   return app
 }

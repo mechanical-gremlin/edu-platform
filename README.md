@@ -62,9 +62,11 @@ npm --prefix backend run dev
 
 API default URL: `http://localhost:3001`
 
-> To enable code execution locally, either:
-> - use RapidAPI Judge0 (`JUDGE0_API_URL=https://judge0-ce.p.rapidapi.com`) + `JUDGE0_API_KEY`, or
-> - point `JUDGE0_API_URL` to a self-hosted Judge0 instance (no RapidAPI key required).
+> To enable code execution locally, set:
+> - `JUDGE0_BASE_URL` (Judge0-compatible endpoint),
+> - `JUDGE0_API_KEY` (required in production),
+> - `EXEC_TIMEOUT_MS`, `EXEC_MAX_SOURCE_KB`, `EXEC_MAX_STDIN_KB`, and `EXEC_MAX_OUTPUT_KB`.
+> See `docs/deployment/env.md` for provider-agnostic examples.
 
 Demo auth header:
 
@@ -93,9 +95,9 @@ curl -H 'x-user-id: s-1' http://localhost:3001/courses
    - call the API `/health` endpoint to confirm the backend is live
    - use the demo `x-user-id` values above to test authenticated API routes
    - set frontend env var `VITE_API_BASE_URL` to your deployed API URL so frontend can call backend endpoints
-   - if using RapidAPI Judge0, set backend env var `JUDGE0_API_KEY` so coding activities can run code (self-hosted Judge0 does not require it)
-6. If you see `Route GET:/ not found` on Render, see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for service URL expectations and full deployment checks.
-7. If the backend deploy fails during `prisma migrate deploy`, verify that each Prisma migration directory is incremental and unique before retrying; see `/home/runner/work/edu-platform/edu-platform/docs/render-deployment.md` for the recovery checklist.
+   - set all backend execution env vars from `docs/deployment/env.md` so coding activities can run code
+6. If you see `Route GET:/ not found` on Render, see `docs/render-deployment.md` for service URL expectations and full deployment checks.
+7. If the backend deploy fails during `prisma migrate deploy`, verify that each Prisma migration directory is incremental and unique before retrying; see `docs/render-deployment.md` for the recovery checklist.
 8. For the current manually created Render services, keep the backend Node version pinned to `22` in the Render dashboard because `render.yaml` values are not applied automatically to those existing services.
 
 ### Render behavior

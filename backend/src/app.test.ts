@@ -2,6 +2,50 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { buildApp } from './app.js'
 
+const EXECUTION_ENV_KEYS = [
+  'NODE_ENV',
+  'JUDGE0_BASE_URL',
+  'JUDGE0_API_KEY',
+  'EXEC_TIMEOUT_MS',
+  'EXEC_MAX_SOURCE_KB',
+  'EXEC_MAX_STDIN_KB',
+  'EXEC_MAX_OUTPUT_KB',
+] as const
+
+const withExecutionEnv = (overrides: Partial<Record<(typeof EXECUTION_ENV_KEYS)[number], string | undefined>>) => {
+  const previousValues = Object.fromEntries(EXECUTION_ENV_KEYS.map((key) => [key, process.env[key]])) as Record<
+    (typeof EXECUTION_ENV_KEYS)[number],
+    string | undefined
+  >
+
+  process.env.EXEC_TIMEOUT_MS = '12000'
+  process.env.EXEC_MAX_SOURCE_KB = '64'
+  process.env.EXEC_MAX_STDIN_KB = '8'
+  process.env.EXEC_MAX_OUTPUT_KB = '32'
+  process.env.JUDGE0_BASE_URL = 'https://judge0.school.internal'
+  process.env.NODE_ENV = 'test'
+  delete process.env.JUDGE0_API_KEY
+
+  for (const [key, value] of Object.entries(overrides)) {
+    if (value === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = value
+    }
+  }
+
+  return () => {
+    for (const key of EXECUTION_ENV_KEYS) {
+      const previousValue = previousValues[key]
+      if (previousValue === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = previousValue
+      }
+    }
+  }
+}
+
 const prismaStub = {
   user: {
     findUnique: async ({ where }: { where: { id: string } }) => {
@@ -21,13 +65,45 @@ const prismaStub = {
 } as any
 
 test('GET /health returns ok', async () => {
+  const restoreEnv = withExecutionEnv({})
   const app = await buildApp({ prisma: prismaStub })
-  const response = await app.inject({ method: 'GET', url: '/health' })
+  try {
+    const response = await app.inject({ method: 'GET', url: '/health' })
+    const body = response.json() as {
+      status: string
+      execution: { configured: boolean; upstream: string; errors: string[] }
+    }
 
-  assert.equal(response.statusCode, 200)
-  assert.deepEqual(response.json(), { status: 'ok' })
+    assert.equal(response.statusCode, 200)
+    assert.equal(body.status, 'ok')
+    assert.equal(body.execution.configured, true)
+    assert.deepEqual(body.execution.errors, [])
+    assert.ok(['reachable', 'unreachable'].includes(body.execution.upstream))
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
 
-  await app.close()
+test('GET /health reports unknown execution upstream when config is missing', async () => {
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: undefined })
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({ method: 'GET', url: '/health' })
+    const body = response.json() as {
+      status: string
+      execution: { configured: boolean; upstream: string; errors: string[] }
+    }
+
+    assert.equal(response.statusCode, 200)
+    assert.equal(body.status, 'ok')
+    assert.equal(body.execution.configured, false)
+    assert.equal(body.execution.upstream, 'unknown')
+    assert.ok(body.execution.errors.includes('JUDGE0_BASE_URL is required'))
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
 })
 
 test('GET / returns service metadata', async () => {
@@ -77,11 +153,25 @@ test('GET /me returns the authenticated user', async () => {
   await app.close()
 })
 
-test('POST /execute returns actionable config error when Judge0 key is missing', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com'
-  delete process.env.JUDGE0_API_KEY
+test('buildApp fails fast in production when execution config is missing', async () => {
+  const restoreEnv = withExecutionEnv({
+    NODE_ENV: 'production',
+    JUDGE0_BASE_URL: undefined,
+    JUDGE0_API_KEY: undefined,
+  })
+
+  try {
+    await assert.rejects(
+      () => buildApp({ prisma: prismaStub }),
+      /Invalid execution configuration:[\s\S]*JUDGE0_BASE_URL is required[\s\S]*JUDGE0_API_KEY is required when NODE_ENV=production/,
+    )
+  } finally {
+    restoreEnv()
+  }
+})
+
+test('POST /execute returns actionable config error when execution env is missing', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: undefined })
 
   const app = await buildApp({ prisma: prismaStub })
   try {
@@ -99,20 +189,16 @@ test('POST /execute returns actionable config error when Judge0 key is missing',
     assert.deepEqual(response.json(), {
       statusCode: 503,
       error: 'Service Unavailable',
-      message: 'Code execution is not configured. Set JUDGE0_API_KEY in backend environment variables.',
+      message: 'Code execution is not configured. JUDGE0_BASE_URL is required',
     })
   } finally {
     await app.close()
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
   }
 })
 
 test('POST /execute calls RapidAPI Judge0 with auth headers when key is set', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'https://judge0-ce.p.rapidapi.com'
-  process.env.JUDGE0_API_KEY = 'test-key'
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0-ce.p.rapidapi.com', JUDGE0_API_KEY: 'test-key' })
 
   const originalFetch = globalThis.fetch
   let capturedHeaders: Record<string, string> = {}
@@ -158,16 +244,12 @@ test('POST /execute calls RapidAPI Judge0 with auth headers when key is set', { 
   } finally {
     await app.close()
     globalThis.fetch = originalFetch
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
   }
 })
 
 test('POST /execute calls self-hosted Judge0 without RapidAPI headers', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'https://judge0.school.internal'
-  delete process.env.JUDGE0_API_KEY
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
 
   const originalFetch = globalThis.fetch
   let capturedHeaders: Record<string, string> = {}
@@ -213,16 +295,12 @@ test('POST /execute calls self-hosted Judge0 without RapidAPI headers', { concur
   } finally {
     await app.close()
     globalThis.fetch = originalFetch
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
   }
 })
 
 test('POST /execute returns config error for invalid Judge0 URL', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'not-a-url'
-  delete process.env.JUDGE0_API_KEY
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'not-a-url', JUDGE0_API_KEY: undefined })
 
   const app = await buildApp({ prisma: prismaStub })
   try {
@@ -240,20 +318,121 @@ test('POST /execute returns config error for invalid Judge0 URL', { concurrency:
     assert.deepEqual(response.json(), {
       statusCode: 503,
       error: 'Service Unavailable',
-      message: 'Code execution is not configured. JUDGE0_API_URL must be a valid URL.',
+      message: 'Code execution is not configured. JUDGE0_BASE_URL must be a valid URL',
     })
   } finally {
     await app.close()
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
+  }
+})
+
+test('POST /execute rejects code that exceeds configured source limit', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_MAX_SOURCE_KB: '1' })
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'a'.repeat(1025),
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.deepEqual(response.json(), {
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Source code exceeds EXEC_MAX_SOURCE_KB (1 KB).',
+    })
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
+test('POST /execute rejects stdin that exceeds configured stdin limit', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_MAX_STDIN_KB: '1' })
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("hello")',
+        stdin: 's'.repeat(1025),
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.deepEqual(response.json(), {
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Standard input exceeds EXEC_MAX_STDIN_KB (1 KB).',
+    })
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
+test('POST /execute truncates oversized output using configured output limit', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_MAX_OUTPUT_KB: '1' })
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async (input) => {
+    const url = String(input)
+    if (url.includes('wait=false')) {
+      return new Response(JSON.stringify({ token: 'tok-3' }), {
+        status: 201,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+
+    return new Response(
+      JSON.stringify({
+        stdout: 'x'.repeat(1500),
+        stderr: 'y'.repeat(1500),
+        compile_output: 'z'.repeat(1500),
+        status: { id: 3, description: 'Accepted' },
+        time: '0.01',
+        memory: 1024,
+      }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    )
+  }
+
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("hello")',
+      },
+    })
+
+    assert.equal(response.statusCode, 200)
+    const body = response.json() as { stdout: string | null; stderr: string | null; compile_output: string | null }
+    assert.ok(body.stdout?.endsWith('\n[output truncated]'))
+    assert.ok(body.stderr?.endsWith('\n[output truncated]'))
+    assert.ok(body.compile_output?.endsWith('\n[output truncated]'))
+    assert.ok(Buffer.byteLength(body.stdout ?? '', 'utf8') <= 1024)
+    assert.ok(Buffer.byteLength(body.stderr ?? '', 'utf8') <= 1024)
+    assert.ok(Buffer.byteLength(body.compile_output ?? '', 'utf8') <= 1024)
+  } finally {
+    await app.close()
+    globalThis.fetch = originalFetch
+    restoreEnv()
   }
 })
 
 test('student resubmission preserves manual grade while refreshing autograder details', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'https://judge0.school.internal'
-  delete process.env.JUDGE0_API_KEY
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
 
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
@@ -366,16 +545,12 @@ test('student resubmission preserves manual grade while refreshing autograder de
   } finally {
     await app.close()
     globalThis.fetch = originalFetch
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
   }
 })
 
 test('student resubmission keeps commentless manual override unchanged', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'https://judge0.school.internal'
-  delete process.env.JUDGE0_API_KEY
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
 
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
@@ -487,16 +662,12 @@ test('student resubmission keeps commentless manual override unchanged', { concu
   } finally {
     await app.close()
     globalThis.fetch = originalFetch
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
   }
 })
 
 test('student submission creates an autograded grade when no manual override exists', { concurrency: false }, async () => {
-  const previousUrl = process.env.JUDGE0_API_URL
-  const previousKey = process.env.JUDGE0_API_KEY
-  process.env.JUDGE0_API_URL = 'https://judge0.school.internal'
-  delete process.env.JUDGE0_API_KEY
+  const restoreEnv = withExecutionEnv({ JUDGE0_BASE_URL: 'https://judge0.school.internal', JUDGE0_API_KEY: undefined })
 
   const originalFetch = globalThis.fetch
   globalThis.fetch = async (input) => {
@@ -609,7 +780,6 @@ test('student submission creates an autograded grade when no manual override exi
   } finally {
     await app.close()
     globalThis.fetch = originalFetch
-    process.env.JUDGE0_API_URL = previousUrl
-    process.env.JUDGE0_API_KEY = previousKey
+    restoreEnv()
   }
 })
