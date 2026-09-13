@@ -6,6 +6,7 @@ const EXEC_LIMIT_MIN_KB = 1
 const EXEC_LIMIT_MAX_KB = 1_024
 const UPSTREAM_HEALTH_TIMEOUT_MS = 2_000
 const UPSTREAM_HEALTH_CACHE_MS = 30_000
+const RAPIDAPI_HOST_PATTERN = /(^|\.)p\.rapidapi\.com$/i
 
 const envSchema = z.object({
   NODE_ENV: z.string().optional(),
@@ -147,8 +148,17 @@ export const getExecutionUpstreamStatus = async (config: ExecutionConfig | null)
   const probePromise = (async () => {
     let status: ExecutionUpstreamStatus = 'unreachable'
     try {
-      const response = await fetch(config.judge0BaseUrl, {
-        method: 'HEAD',
+      const judge0Host = new URL(config.judge0BaseUrl).hostname
+      const headers =
+        RAPIDAPI_HOST_PATTERN.test(judge0Host) && config.judge0ApiKey
+          ? {
+              'X-RapidAPI-Key': config.judge0ApiKey,
+              'X-RapidAPI-Host': judge0Host,
+            }
+          : undefined
+      const response = await fetch(`${config.judge0BaseUrl}/languages`, {
+        method: 'GET',
+        headers,
         signal: AbortSignal.timeout(UPSTREAM_HEALTH_TIMEOUT_MS),
       })
       status = response.ok ? 'reachable' : 'unreachable'

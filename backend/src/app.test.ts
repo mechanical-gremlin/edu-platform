@@ -352,6 +352,33 @@ test('POST /execute rejects code that exceeds configured source limit', { concur
   }
 })
 
+test('POST /execute rejects stdin that exceeds configured stdin limit', { concurrency: false }, async () => {
+  const restoreEnv = withExecutionEnv({ EXEC_MAX_STDIN_KB: '1' })
+  const app = await buildApp({ prisma: prismaStub })
+  try {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/execute',
+      headers: { 'x-user-id': 't-1', 'content-type': 'application/json' },
+      payload: {
+        language: 'javascript',
+        code: 'console.log("hello")',
+        stdin: 's'.repeat(1025),
+      },
+    })
+
+    assert.equal(response.statusCode, 400)
+    assert.deepEqual(response.json(), {
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Standard input exceeds EXEC_MAX_STDIN_KB (1 KB).',
+    })
+  } finally {
+    await app.close()
+    restoreEnv()
+  }
+})
+
 test('POST /execute truncates oversized output using configured output limit', { concurrency: false }, async () => {
   const restoreEnv = withExecutionEnv({ EXEC_MAX_OUTPUT_KB: '1' })
   const originalFetch = globalThis.fetch
