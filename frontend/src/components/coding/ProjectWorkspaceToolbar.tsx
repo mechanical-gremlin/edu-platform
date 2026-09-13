@@ -22,6 +22,7 @@ interface ProjectWorkspaceToolbarProps {
   stopDisabled: boolean
   targetEditable: boolean
   targetOptions: string[]
+  targetSelectId: string
 }
 
 const buttonBaseClass = 'rounded px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50'
@@ -45,6 +46,7 @@ export const ProjectWorkspaceToolbar = ({
   stopDisabled,
   targetEditable,
   targetOptions,
+  targetSelectId,
 }: ProjectWorkspaceToolbarProps) => {
   const showExecutionControls = runtimeProfile === 'code'
   const canSelectTarget =
@@ -64,11 +66,11 @@ export const ProjectWorkspaceToolbar = ({
         <span className="truncate text-xs text-slate-300">{leftStatus}</span>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <label className="sr-only" htmlFor={`workspace-target-${runtimeProfile}`}>
+        <label className="sr-only" htmlFor={targetSelectId}>
           {runtimeProfile === 'web' ? 'Target page' : 'Target file'}
         </label>
         <select
-          id={`workspace-target-${runtimeProfile}`}
+          id={targetSelectId}
           className="rounded border border-slate-600 bg-slate-900 px-2 py-1 text-xs text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
           value={selectedTarget ?? ''}
           onChange={(event) => onTargetChange?.(event.target.value || null)}

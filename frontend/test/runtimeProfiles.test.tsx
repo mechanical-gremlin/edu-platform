@@ -2,13 +2,17 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { act, create } from 'react-test-renderer'
 import { ProjectWorkspaceToolbar } from '../src/components/coding/ProjectWorkspaceToolbar.tsx'
+import { ProjectWorkspaceEditor } from '../src/components/coding/ProjectWorkspaceEditor.tsx'
 import {
   getExecutionControlState,
   getStepCapability,
   resolveRuntimeProfile,
   resolveRuntimeTarget,
 } from '../src/utils/runtimeProfiles.ts'
+
+;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
 test('code profile toolbar renders target, run, step, and stop in order', () => {
   const html = renderToStaticMarkup(
@@ -23,6 +27,7 @@ test('code profile toolbar renders target, run, step, and stop in order', () => 
       stopDisabled
       targetEditable
       targetOptions={['src/index.ts']}
+      targetSelectId="code-target"
     />,
   )
 
@@ -47,6 +52,7 @@ test('web profile toolbar renders preview controls and excludes step', () => {
       stopDisabled
       targetEditable
       targetOptions={['index.html']}
+      targetSelectId="web-target"
     />,
   )
 
@@ -132,4 +138,91 @@ test('code profile smoke test keeps deterministic executable target selection fo
   assert.equal(resolved.profile, 'code')
   assert.equal(resolved.target, 'main.py')
   assert.equal(resolved.error, null)
+})
+
+test('workspace editor updates the selected target and stop aborts the active run request', async () => {
+  const originalFetch = globalThis.fetch
+  const fetchBodies: Array<{ entrypoint: string | null }> = []
+  globalThis.fetch = ((_, init) => new Promise((resolve, reject) => {
+    const payload = JSON.parse(String(init?.body ?? '{}')) as { entrypoint: string | null }
+    fetchBodies.push(payload)
+    init?.signal?.addEventListener('abort', () => {
+      reject(new DOMException('Aborted', 'AbortError'))
+    })
+    if (!init?.signal) {
+      resolve({
+        ok: true,
+        json: async () => ({
+          stdout: 'ok',
+          stderr: null,
+          compile_output: null,
+          status: { id: 3, description: 'Accepted' },
+        }),
+      } as Response)
+    }
+  })) as typeof fetch
+
+  const StubEditor = ({
+    value,
+  }: {
+    height?: string
+    language?: string
+    onChange?: (value: string | undefined) => void
+    options?: object
+    theme?: string
+    value?: string
+  }) => <textarea readOnly value={value ?? ''} />
+
+  let renderer: ReturnType<typeof create>
+  await act(async () => {
+    renderer = create(
+      <ProjectWorkspaceEditor
+        language="javascript"
+        runtimeProfile="code"
+        defaultFiles={[
+          { path: 'index.js', language: 'javascript', content: 'console.log("one")' },
+          { path: 'alt.js', language: 'javascript', content: 'console.log("two")' },
+        ]}
+        defaultEntrypoint="index.js"
+        executeUrl="/execute"
+        editorComponent={StubEditor}
+      />,
+    )
+  })
+
+  try {
+    const select = renderer!.root.findByProps({ 'aria-label': 'Target file' })
+    await act(async () => {
+      select.props.onChange({ target: { value: 'alt.js' } })
+    })
+
+    const runButton = renderer!.root.findAllByType('button').find((button) => button.props.children === '▶ Run')
+    assert.ok(runButton)
+
+    await act(async () => {
+      runButton?.props.onClick()
+      await Promise.resolve()
+    })
+
+    assert.equal(fetchBodies.at(-1)?.entrypoint, 'alt.js')
+
+    const stopButton = renderer!.root.findAllByType('button').find((button) => {
+      const label = button.props.children
+      return label === '■ Stop' || label === '■ Stopping…'
+    })
+    assert.equal(stopButton?.props.disabled, false)
+
+    await act(async () => {
+      stopButton?.props.onClick()
+      await Promise.resolve()
+    })
+
+    const renderedText = JSON.stringify(renderer!.toJSON())
+    assert.match(renderedText, /Stopped waiting for this run/)
+  } finally {
+    await act(async () => {
+      renderer!.unmount()
+    })
+    globalThis.fetch = originalFetch
+  }
 })

@@ -45,8 +45,8 @@ const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
 }
 
 const utf8Encoder = new TextEncoder()
-const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
-const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
+const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env?.VITE_EXEC_MAX_SOURCE_KB, 64)
+const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env?.VITE_EXEC_MAX_STDIN_KB, 8)
 
 interface ExecuteResult {
   stdout: string | null

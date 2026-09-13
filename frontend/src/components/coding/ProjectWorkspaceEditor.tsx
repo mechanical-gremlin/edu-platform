@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useId, useMemo, useRef, useState, type ComponentType } from 'react'
 import MonacoEditorReact from '@monaco-editor/react'
 import type { StarterFile } from '../../types/models'
 import { getExecuteErrorMessage, type ExecuteErrorResponse } from './executeErrors'
@@ -15,6 +15,8 @@ import {
   type ExecutionUiState,
   type RuntimeProfile,
 } from '../../utils/runtimeProfiles'
+
+void React
 
 const EXT_LANGUAGE: Record<string, string> = {
   c: 'c',
@@ -45,8 +47,8 @@ const limitBytesFromEnv = (envValue: unknown, fallbackKb: number) => {
 }
 
 const utf8Encoder = new TextEncoder()
-const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_SOURCE_KB, 64)
-const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env.VITE_EXEC_MAX_STDIN_KB, 8)
+const maxSourceBytesLimit = limitBytesFromEnv(import.meta.env?.VITE_EXEC_MAX_SOURCE_KB, 64)
+const maxStdinBytesLimit = limitBytesFromEnv(import.meta.env?.VITE_EXEC_MAX_STDIN_KB, 8)
 
 interface ExecuteResult {
   stdout: string | null
@@ -156,6 +158,22 @@ interface ProjectWorkspaceEditorProps {
   stdin?: string
   showStdinField?: boolean
   onStdinChange?: (stdin: string) => void
+  editorComponent?: ComponentType<{
+    height: string
+    language: string
+    value: string
+    onChange: (value: string | undefined) => void
+    theme: string
+    options: {
+      readOnly: boolean
+      minimap: { enabled: boolean }
+      fontSize: number
+      lineNumbers: 'on'
+      scrollBeyondLastLine: boolean
+      wordWrap: 'on'
+      padding: { top: number; bottom: number }
+    }
+  }>
 }
 
 export const ProjectWorkspaceEditor = ({
@@ -175,6 +193,7 @@ export const ProjectWorkspaceEditor = ({
   stdin = '',
   showStdinField = false,
   onStdinChange,
+  editorComponent: EditorComponent = MonacoEditorReact,
 }: ProjectWorkspaceEditorProps) => {
   const initialFiles = useMemo(
     () =>
@@ -220,6 +239,7 @@ export const ProjectWorkspaceEditor = ({
   })
   const abortControllerRef = useRef<AbortController | null>(null)
   const fileTreeId = useId()
+  const targetSelectId = useId()
   const showFileTree = fileTreeToggleVisible && fileTreeOpen
 
   const directorySet = useMemo(() => {
@@ -276,6 +296,10 @@ export const ProjectWorkspaceEditor = ({
       }),
     [executionState, runtimeTarget.target, stepCapability],
   )
+  const stopHelpText =
+    showExecution && (executionState === 'running' || executionState === 'stopping')
+      ? 'Stop cancels this editor request. Backend execution may continue until its normal timeout.'
+      : null
 
   const refreshPreview = (nextFiles = files, nextEntrypoint = entrypoint) => {
     const nextTarget = resolveRuntimeTarget({
@@ -667,7 +691,11 @@ export const ProjectWorkspaceEditor = ({
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {
         setExecutionState('idle')
-        setOutput((current) => current ?? 'Run stopped.')
+        setOutput(
+          (current) =>
+            current
+            ?? 'Stopped waiting for this run. Backend execution may continue until its normal timeout.',
+        )
         return
       }
       setExecutionState('error')
@@ -875,6 +903,7 @@ export const ProjectWorkspaceEditor = ({
         stopDisabled={executionControls.stopDisabled}
         targetEditable={entrypointEditable && !readOnly}
         targetOptions={runtimeTarget.targetOptions}
+        targetSelectId={targetSelectId}
       />
       {showExecution && passed !== null && (
         <div className="flex justify-end">
@@ -888,7 +917,7 @@ export const ProjectWorkspaceEditor = ({
         </div>
       )}
 
-      {(pathError || entrypointError || runError || truncationNotice || preflightWarning) && (
+      {(pathError || entrypointError || runError || truncationNotice || preflightWarning || stopHelpText) && (
         <div className="space-y-2">
           {(pathError || entrypointError) && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -906,6 +935,11 @@ export const ProjectWorkspaceEditor = ({
           {truncationNotice && (
             <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
               {truncationNotice}
+            </p>
+          )}
+          {stopHelpText && (
+            <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600">
+              {stopHelpText}
             </p>
           )}
         </div>
@@ -953,7 +987,7 @@ export const ProjectWorkspaceEditor = ({
 
         <div className="flex min-w-0 flex-1 gap-3 overflow-hidden">
           <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-slate-200">
-            <MonacoEditorReact
+            <EditorComponent
               height={height}
               language={activeFile?.language ?? langForFile(activeFile?.path ?? '', language)}
               value={activeFile?.content ?? ''}
