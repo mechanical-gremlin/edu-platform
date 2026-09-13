@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "tsx --test test/*.test.ts test/*.test.tsx"
+    "test": "tsx --test test/**/*.test.ts test/**/*.test.tsx"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

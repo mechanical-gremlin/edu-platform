@@ -77,11 +77,17 @@ export const ProjectWorkspaceToolbar = ({
           disabled={!canSelectTarget}
           aria-label={runtimeProfile === 'web' ? 'Target page' : 'Target file'}
         >
-          {targetOptions.map((target) => (
-            <option key={`${runtimeProfile}-${target}`} value={target}>
-              {runtimeProfile === 'web' ? `Target page: ${target}` : `Target file: ${target}`}
+          {targetOptions.length === 0 ? (
+            <option value="" disabled>
+              {runtimeProfile === 'web' ? 'No preview page available' : 'No runnable target available'}
             </option>
-          ))}
+          ) : (
+            targetOptions.map((target) => (
+              <option key={`${runtimeProfile}-${target}`} value={target}>
+                {runtimeProfile === 'web' ? `Target page: ${target}` : `Target file: ${target}`}
+              </option>
+            ))
+          )}
         </select>
         {showExecutionControls ? (
           <>

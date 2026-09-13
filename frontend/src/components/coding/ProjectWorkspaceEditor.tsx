@@ -443,6 +443,7 @@ export const ProjectWorkspaceEditor = ({
 
   useEffect(() => () => {
     abortControllerRef.current?.abort()
+    abortControllerRef.current = null
   }, [])
 
   const createItem = () => {
@@ -605,7 +606,7 @@ export const ProjectWorkspaceEditor = ({
   }
 
   const handleRun = async () => {
-    if (!executeUrl || executionControls.runDisabled || abortControllerRef.current) {
+    if (!executeUrl || abortControllerRef.current) {
       return
     }
 
