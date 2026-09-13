@@ -66,7 +66,7 @@ test('allows again after user burst window resets', () => {
 
 test('blocks when user sustained limit is exceeded', () => {
   const store = new InMemoryRateLimitStore()
-  const sustainedOnly = { ...baseConfig, userBurstMax: 10 }
+  const sustainedOnly = { ...baseConfig, userBurstMax: 10, courseMax: 10 }
   evaluateExecuteRateLimit({ store, config: sustainedOnly, identity: { userId: 'u-1', courseId: 'c-1' }, nowMs: 100 })
   evaluateExecuteRateLimit({ store, config: sustainedOnly, identity: { userId: 'u-1', courseId: 'c-1' }, nowMs: 200 })
   evaluateExecuteRateLimit({ store, config: sustainedOnly, identity: { userId: 'u-1', courseId: 'c-1' }, nowMs: 300 })
@@ -147,4 +147,26 @@ test('disabled limiter bypasses all policies', () => {
   const allowed = evaluateExecuteRateLimit({ store, config: disabled, identity: { userId: 'u-1', courseId: 'c-1' }, nowMs: 1_100 })
 
   assert.deepEqual(allowed, { allowed: true })
+})
+
+test('blocked request does not consume other scope quota', () => {
+  const store = new InMemoryRateLimitStore()
+  const config = { ...baseConfig, userBurstMax: 1, userSustainedMax: 10, courseMax: 2 }
+  evaluateExecuteRateLimit({ store, config, identity: { userId: 'u-1', courseId: 'c-1' }, nowMs: 1_000 })
+  const blocked = evaluateExecuteRateLimit({
+    store,
+    config,
+    identity: { userId: 'u-1', courseId: 'c-1' },
+    nowMs: 1_100,
+  })
+  const secondUser = evaluateExecuteRateLimit({
+    store,
+    config,
+    identity: { userId: 'u-2', courseId: 'c-1' },
+    nowMs: 1_200,
+  })
+
+  assert.equal(blocked.allowed, false)
+  assert.equal(blocked.scope, 'user_burst')
+  assert.deepEqual(secondUser, { allowed: true })
 })

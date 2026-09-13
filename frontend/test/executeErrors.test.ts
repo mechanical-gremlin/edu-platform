@@ -13,7 +13,7 @@ test('getExecuteErrorMessage uses code-based messages for known retryable errors
   )
   assert.equal(
     getExecuteErrorMessage({ code: 'EXECUTE_RATE_LIMITED', retryable: false }, 429),
-    'Execution rate limit exceeded. Please wait and retry.',
+    'Execution rate limit exceeded. Please retry later.',
   )
 })
 

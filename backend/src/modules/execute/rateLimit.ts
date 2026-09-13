@@ -8,7 +8,12 @@ export interface RateLimitStoreIncrementResult {
 }
 
 export interface RateLimitStore {
-  incrementFixedWindow(key: string, windowSeconds: number, nowMs: number): RateLimitStoreIncrementResult
+  checkAndIncrementFixedWindow(key: string, windowSeconds: number, limit: number, nowMs: number): {
+    allowed: boolean
+    count: number
+    resetAtMs: number
+  }
+  decrementFixedWindow(key: string, windowSeconds: number, nowMs: number): void
 }
 
 export interface ExecuteRateLimitConfig {
@@ -51,16 +56,63 @@ interface RateLimitPolicy {
 
 export class InMemoryRateLimitStore implements RateLimitStore {
   private readonly counters = new Map<string, { count: number; resetAtMs: number }>()
+  private nextCleanupAtMs = 0
 
-  incrementFixedWindow(key: string, windowSeconds: number, nowMs: number): RateLimitStoreIncrementResult {
+  private pruneExpired(nowMs: number) {
+    if (nowMs < this.nextCleanupAtMs) {
+      return
+    }
+
+    for (const [key, value] of this.counters) {
+      if (value.resetAtMs <= nowMs) {
+        this.counters.delete(key)
+      }
+    }
+
+    this.nextCleanupAtMs = nowMs + 60_000
+  }
+
+  private resolveWindow(key: string, windowSeconds: number, nowMs: number) {
     const windowMs = windowSeconds * 1000
     const windowStart = Math.floor(nowMs / windowMs) * windowMs
     const resetAtMs = windowStart + windowMs
     const windowKey = `${key}:${windowStart}`
+    return { windowKey, resetAtMs }
+  }
+
+  checkAndIncrementFixedWindow(key: string, windowSeconds: number, limit: number, nowMs: number) {
+    this.pruneExpired(nowMs)
+    const { windowKey, resetAtMs } = this.resolveWindow(key, windowSeconds, nowMs)
     const current = this.counters.get(windowKey)
-    const nextCount = (current?.count ?? 0) + 1
+    const currentCount = current?.count ?? 0
+    const nextCount = currentCount + 1
+    if (nextCount > limit) {
+      return {
+        allowed: false,
+        count: currentCount,
+        resetAtMs: current?.resetAtMs ?? resetAtMs,
+      }
+    }
+
     this.counters.set(windowKey, { count: nextCount, resetAtMs })
-    return { count: nextCount, resetAtMs }
+    return { allowed: true, count: nextCount, resetAtMs }
+  }
+
+  decrementFixedWindow(key: string, windowSeconds: number, nowMs: number) {
+    this.pruneExpired(nowMs)
+    const { windowKey } = this.resolveWindow(key, windowSeconds, nowMs)
+    const current = this.counters.get(windowKey)
+    if (!current) {
+      return
+    }
+    if (current.count <= 1) {
+      this.counters.delete(windowKey)
+      return
+    }
+    this.counters.set(windowKey, {
+      count: current.count - 1,
+      resetAtMs: current.resetAtMs,
+    })
   }
 
   reset() {
@@ -110,18 +162,24 @@ export const evaluateExecuteRateLimit = ({
     })
   }
 
+  const appliedPolicies: RateLimitPolicy[] = []
+
   for (const policy of policies) {
-    const { count, resetAtMs } = store.incrementFixedWindow(policy.key, policy.windowSeconds, nowMs)
-    if (count > policy.limit) {
+    const result = store.checkAndIncrementFixedWindow(policy.key, policy.windowSeconds, policy.limit, nowMs)
+    if (!result.allowed) {
+      for (const appliedPolicy of appliedPolicies) {
+        store.decrementFixedWindow(appliedPolicy.key, appliedPolicy.windowSeconds, nowMs)
+      }
       return {
         allowed: false,
         scope: policy.scope,
-        retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - nowMs) / 1000)),
+        retryAfterSeconds: Math.max(1, Math.ceil((result.resetAtMs - nowMs) / 1000)),
         limit: policy.limit,
         windowSeconds: policy.windowSeconds,
         remaining: 0,
       }
     }
+    appliedPolicies.push(policy)
   }
 
   return { allowed: true }

@@ -43,7 +43,7 @@ The API validates execution configuration at startup from a single contract.
   - optional `details.limit`, `details.windowSeconds`, `details.remaining`
 - Identity keying:
   - User key resolves from authenticated principal id, falling back to `x-user-id`.
-  - Course key resolves from `courseId` body field, then `x-course-id` header.
+  - Course key resolves from `courseId` body field, then `x-course-id` header, and is accepted only when that user is enrolled in the referenced course (membership checks are cached briefly to reduce repeated DB lookups during run loops).
   - If course identity is missing, the backend applies the most restrictive available policy (user burst + sustained only) and logs the missing-course fallback.
 
 ## `/execute` rate-limit tuning guidance

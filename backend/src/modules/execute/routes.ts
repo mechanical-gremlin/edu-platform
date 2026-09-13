@@ -12,6 +12,21 @@ interface ExecuteRoutesOptions {
 
 export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (app, options) => {
   const rateLimitStore = new InMemoryRateLimitStore()
+  const enrollmentCache = new Map<string, { allowed: boolean; expiresAtMs: number }>()
+  const enrollmentCacheTtlMs = 30_000
+  let enrollmentCacheNextCleanupAtMs = 0
+
+  const pruneEnrollmentCache = (nowMs: number) => {
+    if (nowMs < enrollmentCacheNextCleanupAtMs) {
+      return
+    }
+    for (const [key, value] of enrollmentCache) {
+      if (value.expiresAtMs <= nowMs) {
+        enrollmentCache.delete(key)
+      }
+    }
+    enrollmentCacheNextCleanupAtMs = nowMs + enrollmentCacheTtlMs
+  }
   const executeBodySchema = z.object({
     language: z.string().trim().min(1),
     code: z.string().trim().min(1),
@@ -55,10 +70,43 @@ export const executeRoutes: FastifyPluginAsync<ExecuteRoutesOptions> = async (ap
 
       const payload = executeBodySchema.parse(request.body)
       const durationStartedAt = request.executeStartedAt ?? Date.now()
-      const headerUserId = request.headers['x-user-id']
-      const userKey = request.user?.id ?? (Array.isArray(headerUserId) ? headerUserId[0] : headerUserId) ?? null
+      const userKey = request.user?.id ?? null
       const headerCourseId = request.headers['x-course-id']
-      const courseKey = payload.courseId ?? (Array.isArray(headerCourseId) ? headerCourseId[0] : headerCourseId) ?? null
+      const requestedCourseKey = payload.courseId ?? (Array.isArray(headerCourseId) ? headerCourseId[0] : headerCourseId) ?? null
+      let courseKey: string | null = null
+
+      if (requestedCourseKey && userKey) {
+        const cacheKey = `${userKey}:${requestedCourseKey}`
+        const nowMs = Date.now()
+        pruneEnrollmentCache(nowMs)
+        const cachedEnrollment = enrollmentCache.get(cacheKey)
+        if (cachedEnrollment?.expiresAtMs && cachedEnrollment.expiresAtMs > nowMs && !cachedEnrollment.allowed) {
+          throw new AppError(403, 'Course context is invalid for this user.', undefined, true, 'EXEC_FORBIDDEN', false)
+        }
+        if (cachedEnrollment?.expiresAtMs && cachedEnrollment.expiresAtMs > nowMs && cachedEnrollment.allowed) {
+          courseKey = requestedCourseKey
+        } else {
+          const enrollment = await app.prisma.enrollment.findUnique({
+            where: {
+              userId_courseId: {
+                userId: userKey,
+                courseId: requestedCourseKey,
+              },
+            },
+            select: {
+              userId: true,
+            },
+          })
+          const allowed = Boolean(enrollment)
+          enrollmentCache.set(cacheKey, { allowed, expiresAtMs: nowMs + enrollmentCacheTtlMs })
+
+          if (!allowed) {
+            throw new AppError(403, 'Course context is invalid for this user.', undefined, true, 'EXEC_FORBIDDEN', false)
+          }
+
+          courseKey = requestedCourseKey
+        }
+      }
 
       const limitDecision = evaluateExecuteRateLimit({
         store: rateLimitStore,
