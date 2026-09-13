@@ -299,7 +299,7 @@ export const executeWithJudge0 = async ({
             statusCode: 502,
             code: 'EXEC_UPSTREAM_ERROR',
             message: 'Execution request was interrupted before completion. Please try again.',
-            retryable: false,
+            retryable: true,
           })
         }
         throw createExecuteError({
