@@ -12,8 +12,7 @@ This list is reordered to match the current development sequence request.
 - [x] **Execution rate limits** — add per-user/per-course rate limits around `/execute` before production deployment.
   - Implemented fixed-window user burst + user sustained + shared course limits with deterministic `429` + `Retry-After` contract and backend unit/integration tests.
 - [x] **Multi-file coding projects** — the shared coding workspace now supports multi-file projects with deterministic entrypoint resolution and runnable target validation for both code runtimes and web preview contexts.
-- [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects). External hosted framework/runtime resources are acceptable for this stage; domain allowlisting and related security hardening are deferred to pre-production hardening before deployment.
-- [ ] **Run/step/stop debugging controls for coding runtimes** — code/runtime activities now use explicit Target/Run/Step/Stop toolbar controls, while web environments keep separate preview-oriented controls.
+- [x] **Run/step/stop debugging controls for coding runtimes** — code/runtime activities now use explicit Target/Run/Step/Stop toolbar controls, while web environments keep separate preview-oriented controls.
 - [ ] **Language/runtime coverage matrix** — define and validate which languages/runtimes are officially supported in MVP and production.
 - [ ] **Project template catalog** — provide starter templates by project type (single file, multi-file, web, game, and config-driven projects).
 - [x] **Autosave coding work** — student coding drafts now persist in browser localStorage so navigating away from an assignment no longer clears the in-progress editor.
@@ -40,7 +39,7 @@ This list is reordered to match the current development sequence request.
 ## P2 — UX/UI cleanup (sleek, modern, intuitive)
 
 - [x] **VS Code-style file manager UX** — the Web Development Kit now ships with a side file tree plus a show/hide toggle, and the explorer starts collapsed to protect the editor/preview layout.
-- [x] **CRUD interface completeness** — Web Development Kit file tree now supports beginner-friendly folder/file create, collision-safe rename, delete confirmations, and path normalization.
+- [ ] **CRUD interface completeness** — unit, Lessons and Activity modules edit, delete, hide features are non-functional and must be working for production.
 - [ ] **Indicator icons** — integrate icons to indicate states of activities, lessons, and units.
 - [ ] **Drag-and-drop hierarchy management** — replace the current move-up/move-down course organizer with direct drag-and-drop reordering and cross-unit / cross-lesson moves.
 - [ ] **Accessibility hardening** — complete a11y audit and fix critical findings.
@@ -58,7 +57,7 @@ This list is reordered to match the current development sequence request.
 - [ ] **E2E regression coverage** — automate smoke flows (login, coding run, submit, gradebook).
 - [ ] **Frontend regression coverage for teacher hierarchy tools** — add automated browser coverage for edit/delete/visibility/reorder flows on units, lessons, and activities.
 - [ ] **Migrate Prisma config from package.json** — move `prisma` configuration from `backend/package.json` to a `prisma.config.ts` file before Prisma 7 upgrade, as the package.json approach is deprecated.
-
+- [ ] **Framework/runtime expansion for the Web Development Kit** — evaluate optional presets for libraries/frameworks (for example Bootstrap/Tailwind or Flask-backed web projects). External hosted framework/runtime resources are acceptable for this stage; domain allowlisting and related security hardening are deferred to pre-production hardening before deployment.
 ---
 
 ## P4 — Post-production enhancements
