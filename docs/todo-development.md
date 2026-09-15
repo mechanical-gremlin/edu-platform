@@ -108,6 +108,47 @@ This list reflects the current state of development as of September 2026, with v
 
 ---
 
+## P3.25 — Course operations, rostering, and admin access
+
+- [ ] **Course repository for reusable curriculum** — add a searchable catalog of premade/shared courses so teachers can import instead of rebuilding from scratch.
+  - **Priority**: High (pre-full-deployment feature; can land after prototype validation).
+  - **Minimum scope**: Search/browse shared courses, preview metadata, clone/import into teacher-owned course space.
+  - **Recommended source of truth**: System-admin-curated repository plus teacher-shared templates with ownership/history tracking.
+  - **Definition of done**: Teachers can find a shared course in-app and add a copy to their workspace without affecting the original.
+
+- [ ] **Course sharing workflows** — let teachers share courses they authored with other teachers or into the shared repository.
+  - **Priority**: High (supports curriculum reuse across teachers/schools).
+  - **Required controls**: Share permissions, clone-vs-live-template rules, attribution/owner record, unshare flow.
+  - **Dependency**: Admin roles + verification policies should be defined before broad sharing is enabled.
+
+- [ ] **Course archive / restore lifecycle** — support archiving courses for future reuse without hard deletion.
+  - **Priority**: High (prevents data loss and supports semester-to-semester reuse).
+  - **Minimum scope**: Archive/unarchive actions, archived-course filtering, restore flow, protection against accidental student visibility.
+  - **Data requirement**: Archived courses must preserve submissions/history and stay out of active teacher/student lists by default.
+
+- [ ] **Roster enrollment options** — let teachers populate rosters by Google Classroom sync, class code, or email invite.
+  - **BLOCKER for school deployment**.
+  - **Minimum for pilot**: At least one low-friction roster path (class code or email invites) plus manual review of enrollment edge cases.
+  - **School-ready scope**: Google Classroom pull/sync, teacher-managed class codes, email invite acceptance flow, duplicate enrollment handling.
+  - **Edge cases**: Expired invites, duplicate student records, unenrollment, and roster refresh conflicts.
+
+- [ ] **Teacher account verification** — verify teacher identities before enabling teacher-authoring or shared-course access.
+  - **BLOCKER for self-serve production teacher signup**.
+  - **Minimum scope**: Manual admin approval, verified school email/domain rule, or invite-only teacher onboarding.
+  - **Required outcome**: Students cannot escalate into teacher capabilities by selecting a teacher role.
+
+- [ ] **Administrator accounts and role controls** — introduce system admin (and optional school admin) accounts with auditable elevated permissions.
+  - **Priority**: High (required to manage users, approvals, and shared repository content).
+  - **Minimum scope**: System admin can manage users, teacher verification, and repository courses; school admin scope can be deferred if tenancy is not ready.
+  - **Security requirement**: All admin actions should be permission-gated and logged.
+
+- [ ] **Multi-role switching + student preview** — let users with multiple roles switch views intentionally, and give teachers a student preview before publishing.
+  - **Priority**: High (important for teacher-admin dual-role use and publish confidence).
+  - **Minimum scope**: Explicit role switcher, clear active-role indicator, student-preview mode that mirrors student-visible content without mutating data.
+  - **Definition of done**: A teacher who is also an admin can change views without logging out, and teachers can preview unpublished content as students would see it.
+
+---
+
 ## P3.5 — Data Model & Testing (NEW PRIORITY)
 
 - [ ] **Database migrations tested** — verify all migrations are idempotent and reversible.
@@ -125,8 +166,6 @@ This list reflects the current state of development as of September 2026, with v
 
 ## P4 — Post-production enhancements
 
-- [ ] **Course sharing controls** — add safe teacher workflows for sharing courses/templates with other teachers/classes.
-- [ ] **Course archive / restore controls** — support archiving courses without history loss; explicit restore/unarchive flows.
 - [ ] **Advanced AI autograder** — use hosted AI to evaluate rubric alignment, code quality signals, result correctness (advisory scoring with teacher override).
 - [ ] **Additional CS learning tools** — integrate more CS tools and open-source programs for extended learning paths.
 - [ ] **Cybersecurity VM track** — investigate virtual machine setup for cybersecurity programs.
@@ -151,8 +190,11 @@ This list reflects the current state of development as of September 2026, with v
 
 ### School-Ready Blockers (Complete by Q4 2026)
 - [ ] Everything above +
-- [ ] LMS roster import / SSO
-- [ ] Soft-delete / archival
+- [ ] Roster enrollment options (class code/email invites at minimum; Google Classroom sync for school rollout)
+- [ ] Teacher account verification
+- [ ] Administrator accounts + role switching
+- [ ] Course repository + course sharing flows
+- [ ] Course archive / restore lifecycle + supporting soft-delete rules
 - [ ] Error monitoring (Sentry)
 - [ ] Full accessibility (WCAG 2.1 AA)
 - [ ] Comprehensive E2E + regression coverage
@@ -163,6 +205,8 @@ This list reflects the current state of development as of September 2026, with v
 - E2E tests: 2 sprints
 - A11y audit + fixes: 1 sprint
 - Prisma tests: 1 day
-- **Total: 6–7 sprints (~6–8 weeks)**
+- Initial rostering (class code/email invite): 1–2 sprints
+- Teacher verification + admin basics: 1 sprint
+- **Total: 8–10 sprints (~8–10 weeks)** for pilot + pre-full-deployment operations
 
-Recommend **staggered delivery**: Auth + DB + core E2E (4 weeks) → pilot launch → accessibility + advanced autograder (post-pilot).
+Recommend **staggered delivery**: Auth + DB + core E2E first → limited pilot → rostering + verification + admin/repository workflows → full school deployment.

@@ -16,27 +16,33 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 ## 1) Product Scope and Core LMS Flows
 
 ### Curriculum structure
-- [~] Courses can be created, edited, hidden/shown, reordered, and deleted; archive/duplicate workflows pending.
-  - **Note**: Hard delete works; soft-delete/archival not yet implemented.
+- [~] Courses can be created, edited, hidden/shown, reordered, and deleted; archive/share/repository workflows pending.
+  - **Note**: Hard delete works; soft-delete/archival and reusable repository flows not yet implemented.
 - [x] Units can be reordered and hidden/shown.
 - [x] Lessons can be reordered and hidden/shown.
 - [x] Activities support multiple types consistently (coding, text, HTML, web).
-- [ ] Activity previews match the student experience.
+- [ ] Teachers have a student-preview mode that matches the published student experience.
 - [ ] Teachers can publish/unpublish content safely.
-- [ ] Curriculum content can be reused across courses.
+- [ ] Curriculum content can be reused across courses via cloning, sharing, or repository import.
+- [ ] Teachers can search a shared course repository and add premade courses quickly.
+- [ ] Course archive/restore keeps old classes out of active views without losing history.
 
 ### Teacher workflows
 - [ ] ⚠️ **Teacher account creation and login work reliably** — BLOCKER. Currently `x-user-id` header only (dev auth).
+- [ ] ⚠️ **Teacher account verification prevents student misuse of teacher features** — BLOCKER for self-serve production signup.
 - [ ] Teachers can create assignments without technical assistance.
 - [x] Teachers can edit due dates, points, directions, visibility.
 - [x] Teachers can attach starter code/files/resources.
-- [ ] Teachers can preview assignments before publishing.
+- [ ] Teachers can preview assignments/courses before publishing.
 - [x] Teachers can grade submissions from a single workflow (gradebook panel includes editor).
 - [x] Teachers can override grades and leave feedback (autograder override + comments in grading panel).
 - [ ] Teachers can filter and search student work.
+- [ ] Teachers can share authored courses with other teachers or to an approved shared repository.
 
 ### Student workflows
 - [ ] ⚠️ **Students can log in and access the correct classes** — BLOCKER. Depends on real auth + roster management.
+- [ ] ⚠️ **Students can join the correct class roster** — BLOCKER. Enrollment path(s) not implemented yet.
+  - **Required options before full deployment**: Google Classroom sync, class code join, or email invites (pilot can start with one option; school rollout should support multiple).
 - [ ] Students can view assigned work clearly.
 - [x] Students can submit work from all supported activity types.
 - [x] Students can resubmit work (no submission limit enforced).
@@ -44,7 +50,7 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 - [ ] Students can understand late work status and deadlines.
 - [x] Students can recover drafts or unfinished work on refresh (localStorage persistence).
 
-**Summary**: Core workflows functional; blocked on authentication and roster management.
+**Summary**: Core workflows functional; blocked on authentication, teacher verification, and roster management.
 
 ---
 
@@ -66,16 +72,20 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
   - **Missing**: Comprehensive role-based middleware for all routes.
 - [ ] Users cannot access data outside their course scope.
 - [ ] Teachers cannot alter student records outside assigned classes.
+- [ ] System admin accounts can manage users and shared repository courses safely.
+- [ ] School admin scope/rules defined if school-level delegation is supported.
+- [ ] Multi-role users can intentionally switch roles/views without permission bleed-through.
 - [ ] Admin actions restricted and auditable.
 - [x] Permission checks covered by tests (enrollment cache tests in `app.test.ts`).
 
 ### Account lifecycle
 - [ ] Users can be added, removed, deactivated safely.
-- [ ] Rosters can be synced or imported (LMS integration or CSV).
+- [ ] Teacher verification/onboarding workflow exists (approval, invite-only, or verified-domain based).
+- [ ] Rosters can be synced or imported (Google Classroom pull, class code, email invite, CSV/manual fallback as needed).
 - [ ] Duplicate users handled correctly.
 - [ ] Deleted/inactive users do not retain access.
 
-**Summary**: Roles exist; enforcement incomplete. Blocker for production.
+**Summary**: Roles exist; enforcement and account governance incomplete. Blocker for production.
 
 ---
 
@@ -157,7 +167,7 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 - [x] Seed data reflects real workflows (demo users, courses, activities seeded on DB init).
 - [ ] Foreign keys and constraints correct (schema exists; runtime validation not tested).
 - [x] Data types appropriate (timestamps, grades, submissions correctly typed).
-- [ ] Soft-delete/archival behavior defined (currently hard-delete only; archival pending).
+- [ ] Soft-delete/archival behavior defined for courses and other teacher-owned content (currently hard-delete only; archival pending).
 
 ### Backups and recovery
 - [ ] ⚠️ **Automated backups enabled** — BLOCKER. Currently ephemeral free-tier DB.
@@ -170,7 +180,7 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 
 ### Multi-tenant / school separation
 - [ ] School/organization boundaries enforced (single-tenant MVP; not yet needed).
-- [ ] Shared resources explicitly controlled.
+- [ ] Shared resources (course repository, shared templates, admin-created courses) explicitly controlled.
 - [ ] Cross-school access impossible by default.
 - [ ] Tenant-aware queries tested.
 
@@ -196,12 +206,14 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 - [ ] Audit logs available for sensitive actions (grade changes, admin actions not logged).
 - [ ] Access logs reviewable for incidents (Render default logs; no centralized audit).
 - [ ] Personally identifiable information minimized.
+- [ ] Teacher verification stores only the minimum school/staff information needed for approval.
 
 ### Permissions and auditing
 - [ ] Admin actions logged.
 - [ ] Grade changes logged.
 - [ ] Submission edits logged.
 - [ ] Account access changes logged.
+- [ ] Role switches and teacher-verification decisions logged.
 - [ ] Suspicious activity investigation possible.
 
 **Summary**: Basic security posture; formal compliance audit required for school deployment.
@@ -327,6 +339,8 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 - [ ] Teacher setup guide exists.
 - [ ] Student quick-start guide exists.
 - [ ] Admin/setup guide exists (partial: `docs/render-deployment.md`).
+- [ ] Course repository/sharing guidance exists for teachers.
+- [ ] Roster enrollment instructions exist for Google Classroom, class code, and invite flows.
 - [ ] FAQ or troubleshooting guide exists.
 - [x] Activity authoring docs current (see `docs/monaco-judge0-setup.md`).
 
@@ -352,13 +366,16 @@ This checklist assesses whether the edu-platform is ready for classroom or schoo
 Before using the platform with a real school, verify:
 
 - [ ] ⚠️ **Authentication is production-grade** — BLOCKER. Currently dev-only.
-- [ ] ⚠️ **Course roster management complete** — BLOCKER. Not implemented (LMS import pending).
+- [ ] ⚠️ **Teacher verification is enforced** — BLOCKER for self-serve teacher access.
+- [ ] ⚠️ **Course roster management complete** — BLOCKER. Enrollment options not implemented yet.
+- [ ] Shared course repository and course-sharing permissions behave safely.
 - [ ] Student privacy requirements satisfied (FERPA/COPPA review pending).
 - [x] Teacher grading workflows reliable (tested; E2E coverage pending).
 - [x] Coding execution safe and stable (tested; rate limits verified).
 - [ ] ⚠️ **Backups and recovery tested** — BLOCKER. Currently ephemeral DB.
 - [ ] ⚠️ **Logging and monitoring active** — Partially. Structured logs in place; Sentry/alerting pending.
 - [ ] ⚠️ **Accessibility reviewed** — BLOCKER. Not done.
+- [ ] Admin role boundaries and role-switching UX validated.
 - [ ] Support ownership assigned.
 - [ ] Rollback plan exists (basic; document before launch).
 
@@ -374,6 +391,8 @@ Classroom pilot with 1 teacher + 1 classroom (~20 students):
 - [x] Code execution working (JavaScript/Python verified)
 - [x] Autograder working (100/50/0 scoring)
 - [x] Rate limiting + safety checks
+- [ ] Basic roster enrollment flow (class code or email invite)
+- [ ] Teacher verification / approval workflow
 - [ ] Basic E2E tests (teacher create → student run → teacher grade)
 - [~] Monitoring + error tracking (structured logs + Sentry)
 - [ ] Support contact + incident response plan
@@ -385,7 +404,10 @@ Classroom pilot with 1 teacher + 1 classroom (~20 students):
 Broader school rollout (3–5 teachers, 100–200 students):
 - [ ] Everything in pilot-ready +
 - [ ] Comprehensive permission enforcement (role-based middleware)
-- [ ] Roster import / CSV upload
+- [ ] Shared course repository + teacher course-sharing workflows
+- [ ] Course archive / restore lifecycle
+- [ ] Multi-role switching + student preview
+- [ ] Roster enrollment options (class code, email invites, CSV/manual workflows, and Google Classroom sync as needed)
 - [ ] ⚠️ **Full WCAG 2.1 A/AA accessibility**
 - [ ] Soft-delete / course archival
 - [ ] E2E regression coverage (all critical workflows)
