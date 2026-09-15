@@ -407,7 +407,7 @@ Broader school rollout (3–5 teachers, 100–200 students):
 - [ ] Shared course repository + teacher course-sharing workflows
 - [ ] Course archive / restore lifecycle
 - [ ] Multi-role switching + student preview
-- [ ] Roster import / CSV upload / Google Classroom sync
+- [ ] Roster enrollment options (class code, email invites, CSV/manual workflows, and Google Classroom sync as needed)
 - [ ] ⚠️ **Full WCAG 2.1 A/AA accessibility**
 - [ ] Soft-delete / course archival
 - [ ] E2E regression coverage (all critical workflows)

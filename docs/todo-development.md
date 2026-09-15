@@ -194,7 +194,7 @@ This list reflects the current state of development as of September 2026, with v
 - [ ] Teacher account verification
 - [ ] Administrator accounts + role switching
 - [ ] Course repository + course sharing flows
-- [ ] Soft-delete / archival
+- [ ] Course archive / restore lifecycle + supporting soft-delete rules
 - [ ] Error monitoring (Sentry)
 - [ ] Full accessibility (WCAG 2.1 AA)
 - [ ] Comprehensive E2E + regression coverage
